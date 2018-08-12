@@ -1,0 +1,79 @@
+From ea58c07c3cda2d7c09d21ece2e4901b1c1b8f0d8 Mon Sep 17 00:00:00 2001
+From: Stephan Mueller <smueller@chronox.de>
+Date: Thu, 9 Aug 2018 16:56:20 +0200
+Subject: [PATCH v19 0/5] /dev/random - a new approach
+
+Hi,
+
+The following patch set provides a different approach to /dev/random which
+I call Linux Random Number Generator (LRNG) to collect entropy within the Linux
+kernel. The main improvements compared to the legacy /dev/random is to provide
+sufficient entropy during boot time as well as in virtual environments and when
+using SSDs. A secondary design goal is to limit the impact of the entropy
+collection on massive parallel systems and also allow the use accelerated
+cryptographic primitives. Also, all steps of the entropic data processing are
+testable.
+
+The design and implementation is driven by a set of goals described in [1]
+that the LRNG completely implements. Furthermore, [1] includes a
+comparison with RNG design suggestions such as SP800-90B, SP800-90C, and
+AIS20/31.
+
+The LRNG provides a complete separation of the noise source maintenance
+and the collection of entropy into an entropy pool from the post-processing
+using a pseudo-random number generator. Different PRNGs are supported,
+including:
+
+* Built-in ChaCha20 PRNG which has no dependency to other kernel
+  frameworks.
+
+* SP800-90A DRBG using the kernel crypto API including its accelerated
+  raw cipher implementations.
+
+* Arbitrary PRNGs registered with the kernel crypto API
+
+Booting the patch with the kernel command line option
+"dyndbg=file drivers/char/lrng* +p" generates logs indicating the operation
+of the LRNG. Each log is pre-pended with "lrng:".
+
+The LRNG has a flexible design by allowing an easy replacement of the
+deterministic random number generator component.
+
+[1] http://www.chronox.de/lrng.html
+
+Changes (compared to the previous patch set for 4.17):
+
+ * Provide full support for get_random_bytes in atomic operations
+ * Increase performance of ChaCha20 DRNG by using unused random numbers
+   during the update operation - the LRNG speed using ChaCha20 is
+   between 20% (smaller block sizes) and 120% (larger block sizes)
+   higher than the legacy implementation.
+ * Drop patch modifying genhd.h
+
+Stephan Mueller (5):
+  crypto: provide access to a static Jitter RNG state
+  Linux Random Number Generator
+  crypto: DRBG - externalize DRBG functions for LRNG
+  LRNG - add SP800-90A DRBG support
+  LRNG - add kernel crypto API PRNG support
+
+ crypto/drbg.c                |   16 +-
+ crypto/jitterentropy.c       |   25 +
+ drivers/char/Kconfig         |   29 +
+ drivers/char/Makefile        |   11 +-
+ drivers/char/lrng_base.c     | 2525 ++++++++++++++++++++++++++++++++++
+ drivers/char/lrng_chacha20.c |  354 +++++
+ drivers/char/lrng_drbg.c     |  274 ++++
+ drivers/char/lrng_kcapi.c    |  339 +++++
+ include/crypto/drbg.h        |    7 +
+ include/linux/lrng.h         |   82 ++
+ 10 files changed, 3655 insertions(+), 7 deletions(-)
+ create mode 100644 drivers/char/lrng_base.c
+ create mode 100644 drivers/char/lrng_chacha20.c
+ create mode 100644 drivers/char/lrng_drbg.c
+ create mode 100644 drivers/char/lrng_kcapi.c
+ create mode 100644 include/linux/lrng.h
+
+-- 
+2.17.1
+

@@ -1,0 +1,16 @@
+#!/bin/bash
+#
+# Sanity test to verify that no bugs like CVE-2013-4345 are present
+# The result listing is a Chi-Square result value and should therefore not be below 1 or above 99.
+#
+
+ENT="./ent"
+
+i=1
+while [ $i -le 4096 ]
+do
+	dd if=/dev/urandom of=/dev/shm/file bs=$i count=1000 > /dev/null 2>&1; echo -n "$i: "
+	$ENT /dev/shm/file | grep exceed | cut -d " " -f 5; let i=(i+1)
+done
+
+rm -f /dev/shm/file

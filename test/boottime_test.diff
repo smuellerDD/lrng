@@ -1,0 +1,40 @@
+diff --git a/lrng.c b/lrng.c
+index df2df8f..72fd201 100644
+--- a/lrng.c
++++ b/lrng.c
+@@ -295,6 +295,13 @@ static u32 lrng_read_wakeup_bits = LRNG_IRQ_ENTROPY_BITS;
+  */
+ static int lrng_sdrbg_reseed_max_time = 600;
+ 
++/* WARNING DEBUG DEBUG DEBUG */
++#define NUMVALS 50
++static u32 firstvals[NUMVALS];
++static u32 currval = 0;
++#warning "Code contains debug code"
++/* WARNING DEBUG DEBUG DEBUG */
++
+ /********************************** Helper ***********************************/
+ 
+ static inline u32 atomic_read_u32(atomic_t *v)
+@@ -479,6 +486,21 @@ void add_interrupt_randomness(int irq, int irq_flags)
+ 	struct lrng_irq_info *irq_info = &lrng_pool.irq_info;
+ 	u32 irq_num = (u32)atomic_add_return(1, &irq_info->num_events);
+ 
++	/* WARNING DEBUG DEBUG DEBUG */
++	if (currval < NUMVALS) {
++		firstvals[currval] = now_time;
++		currval++;
++		if (currval == NUMVALS) {
++			u32 i;
++			printk("lrng_boot_test:");
++			for (i = 0; i < NUMVALS; i++)
++				printk("%u ", firstvals[i]);
++			printk("\n");
++		}
++	}
++#warning "Code contains debug code"
++	/* WARNING DEBUG DEBUG DEBUG */
++
+ 	if (now_time || lrng_pool.irq_info.irq_highres_timer) {
+ 		if (lrng_irq_stuck(irq_info, now_time))
+ 			return;

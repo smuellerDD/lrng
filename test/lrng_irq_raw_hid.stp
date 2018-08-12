@@ -1,0 +1,28 @@
+#
+# Obtain raw HID event time data -- i.e. the data pre-folding into one bit
+#
+# Copyright (C) 2016, Stephan Mueller <smueller@chronox.de>
+#
+# To perform testing, you must generate HID events.
+#
+# Execute on a quiet test system:
+#
+#	1. stap -g -v -w <THISFILE>
+#
+#	2. move your mouse or type on your keyboard
+#
+# Analyze: convert output into binary and then run your favorite analyzer
+#
+# To convert it into one bit as performed by the LRNG, use timetobit.c.
+#
+# The output of this test writes one delta value per line.
+#
+
+global last_value;
+probe kernel.function("add_input_randomness")
+{
+	if ($value != last_value) {
+		last_value = $value;
+		printf("%u\n", ($type << 4) ^ $code ^ ($code >> 4) ^ $value);
+	}
+}
