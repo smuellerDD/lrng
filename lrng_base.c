@@ -1308,8 +1308,9 @@ static void lrng_sdrng_seed_work(struct work_struct *dummy)
 		}
 		lrng_pool.all_online_numa_node_seeded = true;
 	} else {
-		if (!lrng_sdrng_init.fully_seeded)
-			_lrng_sdrng_seed_work(&lrng_sdrng_init, 0);
+		_lrng_sdrng_seed_work(&lrng_sdrng_init, 0);
+		lrng_pool.all_online_numa_node_seeded =
+						lrng_sdrng_init.fully_seeded;
 	}
 
 out:
