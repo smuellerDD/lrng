@@ -1351,6 +1351,11 @@ static int lrng_sdrng_get(u8 *outbuf, u32 outbuflen)
 	else
 		sdrng = &lrng_sdrng_init;
 
+	/* If sufficient entropy is available, force a reseed */
+	if (atomic_read_u32(&lrng_pool.irq_info.num_events) >=
+	    lrng_entropy_to_data(LRNG_POOL_SIZE_BITS))
+		sdrng->force_reseed = true;
+
 	while (outbuflen) {
 		u32 todo = min_t(u32, outbuflen, LRNG_DRNG_MAX_REQSIZE);
 		int ret;
