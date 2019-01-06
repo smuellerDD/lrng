@@ -256,7 +256,8 @@ static int __init lrng_drbg_init(void)
 {
 	if (lrng_drbg_type >= ARRAY_SIZE(lrng_drbg_types)) {
 		pr_err("lrng_drbg_type parameter too large (given %u - max: %lu)",
-		       lrng_drbg_type, ARRAY_SIZE(lrng_drbg_types) - 1);
+		       lrng_drbg_type,
+		       (unsigned long)ARRAY_SIZE(lrng_drbg_types) - 1);
 		return -EAGAIN;
 	}
 	return lrng_set_drng_cb(&lrng_drbg_crypto_cb);

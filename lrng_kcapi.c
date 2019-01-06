@@ -154,9 +154,12 @@ static int lrng_kcapi_drng_seed_helper(void *drng, const u8 *inbuf,
 	if (lrng_hash) {
 		struct shash_desc *shash = &lrng_hash->shash;
 		u32 digestsize = _lrng_kcapi_hash_digestsize(lrng_hash);
-		u8 digest[digestsize] __aligned(8);
-		int ret = crypto_shash_digest(shash, inbuf, inbuflen, digest);
+		u8 digest[64] __aligned(8);
+		int ret;
 
+		BUG_ON(digestsize > 64);
+
+		ret = crypto_shash_digest(shash, inbuf, inbuflen, digest);
 		if (ret)
 			return ret;
 

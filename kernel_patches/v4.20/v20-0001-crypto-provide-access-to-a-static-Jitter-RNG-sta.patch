@@ -1,0 +1,53 @@
+From db566084a796225a3be1caf028ed2c91e8617165 Mon Sep 17 00:00:00 2001
+From: Stephan Mueller <smueller@chronox.de>
+Date: Tue, 12 Dec 2017 07:18:20 +0100
+Subject: [PATCH v20 1/5] crypto: provide access to a static Jitter RNG state
+
+To support the LRNG operation which uses the Jitter RNG separately
+from the kernel crypto API, at a time where potentially the regular
+memory management is not yet initialized, the Jitter RNG needs to
+provide a state whose memory is defined at compile time. As only once
+instance will ever be needed by the LRNG, define once static memory
+block which is solely to be used by the LRNG.
+
+Signed-off-by: Stephan Mueller <smueller@chronox.de>
+---
+ crypto/jitterentropy.c | 25 +++++++++++++++++++++++++
+ 1 file changed, 25 insertions(+)
+
+diff --git a/crypto/jitterentropy.c b/crypto/jitterentropy.c
+index acf44b2d2d1d..843ceb213f17 100644
+--- a/crypto/jitterentropy.c
++++ b/crypto/jitterentropy.c
+@@ -785,3 +785,28 @@ int jent_entropy_init(void)
+ 
+ 	return 0;
+ }
++
++struct rand_data *jent_lrng_entropy_collector(void)
++{
++	static unsigned char lrng_jent_mem[JENT_MEMORY_SIZE];
++	static struct rand_data lrng_jent_state = {
++		.data		= 0,
++		.old_data	= 0,
++		.prev_time	= 0,
++		.last_delta	= 0,
++		.last_delta2	= 0,
++		.stuck		= 0,
++		.osr		= 1,
++		.disable_unbias	= 0,
++		.mem		= lrng_jent_mem,
++		.memlocation	= 0,
++		.memblocks	= JENT_MEMORY_BLOCKSIZE,
++		.memblocksize	= JENT_MEMORY_BLOCKS,
++		.memaccessloops	= JENT_MEMORY_ACCESSLOOPS,
++	};
++
++	if (jent_entropy_init())
++		return NULL;
++
++	return &lrng_jent_state;
++}
+-- 
+2.20.1
+

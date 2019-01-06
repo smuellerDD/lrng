@@ -66,14 +66,13 @@ static void lrng_chacha20_update(struct chacha20_state *chacha20_state,
 				 u32 *buf, u32 used_words)
 {
 	struct chacha20_block *chacha20 = &chacha20_state->block;
-	u32 tmp[CHACHA20_BLOCK_WORDS];
-	u32 i;
+	u32 i, tmp[CHACHA20_BLOCK_WORDS];
 
 	BUILD_BUG_ON(sizeof(struct chacha20_block) != CHACHA20_BLOCK_SIZE);
 	BUILD_BUG_ON(CHACHA20_BLOCK_SIZE != 2 * CHACHA20_KEY_SIZE);
 
 	if (used_words > CHACHA20_KEY_SIZE_WORDS) {
-		chacha20_block(&chacha20->constants[0], tmp);
+		chacha20_block(&chacha20->constants[0], (u8 *)tmp);
 		for (i = 0; i < CHACHA20_KEY_SIZE_WORDS; i++)
 			chacha20->key.u[i] ^= tmp[i];
 		memzero_explicit(tmp, sizeof(tmp));
@@ -142,20 +141,13 @@ static int lrng_cc20_drng_generate_helper(void *drng, u8 *outbuf, u32 outbuflen)
 	int zeroize_buf = 0;
 
 	while (outbuflen >= CHACHA20_BLOCK_SIZE) {
-		if ((unsigned long)outbuf & (sizeof(aligned_buf[0]) - 1)) {
-			chacha20_block(&chacha20->constants[0], aligned_buf);
-			memcpy(outbuf, aligned_buf, CHACHA20_BLOCK_SIZE);
-			zeroize_buf = 1;
-		} else {
-			chacha20_block(&chacha20->constants[0], (u32 *)outbuf);
-		}
-
+		chacha20_block(&chacha20->constants[0], outbuf);
 		outbuf += CHACHA20_BLOCK_SIZE;
 		outbuflen -= CHACHA20_BLOCK_SIZE;
 	}
 
 	if (outbuflen) {
-		chacha20_block(&chacha20->constants[0], aligned_buf);
+		chacha20_block(&chacha20->constants[0], (u8 *)aligned_buf);
 		memcpy(outbuf, aligned_buf, outbuflen);
 		used = ((outbuflen + sizeof(aligned_buf[0]) - 1) /
 			sizeof(aligned_buf[0]));
@@ -189,19 +181,12 @@ static int lrng_cc20_drng_generate_helper_full(void *drng, u8 *outbuf,
 
 	while (outbuflen >= CHACHA20_BLOCK_SIZE) {
 		u32 i;
-		u32 *p_outbuf = (u32 *)outbuf;
 
-		if ((unsigned long)outbuf & (sizeof(aligned_buf[0]) - 1))
-			p_outbuf = aligned_buf;
-
-		chacha20_block(&chacha20->constants[0], p_outbuf);
+		chacha20_block(&chacha20->constants[0], outbuf);
 
 		/* fold output in half */
 		for (i = 0; i < (CHACHA20_BLOCK_WORDS / 2); i++)
-			p_outbuf[i] ^= p_outbuf[i + (CHACHA20_BLOCK_WORDS / 2)];
-
-		if ((unsigned long)outbuf & (sizeof(aligned_buf[0]) - 1))
-			memcpy(outbuf, aligned_buf, CHACHA20_BLOCK_SIZE / 2);
+			outbuf[i] ^= outbuf[i + (CHACHA20_BLOCK_WORDS / 2)];
 
 		outbuf += CHACHA20_BLOCK_SIZE / 2;
 		outbuflen -= CHACHA20_BLOCK_SIZE / 2;
@@ -210,7 +195,7 @@ static int lrng_cc20_drng_generate_helper_full(void *drng, u8 *outbuf,
 	while (outbuflen) {
 		u32 i, todo = min_t(u32, CHACHA20_BLOCK_SIZE / 2, outbuflen);
 
-		chacha20_block(&chacha20->constants[0], aligned_buf);
+		chacha20_block(&chacha20->constants[0], (u8 *)aligned_buf);
 
 		/* fold output in half */
 		for (i = 0; i < (CHACHA20_BLOCK_WORDS / 2); i++)

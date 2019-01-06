@@ -214,33 +214,27 @@ struct lrng_pool {
  */
 #define LRNG_IRQ_OVERSAMPLING_FACTOR 10
 
-/* Primary DRNG */
 static struct lrng_pdrng lrng_pdrng = {
 	.pdrng		= &primary_chacha20,
 	.crypto_cb	= &lrng_cc20_crypto_cb,
 	.lock		= __MUTEX_INITIALIZER(lrng_pdrng.lock)
 };
 
-/* Secondary DRNG */
 static struct lrng_sdrng lrng_sdrng_init = {
 	.sdrng		= &secondary_chacha20,
 	.crypto_cb	= &lrng_cc20_crypto_cb,
 	.lock		= __MUTEX_INITIALIZER(lrng_sdrng_init.lock),
 	.spin_lock	= __SPIN_LOCK_UNLOCKED(lrng_sdrng_init.spin_lock)
 };
-
-/* Array holding the per-NUMA node secondary DRNG instances */
 static struct lrng_sdrng **lrng_sdrng __read_mostly = NULL;
 static DEFINE_MUTEX(lrng_crypto_cb_update);
 
-/* Atomic DRNG management -- identical to the initial secondary DRNG */
 static struct lrng_sdrng lrng_sdrng_atomic = {
 	.sdrng		= &secondary_chacha20,
 	.crypto_cb	= &lrng_cc20_crypto_cb,
 	.spin_lock	= __SPIN_LOCK_UNLOCKED(lrng_sdrng_atomic.spin_lock)
 };
 
-/* Entropy pool */
 static struct lrng_pool lrng_pool __aligned(LRNG_KCAPI_ALIGN) = {
 	.numa_drngs = 1,
 	.irq_info =
@@ -737,7 +731,9 @@ static inline u32 lrng_hash_pool(u8 *outbuf, u32 avail_entropy_bits)
 	u32 digestsize = crypto_cb->lrng_hash_digestsize(lrng_pool.lrng_hash);
 	u32 avail_entropy_bytes = avail_entropy_bits >> 3;
 	u32 i, generated_bytes = 0;
-	u8 digest[digestsize] __aligned(LRNG_KCAPI_ALIGN);
+	u8 digest[64] __aligned(LRNG_KCAPI_ALIGN);
+
+	BUG_ON(digestsize > sizeof(digest));
 
 	if (avail_entropy_bytes > LRNG_DRNG_SECURITY_STRENGTH_BYTES) {
 		pr_err("Available entropy (%u) larger than expected (%u)\n",
@@ -1155,7 +1151,7 @@ static __always_inline void lrng_sdrng_lock(struct lrng_sdrng *sdrng,
 {
 	/* Use spin lock in case the atomic DRNG context is used */
 	if (lrng_sdrng_is_atomic(sdrng))
-		spin_lock_irqsave(&lrng_sdrng_atomic.spin_lock, *flags);
+		spin_lock_irqsave(&sdrng->spin_lock, *flags);
 	else
 		mutex_lock(&sdrng->lock);
 }
@@ -1164,8 +1160,8 @@ static __always_inline void lrng_sdrng_lock(struct lrng_sdrng *sdrng,
 static __always_inline void lrng_sdrng_unlock(struct lrng_sdrng *sdrng,
 					      unsigned long *flags)
 {
-	if (lrng_sdrng_is_atomic(sdrng))
-		spin_unlock_irqrestore(&lrng_sdrng_atomic.spin_lock, *flags);
+	if (spin_is_locked(&sdrng->spin_lock))
+		spin_unlock_irqrestore(&sdrng->spin_lock, *flags);
 	else
 		mutex_unlock(&sdrng->lock);
 }
@@ -1308,9 +1304,8 @@ static void lrng_sdrng_seed_work(struct work_struct *dummy)
 		}
 		lrng_pool.all_online_numa_node_seeded = true;
 	} else {
-		_lrng_sdrng_seed_work(&lrng_sdrng_init, 0);
-		lrng_pool.all_online_numa_node_seeded =
-						lrng_sdrng_init.fully_seeded;
+		if (!lrng_sdrng_init.fully_seeded)
+			_lrng_sdrng_seed_work(&lrng_sdrng_init, 0);
 	}
 
 out:
@@ -1350,11 +1345,6 @@ static int lrng_sdrng_get(u8 *outbuf, u32 outbuflen)
 		sdrng = lrng_sdrng[node];
 	else
 		sdrng = &lrng_sdrng_init;
-
-	/* If sufficient entropy is available, force a reseed */
-	if (atomic_read_u32(&lrng_pool.irq_info.num_events) >=
-	    lrng_entropy_to_data(LRNG_POOL_SIZE_BITS))
-		sdrng->force_reseed = true;
 
 	while (outbuflen) {
 		u32 todo = min_t(u32, outbuflen, LRNG_DRNG_MAX_REQSIZE);
@@ -1555,7 +1545,6 @@ static void lrng_sdrng_switch(struct lrng_sdrng *sdrng_store,
 			cb->lrng_drng_alloc(LRNG_DRNG_SECURITY_STRENGTH_BYTES);
 	void *old_sdrng;
 	bool reset_sdrng = !likely(atomic_read(&lrng_pdrng_avail));
-	bool spin_locked = false;
 
 	if (IS_ERR(new_sdrng)) {
 		pr_warn("could not allocate new secondary DRNG for NUMA node "
@@ -1602,10 +1591,8 @@ static void lrng_sdrng_switch(struct lrng_sdrng *sdrng_store,
 	 * lrng_sdrng_lock). Thus, we need to take both locks during the
 	 * transition phase.
 	 */
-	if (lrng_sdrng_is_atomic(sdrng_store)) {
-		spin_lock_irqsave(&lrng_sdrng_atomic.spin_lock, flags);
-		spin_locked = true;
-	}
+	if (lrng_sdrng_is_atomic(sdrng_store))
+		spin_lock_irqsave(&sdrng_store->spin_lock, flags);
 
 	if (reset_sdrng)
 		lrng_sdrng_reset(sdrng_store);
@@ -1615,8 +1602,8 @@ static void lrng_sdrng_switch(struct lrng_sdrng *sdrng_store,
 	sdrng_store->sdrng = new_sdrng;
 	sdrng_store->crypto_cb = cb;
 
-	if (spin_locked)
-		spin_unlock_irqrestore(&lrng_sdrng_atomic.spin_lock, flags);
+	if (spin_is_locked(&sdrng_store->spin_lock))
+		spin_unlock_irqrestore(&sdrng_store->spin_lock, flags);
 	mutex_unlock(&sdrng_store->lock);
 
 	/* Secondary ChaCha20 serves as atomic instance left untouched. */
@@ -1788,8 +1775,10 @@ EXPORT_SYMBOL(wait_for_random_bytes);
  *
  * @buf: buffer allocated by caller to store the random data in
  * @nbytes: length of outbuf
+ *
+ * Return number of bytes filled in.
  */
-void get_random_bytes_arch(void *buf, int nbytes)
+int __must_check get_random_bytes_arch(void *buf, int nbytes)
 {
 	u8 *p = buf;
 
@@ -1807,6 +1796,8 @@ void get_random_bytes_arch(void *buf, int nbytes)
 
 	if (nbytes)
 		lrng_sdrng_get((u8 *)p, (u32)nbytes);
+
+	return nbytes;
 }
 EXPORT_SYMBOL(get_random_bytes_arch);
 
