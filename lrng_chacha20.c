@@ -3,7 +3,7 @@
  * Backend for the LRNG providing the cryptographic primitives using
  * ChaCha20 cipher implementations.
  *
- * Copyright (C) 2016 - 2018, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2016 - 2019, Stephan Mueller <smueller@chronox.de>
  *
  * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED
  * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
@@ -21,7 +21,7 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
-#include <crypto/chacha20.h>
+#include <crypto/chacha.h>
 #include <linux/cryptohash.h>
 #include <linux/lrng.h>
 #include <linux/random.h>
@@ -31,16 +31,16 @@
 /* State according to RFC 7539 section 2.3 */
 struct chacha20_block {
 	u32 constants[4];
-#define CHACHA20_KEY_SIZE_WORDS (CHACHA20_KEY_SIZE / sizeof(u32))
+#define CHACHA_KEY_SIZE_WORDS (CHACHA_KEY_SIZE / sizeof(u32))
 	union {
-		u32 u[CHACHA20_KEY_SIZE_WORDS];
-		u8  b[CHACHA20_KEY_SIZE];
+		u32 u[CHACHA_KEY_SIZE_WORDS];
+		u8  b[CHACHA_KEY_SIZE];
 	} key;
 	u32 counter;
 	u32 nonce[3];
 };
 
-#define CHACHA20_BLOCK_WORDS	(CHACHA20_BLOCK_SIZE / sizeof(u32))
+#define CHACHA_BLOCK_WORDS	(CHACHA_BLOCK_SIZE / sizeof(u32))
 
 struct chacha20_state {
 	struct chacha20_block block;
@@ -66,18 +66,18 @@ static void lrng_chacha20_update(struct chacha20_state *chacha20_state,
 				 u32 *buf, u32 used_words)
 {
 	struct chacha20_block *chacha20 = &chacha20_state->block;
-	u32 i, tmp[CHACHA20_BLOCK_WORDS];
+	u32 i, tmp[CHACHA_BLOCK_WORDS];
 
-	BUILD_BUG_ON(sizeof(struct chacha20_block) != CHACHA20_BLOCK_SIZE);
-	BUILD_BUG_ON(CHACHA20_BLOCK_SIZE != 2 * CHACHA20_KEY_SIZE);
+	BUILD_BUG_ON(sizeof(struct chacha20_block) != CHACHA_BLOCK_SIZE);
+	BUILD_BUG_ON(CHACHA_BLOCK_SIZE != 2 * CHACHA_KEY_SIZE);
 
-	if (used_words > CHACHA20_KEY_SIZE_WORDS) {
+	if (used_words > CHACHA_KEY_SIZE_WORDS) {
 		chacha20_block(&chacha20->constants[0], (u8 *)tmp);
-		for (i = 0; i < CHACHA20_KEY_SIZE_WORDS; i++)
+		for (i = 0; i < CHACHA_KEY_SIZE_WORDS; i++)
 			chacha20->key.u[i] ^= tmp[i];
 		memzero_explicit(tmp, sizeof(tmp));
 	} else {
-		for (i = 0; i < CHACHA20_KEY_SIZE_WORDS; i++)
+		for (i = 0; i < CHACHA_KEY_SIZE_WORDS; i++)
 			chacha20->key.u[i] ^= buf[i + used_words];
 	}
 
@@ -104,14 +104,14 @@ static int lrng_cc20_drng_seed_helper(void *drng, const u8 *inbuf, u32 inbuflen)
 	struct chacha20_block *chacha20 = &chacha20_state->block;
 
 	while (inbuflen) {
-		u32 i, todo = min_t(u32, inbuflen, CHACHA20_KEY_SIZE);
+		u32 i, todo = min_t(u32, inbuflen, CHACHA_KEY_SIZE);
 
 		for (i = 0; i < todo; i++)
 			chacha20->key.b[i] ^= inbuf[i];
 
 		/* Break potential dependencies between the inbuf key blocks */
 		lrng_chacha20_update(chacha20_state, NULL,
-				     CHACHA20_BLOCK_WORDS);
+				     CHACHA_BLOCK_WORDS);
 		inbuf += todo;
 		inbuflen -= todo;
 	}
@@ -136,14 +136,14 @@ static int lrng_cc20_drng_generate_helper(void *drng, u8 *outbuf, u32 outbuflen)
 {
 	struct chacha20_state *chacha20_state = (struct chacha20_state *)drng;
 	struct chacha20_block *chacha20 = &chacha20_state->block;
-	u32 aligned_buf[CHACHA20_BLOCK_WORDS], ret = outbuflen,
-	    used = CHACHA20_BLOCK_WORDS;
+	u32 aligned_buf[CHACHA_BLOCK_WORDS], ret = outbuflen,
+	    used = CHACHA_BLOCK_WORDS;
 	int zeroize_buf = 0;
 
-	while (outbuflen >= CHACHA20_BLOCK_SIZE) {
+	while (outbuflen >= CHACHA_BLOCK_SIZE) {
 		chacha20_block(&chacha20->constants[0], outbuf);
-		outbuf += CHACHA20_BLOCK_SIZE;
-		outbuflen -= CHACHA20_BLOCK_SIZE;
+		outbuf += CHACHA_BLOCK_SIZE;
+		outbuflen -= CHACHA_BLOCK_SIZE;
 	}
 
 	if (outbuflen) {
@@ -176,31 +176,31 @@ static int lrng_cc20_drng_generate_helper_full(void *drng, u8 *outbuf,
 {
 	struct chacha20_state *chacha20_state = (struct chacha20_state *)drng;
 	struct chacha20_block *chacha20 = &chacha20_state->block;
-	u32 aligned_buf[CHACHA20_BLOCK_WORDS];
+	u32 aligned_buf[CHACHA_BLOCK_WORDS];
 	u32 ret = outbuflen;
 
-	while (outbuflen >= CHACHA20_BLOCK_SIZE) {
+	while (outbuflen >= CHACHA_BLOCK_SIZE) {
 		u32 i;
 
 		chacha20_block(&chacha20->constants[0], outbuf);
 
 		/* fold output in half */
-		for (i = 0; i < (CHACHA20_BLOCK_WORDS / 2); i++)
-			outbuf[i] ^= outbuf[i + (CHACHA20_BLOCK_WORDS / 2)];
+		for (i = 0; i < (CHACHA_BLOCK_WORDS / 2); i++)
+			outbuf[i] ^= outbuf[i + (CHACHA_BLOCK_WORDS / 2)];
 
-		outbuf += CHACHA20_BLOCK_SIZE / 2;
-		outbuflen -= CHACHA20_BLOCK_SIZE / 2;
+		outbuf += CHACHA_BLOCK_SIZE / 2;
+		outbuflen -= CHACHA_BLOCK_SIZE / 2;
 	}
 
 	while (outbuflen) {
-		u32 i, todo = min_t(u32, CHACHA20_BLOCK_SIZE / 2, outbuflen);
+		u32 i, todo = min_t(u32, CHACHA_BLOCK_SIZE / 2, outbuflen);
 
 		chacha20_block(&chacha20->constants[0], (u8 *)aligned_buf);
 
 		/* fold output in half */
-		for (i = 0; i < (CHACHA20_BLOCK_WORDS / 2); i++)
+		for (i = 0; i < (CHACHA_BLOCK_WORDS / 2); i++)
 			aligned_buf[i] ^=
-				aligned_buf[i + (CHACHA20_BLOCK_WORDS / 2)];
+				aligned_buf[i + (CHACHA_BLOCK_WORDS / 2)];
 
 		memcpy(outbuf, aligned_buf, todo);
 		outbuflen -= todo;
@@ -208,7 +208,7 @@ static int lrng_cc20_drng_generate_helper_full(void *drng, u8 *outbuf,
 	}
 	memzero_explicit(aligned_buf, sizeof(aligned_buf));
 
-	lrng_chacha20_update(chacha20_state, NULL, CHACHA20_BLOCK_WORDS);
+	lrng_chacha20_update(chacha20_state, NULL, CHACHA_BLOCK_WORDS);
 
 	return ret;
 }
@@ -221,7 +221,7 @@ void lrng_cc20_init_state(struct chacha20_state *state)
 
 	memcpy(&chacha20->constants[0], "expand 32-byte k", 16);
 
-	for (i = 0; i < CHACHA20_KEY_SIZE_WORDS; i++) {
+	for (i = 0; i < CHACHA_KEY_SIZE_WORDS; i++) {
 		chacha20->key.u[i] ^= jiffies;
 		chacha20->key.u[i] ^= random_get_entropy();
 		if (arch_get_random_seed_long(&v) || arch_get_random_long(&v))
@@ -245,16 +245,16 @@ static void *lrng_cc20_drng_alloc(u32 sec_strength)
 {
 	struct chacha20_state *state = NULL;
 
-	if (sec_strength > CHACHA20_KEY_SIZE) {
+	if (sec_strength > CHACHA_KEY_SIZE) {
 		pr_err("Security strength of ChaCha20 DRNG (%u bits) lower "
 		       "than requested by LRNG (%u bits)\n",
-			CHACHA20_KEY_SIZE * 8, sec_strength * 8);
+			CHACHA_KEY_SIZE * 8, sec_strength * 8);
 		return ERR_PTR(-EINVAL);
 	}
-	if (sec_strength < CHACHA20_KEY_SIZE)
+	if (sec_strength < CHACHA_KEY_SIZE)
 		pr_warn("Security strength of ChaCha20 DRNG (%u bits) higher "
 			"than requested by LRNG (%u bits)\n",
-			CHACHA20_KEY_SIZE * 8, sec_strength * 8);
+			CHACHA_KEY_SIZE * 8, sec_strength * 8);
 
 	state = kmalloc(sizeof(struct chacha20_state), GFP_KERNEL);
 	if (!state)

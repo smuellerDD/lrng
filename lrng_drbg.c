@@ -3,7 +3,7 @@
  * Backend for the LRNG providing the cryptographic primitives using the
  * kernel crypto API and its DRBG.
  *
- * Copyright (C) 2016 - 2018, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2016 - 2019, Stephan Mueller <smueller@chronox.de>
  *
  * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED
  * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
