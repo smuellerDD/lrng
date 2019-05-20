@@ -651,6 +651,9 @@ void add_interrupt_randomness(int irq, int irq_flags)
 	u32 now_time = random_get_entropy();
 	struct lrng_irq_info *irq_info = &lrng_pool.irq_info;
 
+	if (lrng_raw_entropy_store(now_time))
+		return;
+
 	lrng_pool_lfsr_u32(now_time);
 
 	if (!irq_info->irq_highres_timer) {
@@ -1928,8 +1931,11 @@ static ssize_t lrng_read_common(char __user *buf, size_t nbytes,
 		}
 
 		rc = lrng_read_random(tmp, todo);
-		if (rc <= 0)
+		if (rc <= 0) {
+			if (rc < 0)
+				ret = rc;
 			break;
+		}
 		if (copy_to_user(buf, tmp, rc)) {
 			ret = -EFAULT;
 			break;
@@ -1950,7 +1956,8 @@ static ssize_t lrng_read_common(char __user *buf, size_t nbytes,
 }
 
 static ssize_t
-lrng_pdrng_read_common(int nonblock, char __user *buf, size_t nbytes)
+lrng_pdrng_read_common(int nonblock, char __user *buf, size_t nbytes,
+		       int (*lrng_pdrng_random)(u8 *outbuf, u32 outbuflen))
 {
 	if (nbytes == 0)
 		return 0;
@@ -1959,7 +1966,7 @@ lrng_pdrng_read_common(int nonblock, char __user *buf, size_t nbytes)
 	while (1) {
 		ssize_t n;
 
-		n = lrng_read_common(buf, nbytes, lrng_pdrng_get);
+		n = lrng_read_common(buf, nbytes, lrng_pdrng_random);
 		if (n)
 			return n;
 
@@ -1977,7 +1984,8 @@ lrng_pdrng_read_common(int nonblock, char __user *buf, size_t nbytes)
 static ssize_t lrng_pdrng_read(struct file *file, char __user *buf,
 			       size_t nbytes, loff_t *ppos)
 {
-	return lrng_pdrng_read_common(file->f_flags & O_NONBLOCK, buf, nbytes);
+	return lrng_pdrng_read_common(file->f_flags & O_NONBLOCK, buf, nbytes,
+				      lrng_pdrng_get);
 }
 
 static unsigned int lrng_pdrng_poll(struct file *file, poll_table *wait)
@@ -2158,15 +2166,28 @@ const struct file_operations urandom_fops = {
 SYSCALL_DEFINE3(getrandom, char __user *, buf, size_t, count,
 		unsigned int, flags)
 {
-	if (flags & ~(GRND_NONBLOCK|GRND_RANDOM))
+	if (flags & ~(GRND_NONBLOCK|GRND_RANDOM|0x0010))
 		return -EINVAL;
 
 	if (count > INT_MAX)
 		count = INT_MAX;
 
+	if (flags & 0x0010) {
+		int ret;
+
+		if (!capable(CAP_SYS_ADMIN))
+			return -EPERM;
+
+		lrng_raw_entropy_init();
+		ret = lrng_pdrng_read_common(flags & GRND_NONBLOCK, buf, count,
+					     lrng_raw_entropy_reader);
+		lrng_raw_entropy_fini();
+		return ret;
+	}
+
 	if (flags & GRND_RANDOM)
-		return lrng_pdrng_read_common(flags & GRND_NONBLOCK, buf,
-					      count);
+		return lrng_pdrng_read_common(flags & GRND_NONBLOCK, buf, count,
+					      lrng_pdrng_get);
 
 	if (unlikely(!lrng_pdrng.pdrng_fully_seeded)) {
 		int ret;

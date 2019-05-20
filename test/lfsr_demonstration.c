@@ -96,7 +96,6 @@ int bin2hex_alloc(const uint8_t *bin, uint32_t binlen,
 	return 0;
 }
 
-#if 0
 static void bin2print(const uint8_t *bin, uint32_t binlen,
 		      const char *explanation)
 {
@@ -110,9 +109,7 @@ static void bin2print(const uint8_t *bin, uint32_t binlen,
 	fprintf(stdout, "%s: %s\n", explanation, hex);
 	free(hex);
 }
-#endif
 
-#if 0
 static int get_random(uint8_t *buf, uint32_t buflen, unsigned int flags)
 {
 	int ret;
@@ -134,9 +131,6 @@ static int get_random(uint8_t *buf, uint32_t buflen, unsigned int flags)
 
 	return 1;
 }
-#endif
-
-/*************************** LRNG LFSR *****************************/
 
 typedef uint32_t	u32;
 typedef uint8_t		u8;
@@ -233,8 +227,6 @@ static inline void lrng_pool_lfsr_nonalinged(const u8 *buf, u32 buflen)
 	}
 }
 
-/**************************************************************************/
-
 int main(int argc, char *argv[])
 {
 	u32 i, j, compare, imbalance = 0;
@@ -254,8 +246,6 @@ int main(int argc, char *argv[])
 	for (j = 0; j < 100000; j++) {
 		for (i = 1; i <= (LRNG_POOL_SIZE); i++) {
 			lrng_pool_lfsr_u32(i);
-//			lrng_pool_lfsr((u8 *)&i, sizeof(i));
-//			lrng_pool_lfsr_nonalinged((u8 *)&i, sizeof(i));
 //			printf("Pool state after %u LFSR ", i);
 //			bin2print((uint8_t *)lrng_pool.pool, sizeof(lrng_pool.pool), "rounds");
 		}

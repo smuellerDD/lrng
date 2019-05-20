@@ -49,13 +49,6 @@ static inline void cpusetup(void)
 #endif
 }
 
-static inline void mb(void)
-{
-#ifdef __X8664___
-	asm volatile("lfence"::);
-#endif
-}
-
 static inline uint64_t ts2u64(struct timespec *ts)
 {
 	return (uint64_t)((uint64_t)ts->tv_sec * 1000000000 +
@@ -75,7 +68,6 @@ static inline void start_time(struct timespec *ts)
 
 static inline void end_time(struct timespec *ts)
 {
-	mb();
 	get_nstime(ts);
 }
 
