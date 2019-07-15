@@ -1,0 +1,79 @@
+From 838d5fee232a98610a5c82e157ca59085f3fefb4 Mon Sep 17 00:00:00 2001
+From: Stephan Mueller <smueller@chronox.de>
+Date: Fri, 14 Jun 2019 11:52:49 +0200
+Subject: [PATCH v23 0/6] /dev/random - a new approach
+
+Hi,
+
+The following patch set provides a different approach to /dev/random which
+I call Linux Random Number Generator (LRNG) to collect entropy within the Linux
+kernel. The main improvements compared to the legacy /dev/random is to provide
+sufficient entropy during boot time as well as in virtual environments and when
+using SSDs. A secondary design goal is to limit the impact of the entropy
+collection on massive parallel systems and also allow the use accelerated
+cryptographic primitives. Also, all steps of the entropic data processing are
+testable.
+
+The design and implementation is driven by a set of goals described in [1]
+that the LRNG completely implements. Furthermore, [1] includes a
+comparison with RNG design suggestions such as SP800-90B, SP800-90C, and
+AIS20/31.
+
+The LRNG provides a complete separation of the noise source maintenance
+and the collection of entropy into an entropy pool from the post-processing
+using a pseudo-random number generator. Different PRNGs are supported,
+including:
+
+* Built-in ChaCha20 PRNG which has no dependency to other kernel
+  frameworks.
+
+* SP800-90A DRBG using the kernel crypto API including its accelerated
+  raw cipher implementations.
+
+* Arbitrary PRNGs registered with the kernel crypto API
+
+Booting the patch with the kernel command line option
+"dyndbg=file drivers/char/lrng* +p" generates logs indicating the operation
+of the LRNG. Each log is pre-pended with "lrng:".
+
+The LRNG has a flexible design by allowing an easy replacement of the
+deterministic random number generator component.
+
+[1] http://www.chronox.de/lrng.html
+
+Changes (compared to the previous patch set for 5.1):
+
+ * Enable compile on 5.2
+ * Enhance raw entropy sampling code
+ * Add support for CONFIG_RANDOM_TRUST_CPU
+
+Stephan Mueller (6):
+  crypto: provide access to a static Jitter RNG state
+  Linux Random Number Generator
+  crypto: DRBG - externalize DRBG functions for LRNG
+  LRNG - add SP800-90A DRBG support
+  LRNG - add kernel crypto API PRNG support
+  LRNG - add interface for gathering of raw entropy
+
+ crypto/drbg.c                |   16 +-
+ crypto/jitterentropy.c       |   23 +
+ drivers/char/Kconfig         |   45 +
+ drivers/char/Makefile        |   12 +-
+ drivers/char/lrng_base.c     | 2597 ++++++++++++++++++++++++++++++++++
+ drivers/char/lrng_chacha20.c |  339 +++++
+ drivers/char/lrng_drbg.c     |  274 ++++
+ drivers/char/lrng_kcapi.c    |  341 +++++
+ drivers/char/lrng_testing.c  |  240 ++++
+ include/crypto/drbg.h        |    7 +
+ include/linux/lrng.h         |   94 ++
+ 11 files changed, 3981 insertions(+), 7 deletions(-)
+ create mode 100644 drivers/char/lrng_base.c
+ create mode 100644 drivers/char/lrng_chacha20.c
+ create mode 100644 drivers/char/lrng_drbg.c
+ create mode 100644 drivers/char/lrng_kcapi.c
+ create mode 100644 drivers/char/lrng_testing.c
+ create mode 100644 include/linux/lrng.h
+
+-- 
+2.20.1
+

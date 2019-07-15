@@ -38,6 +38,7 @@
 #include <linux/spinlock.h>
 #include <linux/syscalls.h>
 #include <linux/timex.h>
+#include <linux/utsname.h>
 #include <linux/workqueue.h>
 #include <linux/uuid.h>
 
@@ -448,10 +449,35 @@ static u32 lrng_get_jent(u8 *outbuf, unsigned int outbuflen)
  * As we have no ability to review the implementation of those noise sources,
  * it is prudent to have a conservative estimate here.
  */
-static u32 archrandom = LRNG_DRNG_SECURITY_STRENGTH_BITS>>5;
+#define LRNG_ARCHRANDOM_DEFAULT_STRENGTH (LRNG_DRNG_SECURITY_STRENGTH_BITS>>5);
+#define LRNG_ARCHRANDOM_TRUST_CPU_STRENGTH LRNG_DRNG_SECURITY_STRENGTH_BITS;
+#ifdef CONFIG_RANDOM_TRUST_CPU
+static u32 archrandom = LRNG_ARCHRANDOM_TRUST_CPU_STRENGTH;
+#else
+static u32 archrandom = LRNG_ARCHRANDOM_DEFAULT_STRENGTH;
+#endif
 module_param(archrandom, uint, 0644);
 MODULE_PARM_DESC(archrandom, "Entropy in bits of 256 data bits from CPU noise "
 			     "source (e.g. RDRAND)");
+
+static int __init lrng_parse_trust_cpu(char *arg)
+{
+	int ret;
+	bool trust_cpu = false;
+
+        ret = kstrtobool(arg, &trust_cpu);
+	if (ret)
+		return ret;
+
+	if (trust_cpu) {
+		archrandom = LRNG_ARCHRANDOM_TRUST_CPU_STRENGTH;
+	} else {
+		archrandom = LRNG_ARCHRANDOM_DEFAULT_STRENGTH;
+	}
+
+	return 0;
+}
+early_param("random.trust_cpu", lrng_parse_trust_cpu);
 
 /**
  * Get CPU noise source entropy
@@ -467,6 +493,8 @@ static inline u32 lrng_get_arch(u8 *outbuf)
 
 	/* operate on full blocks */
 	BUILD_BUG_ON(LRNG_DRNG_SECURITY_STRENGTH_BYTES % sizeof(unsigned long));
+	/* ensure we have aligned buffers */
+	BUILD_BUG_ON(LRNG_KCAPI_ALIGN != sizeof(unsigned long));
 
 	if (!ent_bits)
 		return 0;
@@ -766,6 +794,23 @@ static inline u32 lrng_hash_pool(u8 *outbuf, u32 avail_entropy_bits)
 out:
 	memzero_explicit(digest, digestsize);
 	return (generated_bytes<<3);
+}
+
+int __init rand_initialize(void)
+{
+	ktime_t now_time = ktime_get_real();
+	unsigned int i, rand;
+
+	lrng_pool_lfsr_u32(now_time);
+	for (i = 0; i < LRNG_POOL_SIZE; i++) {
+		if (!arch_get_random_seed_int(&rand) &&
+		    !arch_get_random_int(&rand))
+			rand = random_get_entropy();
+		lrng_pool_lfsr_u32(rand);
+	}
+	lrng_pool_lfsr_nonaligned((u8 *)utsname(), sizeof(*(utsname())));
+
+	return 0;
 }
 
 /**

@@ -183,7 +183,6 @@ static void *lrng_drbg_hash_alloc(const u8 *key, u32 keylen)
 	}
 
 	lrng_hash->shash.tfm = tfm;
-	lrng_hash->shash.flags = 0x0;
 
 	/* If the used hash is no MAC, ignore the ENOSYS return code */
 	ret = crypto_shash_setkey(tfm, key, keylen);

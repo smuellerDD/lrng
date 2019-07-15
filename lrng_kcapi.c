@@ -76,7 +76,6 @@ static struct lrng_hash_info *_lrng_kcapi_hash_alloc(const char *name)
 	}
 
 	lrng_hash->shash.tfm = tfm;
-	lrng_hash->shash.flags = 0x0;
 
 	return lrng_hash;
 }

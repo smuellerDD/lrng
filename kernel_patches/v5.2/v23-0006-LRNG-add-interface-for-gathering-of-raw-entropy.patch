@@ -1,0 +1,418 @@
+From 838d5fee232a98610a5c82e157ca59085f3fefb4 Mon Sep 17 00:00:00 2001
+From: Stephan Mueller <smueller@chronox.de>
+Date: Thu, 13 Jun 2019 18:55:00 +0200
+Subject: [PATCH v23 6/6] LRNG - add interface for gathering of raw entropy
+
+The test interface allows a privileged process to capture the raw
+unconditioned noise that is collected by the LRNG for statistical
+analysis. Extracted noise data is not used to seed the LRNG. This
+is a test interface and not appropriate for production systems.
+Yet, the interface is considered to be sufficiently secured for
+production systems.
+
+The raw noise data can be obtained using the getrandom system call.
+Using the option lrng_testing.boot_test=1 the raw noise of the first
+128 entropy events since boot can be sampled.
+
+Signed-off-by: Stephan Mueller <smueller@chronox.de>
+---
+ drivers/char/Kconfig        |  16 +++
+ drivers/char/Makefile       |   1 +
+ drivers/char/lrng_base.c    |  30 ++++-
+ drivers/char/lrng_testing.c | 240 ++++++++++++++++++++++++++++++++++++
+ include/linux/lrng.h        |  14 ++-
+ 5 files changed, 294 insertions(+), 7 deletions(-)
+ create mode 100644 drivers/char/lrng_testing.c
+
+diff --git a/drivers/char/Kconfig b/drivers/char/Kconfig
+index f3801f0bd991..bc535a907ac3 100644
+--- a/drivers/char/Kconfig
++++ b/drivers/char/Kconfig
+@@ -584,6 +584,22 @@ config LRNG_KCAPI
+ 	  LRNG. Once the module is loaded, output from /dev/random,
+ 	  /dev/urandom, getrandom(2), or get_random_bytes is
+ 	  provided by the selected kernel crypto API RNG.
++
++config LRNG_TESTING
++	bool "Enable entropy test interface to LRNG noise source"
++	help
++	  The test interface allows a privileged process to capture
++	  the raw unconditioned noise that is collected by the LRNG
++	  for statistical analysis. Extracted noise data is not used
++	  to seed the LRNG. This is a test interface and not
++	  appropriate for production systems.
++
++	  The raw noise data can be obtained using the getrandom
++	  system call. Using the option lrng_testing.boot_test=1
++	  the raw noise of the first 128 entropy events since boot
++	  can be sampled.
++
++	  If unsure, say N.
+ endif # LRNG
+ 
+ endmenu
+diff --git a/drivers/char/Makefile b/drivers/char/Makefile
+index 1e0758e6ea41..4dcf8cde0c1f 100644
+--- a/drivers/char/Makefile
++++ b/drivers/char/Makefile
+@@ -12,6 +12,7 @@ else
+ endif
+ obj-$(CONFIG_LRNG_DRBG)		+= lrng_drbg.o
+ obj-$(CONFIG_LRNG_KCAPI)	+= lrng_kcapi.o
++obj-$(CONFIG_LRNG_TESTING)	+= lrng_testing.o
+ 
+ obj-$(CONFIG_TTY_PRINTK)	+= ttyprintk.o
+ obj-y				+= misc.o
+diff --git a/drivers/char/lrng_base.c b/drivers/char/lrng_base.c
+index 222f12d521b2..25360fd50742 100644
+--- a/drivers/char/lrng_base.c
++++ b/drivers/char/lrng_base.c
+@@ -679,6 +679,9 @@ void add_interrupt_randomness(int irq, int irq_flags)
+ 	u32 now_time = random_get_entropy();
+ 	struct lrng_irq_info *irq_info = &lrng_pool.irq_info;
+ 
++	if (lrng_raw_entropy_store(now_time))
++		return;
++
+ 	lrng_pool_lfsr_u32(now_time);
+ 
+ 	if (!irq_info->irq_highres_timer) {
+@@ -1998,7 +2001,8 @@ static ssize_t lrng_read_common(char __user *buf, size_t nbytes,
+ }
+ 
+ static ssize_t
+-lrng_pdrng_read_common(int nonblock, char __user *buf, size_t nbytes)
++lrng_pdrng_read_common(int nonblock, char __user *buf, size_t nbytes,
++		       int (*lrng_pdrng_random)(u8 *outbuf, u32 outbuflen))
+ {
+ 	if (nbytes == 0)
+ 		return 0;
+@@ -2007,7 +2011,7 @@ lrng_pdrng_read_common(int nonblock, char __user *buf, size_t nbytes)
+ 	while (1) {
+ 		ssize_t n;
+ 
+-		n = lrng_read_common(buf, nbytes, lrng_pdrng_get);
++		n = lrng_read_common(buf, nbytes, lrng_pdrng_random);
+ 		if (n)
+ 			return n;
+ 
+@@ -2025,7 +2029,8 @@ lrng_pdrng_read_common(int nonblock, char __user *buf, size_t nbytes)
+ static ssize_t lrng_pdrng_read(struct file *file, char __user *buf,
+ 			       size_t nbytes, loff_t *ppos)
+ {
+-	return lrng_pdrng_read_common(file->f_flags & O_NONBLOCK, buf, nbytes);
++	return lrng_pdrng_read_common(file->f_flags & O_NONBLOCK, buf, nbytes,
++				      lrng_pdrng_get);
+ }
+ 
+ static unsigned int lrng_pdrng_poll(struct file *file, poll_table *wait)
+@@ -2206,15 +2211,28 @@ const struct file_operations urandom_fops = {
+ SYSCALL_DEFINE3(getrandom, char __user *, buf, size_t, count,
+ 		unsigned int, flags)
+ {
+-	if (flags & ~(GRND_NONBLOCK|GRND_RANDOM))
++	if (flags & ~(GRND_NONBLOCK|GRND_RANDOM|0x0010))
+ 		return -EINVAL;
+ 
+ 	if (count > INT_MAX)
+ 		count = INT_MAX;
+ 
++	if (flags & 0x0010) {
++		int ret;
++
++		if (!capable(CAP_SYS_ADMIN))
++			return -EPERM;
++
++		lrng_raw_entropy_init();
++		ret = lrng_pdrng_read_common(flags & GRND_NONBLOCK, buf, count,
++					     lrng_raw_entropy_reader);
++		lrng_raw_entropy_fini();
++		return ret;
++	}
++
+ 	if (flags & GRND_RANDOM)
+-		return lrng_pdrng_read_common(flags & GRND_NONBLOCK, buf,
+-					      count);
++		return lrng_pdrng_read_common(flags & GRND_NONBLOCK, buf, count,
++					      lrng_pdrng_get);
+ 
+ 	if (unlikely(!lrng_pdrng.pdrng_fully_seeded)) {
+ 		int ret;
+diff --git a/drivers/char/lrng_testing.c b/drivers/char/lrng_testing.c
+new file mode 100644
+index 000000000000..81221417a5ff
+--- /dev/null
++++ b/drivers/char/lrng_testing.c
+@@ -0,0 +1,240 @@
++// SPDX-License-Identifier: GPL-2.0 OR BSD-2-Clause
++/*
++ * Linux Random Number Generator (LRNG) Raw entropy collection tool
++ *
++ * Copyright (C) 2019, Stephan Mueller <smueller@chronox.de>
++ *
++ * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, ALL OF
++ * WHICH ARE HEREBY DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR BE
++ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
++ * OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++ * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
++ * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
++ * USE OF THIS SOFTWARE, EVEN IF NOT ADVISED OF THE POSSIBILITY OF SUCH
++ * DAMAGE.
++ */
++
++#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
++
++#include <linux/atomic.h>
++#include <linux/module.h>
++#include <linux/sched.h>
++#include <linux/sched/signal.h>
++#include <linux/string.h>
++#include <linux/types.h>
++#include <linux/uaccess.h>
++#include <linux/workqueue.h>
++#include <asm/bug.h>
++#include <asm/errno.h>
++
++#ifdef CONFIG_LRNG
++#include <linux/lrng.h>
++#else
++#include <linux/random.h>
++#endif
++
++#define LRNG_TESTING_RINGBUFFER_SIZE	1000
++#define LRNG_TESTING_RINGBUFFER_MASK	(LRNG_TESTING_RINGBUFFER_SIZE - 1)
++
++static u32 lrng_testing_rb[LRNG_TESTING_RINGBUFFER_SIZE];
++static atomic_t lrng_rb_reader = ATOMIC_INIT(0);
++static atomic_t lrng_rb_writer = ATOMIC_INIT(0);
++static atomic_t lrng_rb_first_in = ATOMIC_INIT(0);
++static atomic_t lrng_testing_enabled = ATOMIC_INIT(0);
++
++static DECLARE_WAIT_QUEUE_HEAD(lrng_raw_read_wait);
++
++static u32 boot_test = 0;
++module_param(boot_test, uint, 0644);
++MODULE_PARM_DESC(boot_test, "Enable gathering boot time entropy of the first"
++			    " entropy events");
++
++static inline void lrng_raw_entropy_reset(void)
++{
++	atomic_set(&lrng_rb_reader, 0);
++	atomic_set(&lrng_rb_writer, 0);
++	atomic_set(&lrng_rb_first_in, 0);
++}
++
++void lrng_raw_entropy_init(void)
++{
++	/*
++	 * The boot time testing implies we have a running test. If the
++	 * caller wants to clear it, he has to unset the boot_test flag
++	 * at runtime via sysfs to enable regular runtime testing
++	 */
++	if (boot_test)
++		return;
++
++	lrng_raw_entropy_reset();
++	atomic_set(&lrng_testing_enabled, 1);
++	pr_warn("Enabling raw entropy collection\n");
++}
++
++void lrng_raw_entropy_fini(void)
++{
++	if (boot_test)
++		return;
++
++	lrng_raw_entropy_reset();
++	atomic_set(&lrng_testing_enabled, 0);
++	pr_warn("Disabling raw entropy collection\n");
++}
++
++bool lrng_raw_entropy_store(u32 value)
++{
++	unsigned int write_ptr;
++	unsigned int read_ptr;
++
++	if (!atomic_read(&lrng_testing_enabled) && !boot_test)
++		return false;
++
++	write_ptr = (unsigned int)atomic_add_return(1, &lrng_rb_writer);
++	read_ptr = (unsigned int)atomic_read(&lrng_rb_reader);
++
++	/*
++	 * Disable entropy testing for boot time testing after ring buffer
++	 * is filled.
++	 */
++	if (boot_test && write_ptr > LRNG_TESTING_RINGBUFFER_SIZE) {
++		pr_warn_once("Boot time entropy collection test disabled\n");
++		return false;
++	}
++
++	if (boot_test && !atomic_read(&lrng_rb_first_in))
++		pr_warn("Boot time entropy collection test enabled\n");
++
++	lrng_testing_rb[write_ptr & LRNG_TESTING_RINGBUFFER_MASK] = value;
++
++	if (wq_has_sleeper(&lrng_raw_read_wait))
++		wake_up_interruptible(&lrng_raw_read_wait);
++
++	/*
++	 * Our writer is taking over the reader - this means the reader
++	 * one full ring buffer available. Thus we "push" the reader ahead
++	 * to guarantee that he will be able to consume the full ring.
++	 */
++	if (!boot_test &&
++	    ((write_ptr & LRNG_TESTING_RINGBUFFER_MASK) ==
++	    (read_ptr & LRNG_TESTING_RINGBUFFER_MASK)))
++		atomic_inc(&lrng_rb_reader);
++
++	/* We got at least one event, enable the reader now. */
++	atomic_set(&lrng_rb_first_in, 1);
++
++	return true;
++}
++
++static inline bool lrng_raw_have_data(void)
++{
++	unsigned int read_ptr = (unsigned int)atomic_read(&lrng_rb_reader);
++	unsigned int write_ptr = (unsigned int)atomic_read(&lrng_rb_writer);
++
++	return (atomic_read(&lrng_rb_first_in) &&
++		(write_ptr & LRNG_TESTING_RINGBUFFER_MASK) !=
++		 (read_ptr & LRNG_TESTING_RINGBUFFER_MASK));
++}
++
++int lrng_raw_entropy_reader(u8 *outbuf, u32 outbuflen)
++{
++	int collected_data = 0;
++
++	if (!atomic_read(&lrng_testing_enabled) && !boot_test)
++		return -EAGAIN;
++
++	if (!atomic_read(&lrng_rb_first_in)) {
++		wait_event_interruptible(lrng_raw_read_wait,
++					 lrng_raw_have_data());
++		if (signal_pending(current))
++			return -ERESTARTSYS;
++	}
++
++	while (outbuflen) {
++		unsigned int read_ptr =
++			(unsigned int)atomic_add_return(1, &lrng_rb_reader);
++		unsigned int write_ptr =
++			(unsigned int)atomic_read(&lrng_rb_writer);
++
++		/*
++		 * For boot time testing, only output one round of ring buffer.
++		 */
++		if (boot_test && read_ptr > LRNG_TESTING_RINGBUFFER_SIZE) {
++			collected_data = -ENOMSG;
++			goto out;
++		}
++
++		/* We reached the writer */
++		if (!boot_test && ((write_ptr & LRNG_TESTING_RINGBUFFER_MASK) ==
++		    (read_ptr & LRNG_TESTING_RINGBUFFER_MASK))) {
++			atomic_dec(&lrng_rb_reader);
++			wait_event_interruptible(lrng_raw_read_wait,
++						 lrng_raw_have_data());
++			if (signal_pending(current))
++				return -ERESTARTSYS;
++
++			continue;
++		}
++
++		/* We copy out word-wise */
++		if (outbuflen < sizeof(u32)) {
++			atomic_dec(&lrng_rb_reader);
++			goto out;
++		}
++
++		memcpy(outbuf,
++		       &lrng_testing_rb[read_ptr & LRNG_TESTING_RINGBUFFER_MASK],
++		       sizeof(u32));
++		outbuf += sizeof(u32);
++		outbuflen -= sizeof(u32);
++		collected_data += sizeof(u32);
++	}
++
++out:
++	return collected_data;
++}
++
++/*
++ * This function is used in testing the legacy random.c
++ */
++int lrng_raw_extract_user(void __user *buf, size_t nbytes)
++{
++	u8 tmp[LRNG_TESTING_RINGBUFFER_SIZE] __aligned(sizeof(u32));
++	int ret = 0, large_request = (nbytes > 256);
++
++	while (nbytes) {
++		int i;
++
++		if (large_request && need_resched()) {
++			if (signal_pending(current)) {
++				if (ret == 0)
++					ret = -ERESTARTSYS;
++				break;
++			}
++			schedule();
++		}
++
++		i = min_t(int, nbytes, sizeof(tmp));
++		i = lrng_raw_entropy_reader(tmp, i);
++		if (i <= 0) {
++			if (i < 0)
++				ret = i;
++			break;
++		}
++		if (copy_to_user(buf, tmp, i)) {
++			ret = -EFAULT;
++			break;
++		}
++
++		nbytes -= i;
++		buf += i;
++		ret += i;
++	}
++
++	memzero_explicit(tmp, sizeof(tmp));
++
++	return ret;
++}
+diff --git a/include/linux/lrng.h b/include/linux/lrng.h
+index d45c7a9f3ae6..652eecc2106b 100644
+--- a/include/linux/lrng.h
++++ b/include/linux/lrng.h
+@@ -1,6 +1,6 @@
+ /* SPDX-License-Identifier: GPL-2.0 OR BSD-2-Clause */
+ /*
+- * Copyright (C) 2019, Stephan Mueller <smueller@chronox.de>
++ * Copyright (C) 2018 - 2019, Stephan Mueller <smueller@chronox.de>
+  *
+  * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED
+  * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+@@ -79,4 +79,16 @@ extern struct chacha20_state secondary_chacha20;
+ extern const struct lrng_crypto_cb lrng_cc20_crypto_cb;
+ void lrng_cc20_init_state(struct chacha20_state *state);
+ 
++#ifdef CONFIG_LRNG_TESTING
++void lrng_raw_entropy_init(void);
++void lrng_raw_entropy_fini(void);
++bool lrng_raw_entropy_store(u32 value);
++int lrng_raw_entropy_reader(u8 *outbuf, u32 outbuflen);
++#else
++void lrng_raw_entropy_init(void) { }
++void lrng_raw_entropy_fini(void) { }
++bool lrng_raw_entropy_store(u32 value) { return false; }
++int lrng_raw_entropy_reader(u8 *outbuf, u32 outbuflen) { return 0; }
++#endif
++
+ #endif /* _LRNG_H */
+-- 
+2.20.1
+

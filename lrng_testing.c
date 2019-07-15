@@ -18,15 +18,26 @@
  * DAMAGE.
  */
 
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/atomic.h>
-#include <linux/lrng.h>
 #include <linux/module.h>
+#include <linux/sched.h>
+#include <linux/sched/signal.h>
 #include <linux/string.h>
 #include <linux/types.h>
+#include <linux/uaccess.h>
+#include <linux/workqueue.h>
 #include <asm/bug.h>
 #include <asm/errno.h>
 
-#define LRNG_TESTING_RINGBUFFER_SIZE	128
+#ifdef CONFIG_LRNG
+#include <linux/lrng.h>
+#else
+#include <linux/random.h>
+#endif
+
+#define LRNG_TESTING_RINGBUFFER_SIZE	1000
 #define LRNG_TESTING_RINGBUFFER_MASK	(LRNG_TESTING_RINGBUFFER_SIZE - 1)
 
 static u32 lrng_testing_rb[LRNG_TESTING_RINGBUFFER_SIZE];
@@ -34,6 +45,8 @@ static atomic_t lrng_rb_reader = ATOMIC_INIT(0);
 static atomic_t lrng_rb_writer = ATOMIC_INIT(0);
 static atomic_t lrng_rb_first_in = ATOMIC_INIT(0);
 static atomic_t lrng_testing_enabled = ATOMIC_INIT(0);
+
+static DECLARE_WAIT_QUEUE_HEAD(lrng_raw_read_wait);
 
 static u32 boot_test = 0;
 module_param(boot_test, uint, 0644);
@@ -97,6 +110,9 @@ bool lrng_raw_entropy_store(u32 value)
 
 	lrng_testing_rb[write_ptr & LRNG_TESTING_RINGBUFFER_MASK] = value;
 
+	if (wq_has_sleeper(&lrng_raw_read_wait))
+		wake_up_interruptible(&lrng_raw_read_wait);
+
 	/*
 	 * Our writer is taking over the reader - this means the reader
 	 * one full ring buffer available. Thus we "push" the reader ahead
@@ -113,6 +129,16 @@ bool lrng_raw_entropy_store(u32 value)
 	return true;
 }
 
+static inline bool lrng_raw_have_data(void)
+{
+	unsigned int read_ptr = (unsigned int)atomic_read(&lrng_rb_reader);
+	unsigned int write_ptr = (unsigned int)atomic_read(&lrng_rb_writer);
+
+	return (atomic_read(&lrng_rb_first_in) &&
+		(write_ptr & LRNG_TESTING_RINGBUFFER_MASK) !=
+		 (read_ptr & LRNG_TESTING_RINGBUFFER_MASK));
+}
+
 int lrng_raw_entropy_reader(u8 *outbuf, u32 outbuflen)
 {
 	int collected_data = 0;
@@ -120,8 +146,12 @@ int lrng_raw_entropy_reader(u8 *outbuf, u32 outbuflen)
 	if (!atomic_read(&lrng_testing_enabled) && !boot_test)
 		return -EAGAIN;
 
-	if (!atomic_read(&lrng_rb_first_in))
-		return 0;
+	if (!atomic_read(&lrng_rb_first_in)) {
+		wait_event_interruptible(lrng_raw_read_wait,
+					 lrng_raw_have_data());
+		if (signal_pending(current))
+			return -ERESTARTSYS;
+	}
 
 	while (outbuflen) {
 		unsigned int read_ptr =
@@ -141,7 +171,12 @@ int lrng_raw_entropy_reader(u8 *outbuf, u32 outbuflen)
 		if (!boot_test && ((write_ptr & LRNG_TESTING_RINGBUFFER_MASK) ==
 		    (read_ptr & LRNG_TESTING_RINGBUFFER_MASK))) {
 			atomic_dec(&lrng_rb_reader);
-			goto out;
+			wait_event_interruptible(lrng_raw_read_wait,
+						 lrng_raw_have_data());
+			if (signal_pending(current))
+				return -ERESTARTSYS;
+
+			continue;
 		}
 
 		/* We copy out word-wise */
@@ -160,4 +195,46 @@ int lrng_raw_entropy_reader(u8 *outbuf, u32 outbuflen)
 
 out:
 	return collected_data;
+}
+
+/*
+ * This function is used in testing the legacy random.c
+ */
+int lrng_raw_extract_user(void __user *buf, size_t nbytes)
+{
+	u8 tmp[LRNG_TESTING_RINGBUFFER_SIZE] __aligned(sizeof(u32));
+	int ret = 0, large_request = (nbytes > 256);
+
+	while (nbytes) {
+		int i;
+
+		if (large_request && need_resched()) {
+			if (signal_pending(current)) {
+				if (ret == 0)
+					ret = -ERESTARTSYS;
+				break;
+			}
+			schedule();
+		}
+
+		i = min_t(int, nbytes, sizeof(tmp));
+		i = lrng_raw_entropy_reader(tmp, i);
+		if (i <= 0) {
+			if (i < 0)
+				ret = i;
+			break;
+		}
+		if (copy_to_user(buf, tmp, i)) {
+			ret = -EFAULT;
+			break;
+		}
+
+		nbytes -= i;
+		buf += i;
+		ret += i;
+	}
+
+	memzero_explicit(tmp, sizeof(tmp));
+
+	return ret;
 }
