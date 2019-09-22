@@ -5,7 +5,7 @@ is called Linux Random Number Generator (LRNG) to collect entropy within the
 Linux kernel. The main improvements compared to the legacy /dev/random is to
 provide sufficient entropy during boot time as well as in virtual environments
 and when using SSDs. A secondary design goal is to limit the impact of the
-entropy collection on massive parallel systems and also allow the use
+entropy collection on massive parallel systems and also allow the use of
 accelerated cryptographic primitives. Also, all steps of the entropic data
 processing are testable.
 
