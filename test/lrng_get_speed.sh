@@ -38,17 +38,6 @@ insert_module()
 	modprobe $module $params
 }
 
-measure_seed_one()
-{
-	blocksize=$1
-
-	if [ -x "$SPEED" ]; then
-		speed=$($SPEED -b $blocksize | cut -d "|" -f 2)
-	else
-		speed=$(dd if=/dev/urandom of=/dev/null bs=$blocksize count=1000000 2>&1 | tail -n1 | awk '{print $(NF-1) " " $NF}')
-	fi
-}
-
 measure_speed()
 {
 	name=$@

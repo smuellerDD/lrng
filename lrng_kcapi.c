@@ -156,7 +156,7 @@ static int lrng_kcapi_drng_seed_helper(void *drng, const u8 *inbuf,
 		u8 digest[64] __aligned(8);
 		int ret;
 
-		BUG_ON(digestsize > 64);
+		BUG_ON(digestsize > sizeof(digest));
 
 		ret = crypto_shash_digest(shash, inbuf, inbuflen, digest);
 		if (ret)
@@ -207,7 +207,7 @@ static void *lrng_kcapi_drng_alloc(u32 sec_strength)
 
 	if (!memcmp(drng_name, "stdrng", 6)) {
 		pr_err("stdrng cannot be allocated using lrng_kcapi backend, "
-		       "it is too unspecific and potentially may allocate the"
+		       "it is too unspecific and potentially may allocate the "
 		       "DRBG\n");
 		return ERR_PTR(-EINVAL);
 	}

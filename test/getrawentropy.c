@@ -25,16 +25,21 @@
 #include <errno.h>
 #include <getopt.h>
 #include <limits.h>
-#include <sys/random.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
-#define RAWENTROPY_SAMPLES	128
+#define RAWENTROPY_SAMPLES	1000
+#define DEBUGFS_INTERFACE	"/sys/kernel/debug/lrng_testing/lrng_raw"
 
 struct opts {
 	size_t samples;
+	char *debugfs_file;
 };
 
 static int getrawentropy(struct opts *opts)
@@ -42,7 +47,12 @@ static int getrawentropy(struct opts *opts)
 #define BUFFER_SIZE		(RAWENTROPY_SAMPLES * sizeof(uint32_t))
 	uint32_t requested = opts->samples * sizeof(uint32_t);
 	uint8_t *buffer_p, buffer[BUFFER_SIZE];
-	int ret;
+	ssize_t ret;
+	int fd = -1;
+
+	fd = open(opts->debugfs_file, O_RDONLY);
+	if (fd < 0)
+		return errno;
 
 	while (requested) {
 		unsigned int i;
@@ -51,7 +61,7 @@ static int getrawentropy(struct opts *opts)
 
 		buffer_p = buffer;
 
-		ret = getrandom(buffer_p, gather, 0x0010);
+		ret = read(fd, buffer_p, gather);
 		if (ret < 0) {
 			ret = -errno;
 			goto out;
@@ -71,7 +81,10 @@ static int getrawentropy(struct opts *opts)
 	ret = 0;
 
 out:
-	return ret;
+	if (fd >= 0)
+		close(fd);
+
+	return (int)ret;
 }
 
 int main(int argc, char *argv[])
@@ -80,27 +93,44 @@ int main(int argc, char *argv[])
 	int c = 0;
 
 	opts.samples = RAWENTROPY_SAMPLES;
+	opts.debugfs_file = DEBUGFS_INTERFACE;
 
 	while (1)
 	{
 		int opt_index = 0;
 		static struct option options[] =
 		{
-			{"samples", 1, 0, 's'},
+			{"samples", 		required_argument,	0, 's'},
+			{"debugfs-file", 	required_argument,	0, 'f'},
 			{0, 0, 0, 0}
 		};
-		c = getopt_long(argc, argv, "s:", options, &opt_index);
-		if(-1 == c)
+		c = getopt_long(argc, argv, "f:s:", options, &opt_index);
+		if (c == -1)
 			break;
-		switch (c)
-		{
-			case 's':
+		switch (c) {
+		case 0:
+			switch (opt_index) {
+			case 0:
 				opts.samples = strtoul(optarg, NULL, 10);
 				if (opts.samples == ULONG_MAX)
 					return -EINVAL;
 				break;
-			default:
+			case 1:
+				opts.debugfs_file = optarg;
+				break;
+			}
+			break;
+
+		case 's':
+			opts.samples = strtoul(optarg, NULL, 10);
+			if (opts.samples == ULONG_MAX)
 				return -EINVAL;
+			break;
+		case 'f':
+			opts.debugfs_file = optarg;
+			break;
+		default:
+			return -EINVAL;
 		}
 	}
 

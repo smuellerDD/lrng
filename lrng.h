@@ -33,7 +33,7 @@
  * @lrng_drng_seed_helper:	Seed the DRNG with data of arbitrary length
  *				drng: is pointer to data structure allocated
  *				      with lrng_drng_alloc
- * 				return: >= 0 on success, < 0 on error
+ *				return: >= 0 on success, < 0 on error
  * @lrng_drng_generate_helper:	Generate random numbers from the DRNG with
  *				arbitrary length
  * @lrng_drng_generate_helper_full: Generate random numbers from the DRNG with
@@ -73,26 +73,11 @@ struct lrng_crypto_cb {
 };
 
 /* Register cryptographic backend */
+#ifdef CONFIG_LRNG_DRNG_SWITCH
 int lrng_set_drng_cb(const struct lrng_crypto_cb *cb);
-
-/* Default DRNG implementation */
-extern struct chacha20_state primary_chacha20;
-extern struct chacha20_state secondary_chacha20;
-extern const struct lrng_crypto_cb lrng_cc20_crypto_cb;
-void lrng_cc20_init_state(struct chacha20_state *state);
-
-#ifdef CONFIG_LRNG_TESTING
-void lrng_raw_entropy_init(void);
-void lrng_raw_entropy_fini(void);
-bool lrng_raw_entropy_store(u32 value);
-int lrng_raw_entropy_reader(u8 *outbuf, u32 outbuflen);
-int lrng_raw_extract_user(void __user *buf, size_t nbytes);
-#else
-void lrng_raw_entropy_init(void) { }
-void lrng_raw_entropy_fini(void) { }
-bool lrng_raw_entropy_store(u32 value) { return false; }
-int lrng_raw_entropy_reader(u8 *outbuf, u32 outbuflen) { return 0; }
-int lrng_raw_extract_user(void __user *buf, size_t nbytes) { return 0; }
-#endif
+#else	/* CONFIG_LRNG_DRNG_SWITCH */
+static inline int
+lrng_set_drng_cb(const struct lrng_crypto_cb *cb) { return -EOPNOTSUPP; }
+#endif	/* CONFIG_LRNG_DRNG_SWITCH */
 
 #endif /* _LRNG_H */

@@ -1,7 +1,7 @@
 # Systemd configuration file
 #
 [Unit]
-Description=Boot time test for LRNG
+Description=Boot time test for /dev/random
 DefaultDependencies=no
 After=local-fs.target
 Before=sysinit.target

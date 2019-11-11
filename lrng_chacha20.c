@@ -26,6 +26,8 @@
 #include <linux/lrng.h>
 #include <linux/random.h>
 
+#include "lrng_internal.h"
+
 /******************************* ChaCha20 DRNG *******************************/
 
 /* State according to RFC 7539 section 2.3 */
@@ -303,7 +305,7 @@ static int lrng_cc20_hash_buffer(void *hash, const u8 *inbuf, u32 inbuflen,
 	u32 i;
 	u32 workspace[SHA_WORKSPACE_WORDS];
 
-	WARN_ON(inbuflen % SHA_WORKSPACE_WORDS);
+	WARN_ON(inbuflen % (SHA_WORKSPACE_WORDS * sizeof(u32)));
 
 	for (i = 0; i < inbuflen; i += (SHA_WORKSPACE_WORDS * sizeof(u32)))
 		sha_transform((u32 *)digest, (inbuf + i), workspace);

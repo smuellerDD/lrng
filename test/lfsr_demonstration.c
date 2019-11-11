@@ -1,4 +1,4 @@
-/* Demonstration of LFSR weakness in Linux /dev/random
+/* Demonstration of LFSR of LRNG
  *
  * Copyright (C) 2017, Stephan Mueller <smueller@chronox.de>
  *
@@ -18,6 +18,21 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
  * USE OF THIS SOFTWARE, EVEN IF NOT ADVISED OF THE POSSIBILITY OF SUCH
  * DAMAGE.
+ */
+
+/*
+ * Test approach:
+ *
+ * 1. Copy lrng_pool_lfsr* functions from lrng_base.c into this file at the
+ *    location indicated below.
+ *
+ * 2. Compile:
+ *	gcc -Wall -Wextra -O2 -o lfsr_demonstration lfsr_demonstration.c
+ *
+ * Expected result:
+ *	stdout generates a bit-stream that can be analyzed with dieharder, ent
+ *	or the NIST SP800-90B tool set (IID case) to show that we have white
+ *	noise.
  */
 
 #include <linux/random.h>
@@ -96,6 +111,7 @@ int bin2hex_alloc(const uint8_t *bin, uint32_t binlen,
 	return 0;
 }
 
+#if 0
 static void bin2print(const uint8_t *bin, uint32_t binlen,
 		      const char *explanation)
 {
@@ -109,7 +125,9 @@ static void bin2print(const uint8_t *bin, uint32_t binlen,
 	fprintf(stdout, "%s: %s\n", explanation, hex);
 	free(hex);
 }
+#endif
 
+#if 0
 static int get_random(uint8_t *buf, uint32_t buflen, unsigned int flags)
 {
 	int ret;
@@ -131,6 +149,7 @@ static int get_random(uint8_t *buf, uint32_t buflen, unsigned int flags)
 
 	return 1;
 }
+#endif
 
 typedef uint32_t	u32;
 typedef uint8_t		u8;
@@ -140,18 +159,22 @@ static inline u32 rol32(u32 word, unsigned int shift)
 	return (word << shift) | (word >> ((-shift) & 31));
 }
 
+/*************************** LRNG LFSR *****************************/
+
 /*
  * Copy from lfsr_base.c
  */
-static u32 const lrng_lfsr_polynomial[] =
-	{ 127, 28, 26, 1 };			/* 128 words by Stahnke */
-	/* { 255, 253, 250, 245 }; */		/* 256 words */
-	/* { 511, 509, 506, 503 }; */		/* 512 words */
-	/* { 1023, 1014, 1001, 1000 }; */	/* 1024 words */
-	/* { 2047, 2034, 2033, 2028 }; */	/* 2048 words */
-	/* { 4095, 4094, 4080, 4068 }; */	/* 4096 words */
+static u32 const lrng_lfsr_polynomial[][4] = {
+	{ 127, 28, 26, 1 },			/* 128 words by Stahnke */
+	{ 255, 253, 250, 245 },			/* 256 words */
+	{ 511, 509, 506, 503 },			/* 512 words */
+	{ 1023, 1014, 1001, 1000 },		/* 1024 words */
+	{ 2047, 2034, 2033, 2028 },		/* 2048 words */
+	{ 4095, 4094, 4080, 4068 },		/* 4096 words */
+};
 
 #define LRNG_POOL_SIZE 128
+#define CONFIG_LRNG_POOL_SIZE 0
 
 uint32_t stats[LRNG_POOL_SIZE] = { 0 };
 
@@ -192,13 +215,17 @@ static void lrng_pool_lfsr_u32(u32 value)
 
 	word ^= lrng_pool.pool[ptr];
 	word ^= lrng_pool.pool[
-		(ptr + lrng_lfsr_polynomial[0]) & (LRNG_POOL_SIZE - 1)];
+		(ptr + lrng_lfsr_polynomial[CONFIG_LRNG_POOL_SIZE][0]) &
+			(LRNG_POOL_SIZE - 1)];
 	word ^= lrng_pool.pool[
-		(ptr + lrng_lfsr_polynomial[1]) & (LRNG_POOL_SIZE - 1)];
+		(ptr + lrng_lfsr_polynomial[CONFIG_LRNG_POOL_SIZE][1]) &
+			(LRNG_POOL_SIZE - 1)];
 	word ^= lrng_pool.pool[
-		(ptr + lrng_lfsr_polynomial[2]) & (LRNG_POOL_SIZE - 1)];
+		(ptr + lrng_lfsr_polynomial[CONFIG_LRNG_POOL_SIZE][2]) &
+			(LRNG_POOL_SIZE - 1)];
 	word ^= lrng_pool.pool[
-		(ptr + lrng_lfsr_polynomial[3]) & (LRNG_POOL_SIZE - 1)];
+		(ptr + lrng_lfsr_polynomial[CONFIG_LRNG_POOL_SIZE][3]) &
+			(LRNG_POOL_SIZE - 1)];
 
 	word = (word >> 3) ^ lrng_twist_table[word & 7];
 	lrng_pool.pool[ptr] = word;
@@ -227,6 +254,8 @@ static inline void lrng_pool_lfsr_nonalinged(const u8 *buf, u32 buflen)
 	}
 }
 
+/**************************************************************************/
+
 int main(int argc, char *argv[])
 {
 	u32 i, j, compare, imbalance = 0;
@@ -243,9 +272,11 @@ int main(int argc, char *argv[])
 	/* print the initial content of the pool */
 //	bin2print((uint8_t *)lrng_pool.pool, sizeof(lrng_pool.pool), "Initial pool");
 
-	for (j = 0; j < 100000; j++) {
+	for (j = 0; j < 1000000; j++) {
 		for (i = 1; i <= (LRNG_POOL_SIZE); i++) {
 			lrng_pool_lfsr_u32(i);
+//			lrng_pool_lfsr((u8 *)&i, sizeof(i));
+//			lrng_pool_lfsr_nonalinged((u8 *)&i, sizeof(i));
 //			printf("Pool state after %u LFSR ", i);
 //			bin2print((uint8_t *)lrng_pool.pool, sizeof(lrng_pool.pool), "rounds");
 		}

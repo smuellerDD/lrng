@@ -21,6 +21,8 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/atomic.h>
+#include <linux/bug.h>
+#include <linux/debugfs.h>
 #include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/sched/signal.h>
@@ -28,16 +30,11 @@
 #include <linux/types.h>
 #include <linux/uaccess.h>
 #include <linux/workqueue.h>
-#include <asm/bug.h>
 #include <asm/errno.h>
 
-#ifdef CONFIG_LRNG
-#include <linux/lrng.h>
-#else
-#include <linux/random.h>
-#endif
+#include "lrng_internal.h"
 
-#define LRNG_TESTING_RINGBUFFER_SIZE	1000
+#define LRNG_TESTING_RINGBUFFER_SIZE	1024
 #define LRNG_TESTING_RINGBUFFER_MASK	(LRNG_TESTING_RINGBUFFER_SIZE - 1)
 
 static u32 lrng_testing_rb[LRNG_TESTING_RINGBUFFER_SIZE];
@@ -60,7 +57,7 @@ static inline void lrng_raw_entropy_reset(void)
 	atomic_set(&lrng_rb_first_in, 0);
 }
 
-void lrng_raw_entropy_init(void)
+static void lrng_raw_entropy_init(void)
 {
 	/*
 	 * The boot time testing implies we have a running test. If the
@@ -75,7 +72,7 @@ void lrng_raw_entropy_init(void)
 	pr_warn("Enabling raw entropy collection\n");
 }
 
-void lrng_raw_entropy_fini(void)
+static void lrng_raw_entropy_fini(void)
 {
 	if (boot_test)
 		return;
@@ -93,7 +90,7 @@ bool lrng_raw_entropy_store(u32 value)
 	if (!atomic_read(&lrng_testing_enabled) && !boot_test)
 		return false;
 
-	write_ptr = (unsigned int)atomic_add_return(1, &lrng_rb_writer);
+	write_ptr = (unsigned int)atomic_add_return_relaxed(1, &lrng_rb_writer);
 	read_ptr = (unsigned int)atomic_read(&lrng_rb_reader);
 
 	/*
@@ -110,6 +107,9 @@ bool lrng_raw_entropy_store(u32 value)
 
 	lrng_testing_rb[write_ptr & LRNG_TESTING_RINGBUFFER_MASK] = value;
 
+	/* We got at least one event, enable the reader now. */
+	atomic_set(&lrng_rb_first_in, 1);
+
 	if (wq_has_sleeper(&lrng_raw_read_wait))
 		wake_up_interruptible(&lrng_raw_read_wait);
 
@@ -121,10 +121,7 @@ bool lrng_raw_entropy_store(u32 value)
 	if (!boot_test &&
 	    ((write_ptr & LRNG_TESTING_RINGBUFFER_MASK) ==
 	    (read_ptr & LRNG_TESTING_RINGBUFFER_MASK)))
-		atomic_inc(&lrng_rb_reader);
-
-	/* We got at least one event, enable the reader now. */
-	atomic_set(&lrng_rb_first_in, 1);
+		atomic_inc_return_relaxed(&lrng_rb_reader);
 
 	return true;
 }
@@ -139,7 +136,7 @@ static inline bool lrng_raw_have_data(void)
 		 (read_ptr & LRNG_TESTING_RINGBUFFER_MASK));
 }
 
-int lrng_raw_entropy_reader(u8 *outbuf, u32 outbuflen)
+static int lrng_raw_entropy_reader(u8 *outbuf, u32 outbuflen)
 {
 	int collected_data = 0;
 
@@ -155,7 +152,8 @@ int lrng_raw_entropy_reader(u8 *outbuf, u32 outbuflen)
 
 	while (outbuflen) {
 		unsigned int read_ptr =
-			(unsigned int)atomic_add_return(1, &lrng_rb_reader);
+			(unsigned int)atomic_add_return_relaxed(
+							1, &lrng_rb_reader);
 		unsigned int write_ptr =
 			(unsigned int)atomic_read(&lrng_rb_writer);
 
@@ -170,7 +168,6 @@ int lrng_raw_entropy_reader(u8 *outbuf, u32 outbuflen)
 		/* We reached the writer */
 		if (!boot_test && ((write_ptr & LRNG_TESTING_RINGBUFFER_MASK) ==
 		    (read_ptr & LRNG_TESTING_RINGBUFFER_MASK))) {
-			atomic_dec(&lrng_rb_reader);
 			wait_event_interruptible(lrng_raw_read_wait,
 						 lrng_raw_have_data());
 			if (signal_pending(current))
@@ -181,7 +178,7 @@ int lrng_raw_entropy_reader(u8 *outbuf, u32 outbuflen)
 
 		/* We copy out word-wise */
 		if (outbuflen < sizeof(u32)) {
-			atomic_dec(&lrng_rb_reader);
+			atomic_dec_return_relaxed(&lrng_rb_reader);
 			goto out;
 		}
 
@@ -197,10 +194,10 @@ out:
 	return collected_data;
 }
 
-/*
- * This function is used in testing the legacy random.c
- */
-int lrng_raw_extract_user(void __user *buf, size_t nbytes)
+/**************************************************************************
+ * Debugfs interface
+ **************************************************************************/
+static int lrng_raw_extract_user(void __user *buf, size_t nbytes)
 {
 	u8 tmp[LRNG_TESTING_RINGBUFFER_SIZE] __aligned(sizeof(u32));
 	int ret = 0, large_request = (nbytes > 256);
@@ -230,7 +227,7 @@ int lrng_raw_extract_user(void __user *buf, size_t nbytes)
 		}
 
 		nbytes -= i;
-		buf += i;
+		buf = (u8 *)buf + i;
 		ret += i;
 	}
 
@@ -238,3 +235,90 @@ int lrng_raw_extract_user(void __user *buf, size_t nbytes)
 
 	return ret;
 }
+
+/*
+ * This data structure holds the dentry's of the debugfs files establishing
+ * the interface to user space.
+ */
+struct lrng_raw_debugfs {
+	struct dentry *lrng_raw_debugfs_root; /* root dentry */
+	struct dentry *lrng_raw_debugfs_lrng_raw; /* .../lrng_raw */
+};
+
+static struct lrng_raw_debugfs lrng_raw_debugfs;
+
+/* DebugFS operations and definition of the debugfs files */
+static ssize_t lrng_raw_read(struct file *file, char __user *to,
+			     size_t count, loff_t *ppos)
+{
+	loff_t pos = *ppos;
+	int ret;
+
+	if (!count)
+		return 0;
+	lrng_raw_entropy_init();
+	ret = lrng_raw_extract_user(to, count);
+	lrng_raw_entropy_fini();
+	if (ret < 0)
+		return ret;
+	count -= ret;
+	*ppos = pos + count;
+	return ret;
+}
+
+/* Module init: allocate memory, register the debugfs files */
+static int lrng_raw_debugfs_init(void)
+{
+	lrng_raw_debugfs.lrng_raw_debugfs_root =
+		debugfs_create_dir(KBUILD_MODNAME, NULL);
+	if (IS_ERR(lrng_raw_debugfs.lrng_raw_debugfs_root)) {
+		lrng_raw_debugfs.lrng_raw_debugfs_root = NULL;
+		return PTR_ERR(lrng_raw_debugfs.lrng_raw_debugfs_root);
+	}
+	return 0;
+}
+
+static struct file_operations lrng_raw_name_fops = {
+	.owner = THIS_MODULE,
+	.read = lrng_raw_read,
+};
+
+static int lrng_raw_debugfs_init_name(void)
+{
+	lrng_raw_debugfs.lrng_raw_debugfs_lrng_raw =
+		debugfs_create_file("lrng_raw", 0400,
+				    lrng_raw_debugfs.lrng_raw_debugfs_root,
+				    NULL, &lrng_raw_name_fops);
+	if (IS_ERR(lrng_raw_debugfs.lrng_raw_debugfs_lrng_raw)) {
+		lrng_raw_debugfs.lrng_raw_debugfs_lrng_raw = NULL;
+		return PTR_ERR(lrng_raw_debugfs.lrng_raw_debugfs_lrng_raw);
+	}
+	return 0;
+}
+
+static int __init lrng_raw_init(void)
+{
+	int ret = lrng_raw_debugfs_init();
+
+	if (ret < 0)
+		return ret;
+
+	ret = lrng_raw_debugfs_init_name();
+	if (ret < 0)
+		debugfs_remove_recursive(
+					lrng_raw_debugfs.lrng_raw_debugfs_root);
+
+	return ret;
+}
+
+static void __exit lrng_raw_exit(void)
+{
+	debugfs_remove_recursive(lrng_raw_debugfs.lrng_raw_debugfs_root);
+}
+
+module_init(lrng_raw_init);
+module_exit(lrng_raw_exit);
+
+MODULE_LICENSE("Dual BSD/GPL");
+MODULE_AUTHOR("Stephan Mueller <smueller@chronox.de>");
+MODULE_DESCRIPTION("Kernel module for gathering raw entropy");
