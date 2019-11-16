@@ -3,19 +3,6 @@
  * Linux Random Number Generator (LRNG) Raw entropy collection tool
  *
  * Copyright (C) 2019, Stephan Mueller <smueller@chronox.de>
- *
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, ALL OF
- * WHICH ARE HEREBY DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
- * OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
- * USE OF THIS SOFTWARE, EVEN IF NOT ADVISED OF THE POSSIBILITY OF SUCH
- * DAMAGE.
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -26,6 +13,7 @@
 #include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/sched/signal.h>
+#include <linux/slab.h>
 #include <linux/string.h>
 #include <linux/types.h>
 #include <linux/uaccess.h>
@@ -197,10 +185,23 @@ out:
 /**************************************************************************
  * Debugfs interface
  **************************************************************************/
-static int lrng_raw_extract_user(void __user *buf, size_t nbytes)
+static int lrng_raw_extract_user(char __user *buf, size_t nbytes)
 {
-	u8 tmp[LRNG_TESTING_RINGBUFFER_SIZE] __aligned(sizeof(u32));
+	u8 *tmp, *tmp_aligned;
 	int ret = 0, large_request = (nbytes > 256);
+
+	/*
+	 * The intention of this interface is for collecting at least
+	 * 1000 samples due to the SP800-90B requirements. So, we make no
+	 * effort in avoiding allocating more memory that actually needed
+	 * by the user. Hence, we allocate sufficient memory to always hold
+	 * that amount of data.
+	 */
+	tmp = kmalloc(LRNG_TESTING_RINGBUFFER_SIZE + sizeof(u32), GFP_KERNEL);
+	if (!tmp)
+		return -ENOMEM;
+
+	tmp_aligned = PTR_ALIGN(tmp, sizeof(u32));
 
 	while (nbytes) {
 		int i;
@@ -214,25 +215,24 @@ static int lrng_raw_extract_user(void __user *buf, size_t nbytes)
 			schedule();
 		}
 
-		i = min_t(int, nbytes, sizeof(tmp));
-		i = lrng_raw_entropy_reader(tmp, i);
+		i = min_t(int, nbytes, LRNG_TESTING_RINGBUFFER_SIZE);
+		i = lrng_raw_entropy_reader(tmp_aligned, i);
 		if (i <= 0) {
 			if (i < 0)
 				ret = i;
 			break;
 		}
-		if (copy_to_user(buf, tmp, i)) {
+		if (copy_to_user(buf, tmp_aligned, i)) {
 			ret = -EFAULT;
 			break;
 		}
 
 		nbytes -= i;
-		buf = (u8 *)buf + i;
+		buf += i;
 		ret += i;
 	}
 
-	memzero_explicit(tmp, sizeof(tmp));
-
+	kzfree(tmp);
 	return ret;
 }
 

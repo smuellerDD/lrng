@@ -3,19 +3,6 @@
  * LRNG True Random Number Generator (TRNG) processing
  *
  * Copyright (C) 2016 - 2019, Stephan Mueller <smueller@chronox.de>
- *
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, ALL OF
- * WHICH ARE HEREBY DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
- * OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
- * USE OF THIS SOFTWARE, EVEN IF NOT ADVISED OF THE POSSIBILITY OF SUCH
- * DAMAGE.
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -59,15 +46,11 @@ void lrng_trng_init(void)
 /************************* Random Number Generation ***************************/
 
 /* Caller must hold lrng_trng.lock */
-static int lrng_trng_generate(u8 *outbuf, u32 outbuflen, bool fullentropy)
+static int lrng_trng_generate(u8 *outbuf, u32 outbuflen)
 {
 	struct lrng_trng *trng = &lrng_trng;
 	const struct lrng_crypto_cb *crypto_cb = trng->crypto_cb;
 	int ret;
-
-	/* /dev/random only works from a fully seeded DRNG */
-	if (fullentropy && !lrng_state_operational())
-		return 0;
 
 	/*
 	 * Only deliver as many bytes as the DRNG is seeded with except during
@@ -113,12 +96,11 @@ static int lrng_trng_generate(u8 *outbuf, u32 outbuflen, bool fullentropy)
  * @entropy_bits: entropy value of the data in inbuf in bits
  * @outbuf: buffer to fill immediately after seeding to get full entropy
  * @outbuflen: length of outbuf
- * @fullentropy: start /dev/random output only after the DRNG was fully seeded
  * @return: number of bytes written to outbuf, 0 if outbuf is not supplied,
  *	    or < 0 in case of error
  */
 static int lrng_trng_inject(const u8 *inbuf, u32 inbuflen, u32 entropy_bits,
-			    u8 *outbuf, u32 outbuflen, bool fullentropy)
+			    u8 *outbuf, u32 outbuflen)
 {
 	struct lrng_trng *trng = &lrng_trng;
 	int ret;
@@ -143,7 +125,7 @@ static int lrng_trng_inject(const u8 *inbuf, u32 inbuflen, u32 entropy_bits,
 	lrng_init_ops(trng->trng_entropy_bits);
 
 	if (outbuf && outbuflen)
-		ret = lrng_trng_generate(outbuf, outbuflen, fullentropy);
+		ret = lrng_trng_generate(outbuf, outbuflen);
 
 unlock:
 	mutex_unlock(&trng->lock);
@@ -158,7 +140,7 @@ unlock:
  *
  * lrng_pool_trylock() must be invoked successfully by caller.
  */
-int lrng_trng_seed(u8 *outbuf, u32 outbuflen, bool fullentropy, bool drain)
+int lrng_trng_seed(u8 *outbuf, u32 outbuflen, bool drain)
 {
 	struct entropy_buf entropy_buf __aligned(LRNG_KCAPI_ALIGN);
 	struct lrng_trng *trng = &lrng_trng;
@@ -168,7 +150,7 @@ int lrng_trng_seed(u8 *outbuf, u32 outbuflen, bool fullentropy, bool drain)
 	/* Get available entropy in primary DRNG */
 	if (trng->trng_entropy_bits>>3) {
 		mutex_lock(&trng->lock);
-		ret = lrng_trng_generate(outbuf, outbuflen, fullentropy);
+		ret = lrng_trng_generate(outbuf, outbuflen);
 		mutex_unlock(&trng->lock);
 		if (ret > 0) {
 			retrieved += ret;
@@ -191,7 +173,7 @@ int lrng_trng_seed(u8 *outbuf, u32 outbuflen, bool fullentropy, bool drain)
 
 	ret = lrng_trng_inject((u8 *)&entropy_buf, sizeof(entropy_buf),
 				total_entropy_bits,
-				outbuf, outbuflen, fullentropy);
+				outbuf, outbuflen);
 
 	memzero_explicit(&entropy_buf, sizeof(entropy_buf));
 
@@ -226,7 +208,7 @@ int lrng_trng_get(u8 *outbuf, u32 outbuflen)
 
 	if (lrng_pool_trylock())
 		return -EINPROGRESS;
-	ret = lrng_trng_seed(outbuf, outbuflen, true, true);
+	ret = lrng_trng_seed(outbuf, outbuflen, true);
 	if (ret >= 0) {
 		pr_debug("read %d bytes of full entropy data from TRNG\n", ret);
 	} else {

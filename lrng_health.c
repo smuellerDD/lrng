@@ -3,19 +3,6 @@
  * Linux Random Number Generator (LRNG) Health Testing
  *
  * Copyright (C) 2019, Stephan Mueller <smueller@chronox.de>
- *
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, ALL OF
- * WHICH ARE HEREBY DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
- * OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
- * USE OF THIS SOFTWARE, EVEN IF NOT ADVISED OF THE POSSIBILITY OF SUCH
- * DAMAGE.
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -39,8 +26,6 @@ struct lrng_rct {
 
 /* Adaptive Proportion Test */
 struct lrng_apt {
-	/* Taken from SP800-90B sec 4.4.2 - significance level 2^-30 */
-#define LRNG_APT_CUTOFF		325
 	/* Data window size */
 #define LRNG_APT_WINDOW_SIZE	512
 	/* LSB of time stamp to process */
@@ -260,7 +245,7 @@ static inline void lrng_apt_insert(struct lrng_health *health,
 	if (now_time == (unsigned int)atomic_read(&apt->apt_base)) {
 		u32 apt_val = (u32)atomic_inc_return_relaxed(&apt->apt_count);
 
-		if (apt_val >= LRNG_APT_CUTOFF)
+		if (apt_val >= CONFIG_LRNG_APT_CUTOFF)
 			lrng_sp80090b_failure(health);
 	}
 
@@ -317,7 +302,7 @@ static inline void lrng_rct(struct lrng_health *health, int stuck)
 		 * Hence we need to subtract one from the cutoff value as
 		 * calculated following SP800-90B.
 		 */
-		if (rct_count >= 30) {
+		if (rct_count >= CONFIG_LRNG_RCT_CUTOFF) {
 			atomic_set(&rct->rct_count, 0);
 
 			/*

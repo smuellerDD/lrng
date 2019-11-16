@@ -1,19 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 OR BSD-2-Clause */
 /*
  * Copyright (C) 2018 - 2019, Stephan Mueller <smueller@chronox.de>
- *
- * THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESS OR IMPLIED
- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE, ALL OF
- * WHICH ARE HEREBY DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
- * OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
- * BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
- * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
- * USE OF THIS SOFTWARE, EVEN IF NOT ADVISED OF THE POSSIBILITY OF SUCH
- * DAMAGE.
  */
 
 #ifndef _LRNG_INTERNAL_H
@@ -195,7 +182,7 @@ u32 lrng_slow_noise_req_entropy(u32 required_entropy_bits);
 void lrng_trng_reset(void);
 void lrng_trng_init(void);
 int lrng_trng_get(u8 *outbuf, u32 outbuflen);
-int lrng_trng_seed(u8 *outbuf, u32 outbuflen, bool fullentropy, bool drain);
+int lrng_trng_seed(u8 *outbuf, u32 outbuflen, bool drain);
 # ifdef CONFIG_LRNG_DRNG_SWITCH
 int lrng_trng_switch(const struct lrng_crypto_cb *cb);
 # endif
