@@ -46,6 +46,8 @@
 #include <limits.h>
 #include <stdlib.h>
 
+#define CONFIG_LRNG_POOL_SIZE	0
+
 static uint8_t hex_char(unsigned int bin, int u)
 {
 	uint8_t hex_char_map_l[] = { '0', '1', '2', '3', '4', '5', '6', '7',
@@ -173,13 +175,11 @@ static u32 const lrng_lfsr_polynomial[][4] = {
 	{ 4095, 4094, 4080, 4068 },		/* 4096 words */
 };
 
-#define LRNG_POOL_SIZE 128
-#define CONFIG_LRNG_POOL_SIZE 0
+#define LRNG_POOL_SIZE		(128 << CONFIG_LRNG_POOL_SIZE)
 
 uint32_t stats[LRNG_POOL_SIZE] = { 0 };
 
 struct lrng_pool {
-#define LRNG_POOL_SIZE 128
 	u32 pool[LRNG_POOL_SIZE];	/* Pool */
 	u32 pool_ptr;		/* Ptr into pool for next IRQ word injection */
 	u32 input_rotate;	/* rotate for LFSR */
@@ -193,25 +193,18 @@ static u32 const lrng_twist_table[8] = {
 
 static void lrng_pool_lfsr_u32(u32 value)
 {
-	u32 ptr;
-
-	/*
-	 * Add 7 bits of rotation to the pool. At the beginning of the
-	 * pool, add an extra 7 bits rotation, so that successive passes
-	 * spread the input bits across the pool evenly.
-	 */
-	u32 input_rotate = lrng_pool.input_rotate;
-	u32 word = rol32(value, input_rotate);
+	u32 ptr, input_rotate, word;
 
 	lrng_pool.pool_ptr += 67;
 	ptr = lrng_pool.pool_ptr & (LRNG_POOL_SIZE - 1);
-	stats[ptr]++;
 
 	if (ptr)
 		lrng_pool.input_rotate += 7;
 	else
 		lrng_pool.input_rotate += 14;
-	lrng_pool.input_rotate &= 31;
+	input_rotate = lrng_pool.input_rotate & 31;
+
+	word = rol32(value, input_rotate);
 
 	word ^= lrng_pool.pool[ptr];
 	word ^= lrng_pool.pool[

@@ -114,7 +114,7 @@ fi
 
 CPU=$(cat /proc/cpuinfo  | grep "model name" | tail -n1 | cut -d":" -f2)
 
-if [ -f /proc/sys/kernel/random/lrng_type ]
+if [ -f /proc/lrng_type ]
 then
 	echo "LRNG Speed test on $CPU"
 	echo -e "DRNG name\tBlocksize\tSpeed"

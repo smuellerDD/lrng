@@ -22,7 +22,7 @@
 #
 
 # Count the available NUMA nodes
-NUMA_NODES=$(cat /proc/sys/kernel/random/lrng_type  | grep instance | cut -d":" -f 2)
+NUMA_NODES=$(cat /proc/lrng_type  | grep instance | cut -d":" -f 2)
 
 urandom=0
 lrng_type=0
@@ -81,7 +81,7 @@ dd_random=$!
 while [ $lrng_type -lt $NUMA_NODES ]
 do
 	echo "spawn load on lrng_type"
-	( while [ 1 ]; do cat /proc/sys/kernel/random/lrng_type > /dev/null; done ) &
+	( while [ 1 ]; do cat /proc/lrng_type > /dev/null; done ) &
 	eval dd_lrng_$lrng_type=$!
 	lrng_type=$(($lrng_type+1))
 done

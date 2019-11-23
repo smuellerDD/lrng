@@ -46,6 +46,9 @@ The following description of the different tests apply
   kernel module lrng_drbg.ko is continuously loaded and unloaded triggering a
   constant swap of the DRNG from / to ChaCha20 and SP800-90A DRBG.
 
+* `syscall_test.c`: This tool allows invoking of all types of the getrandom(2)
+  system calls and monitor the behavior.
+
 * `test_proc_A.pl`: This test performs the Test Procedure A from AIS 31 as
   defined in section 2.4.4.1. Generate at least 5 MB of data from /dev/urandom
   and invoke the script with the generate data. Beware, this test may run for
