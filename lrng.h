@@ -6,7 +6,7 @@
 #ifndef _LRNG_H
 #define _LRNG_H
 
-#include <asm/errno.h>
+#include <linux/errno.h>
 #include <linux/types.h>
 
 /**

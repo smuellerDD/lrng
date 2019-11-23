@@ -1,23 +1,17 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-2-Clause
 /*
- * LRNG proc interfaces
+ * LRNG proc and sysctl interfaces
  *
  * Copyright (C) 2016 - 2019, Stephan Mueller <smueller@chronox.de>
  */
 
 #include <linux/lrng.h>
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 #include <linux/sysctl.h>
 #include <linux/uuid.h>
 
 #include "lrng_internal.h"
-
-/* Number of online DRNGs */
-static u32 numa_drngs = 1;
-
-void lrng_pool_inc_numa_node(void)
-{
-	numa_drngs++;
-}
 
 /*
  * This function is used to return both the bootid UUID, and random
@@ -55,44 +49,6 @@ static int lrng_proc_do_uuid(struct ctl_table *table, int write,
 	return proc_dostring(&fake_table, write, buffer, lenp, ppos);
 }
 
-static int lrng_proc_do_type(struct ctl_table *table, int write,
-			     void __user *buffer, size_t *lenp, loff_t *ppos)
-{
-	struct lrng_sdrng *lrng_sdrng_init = lrng_sdrng_init_instance();
-	struct ctl_table fake_table;
-	unsigned long flags = 0;
-	unsigned char buf[300];
-
-	lrng_sdrng_lock(lrng_sdrng_init, &flags);
-	snprintf(buf, sizeof(buf),
-#ifdef CONFIG_LRNG_TRNG_SUPPORT
-		 "TRNG present: true\n"
-#else
-		 "TRNG present: false\n"
-#endif
-		 "DRNG name: %s\n"
-		 "Hash for reading entropy pool: %s\n"
-		 "DRNG security strength: %d bits\n"
-		 "number of secondary DRNG instances: %u\n"
-		 "SP800-90B compliance: %s\n"
-		 "High-resolution timer: %s\n"
-		 "LRNG minimally seeded: %s\n"
-		 "LRNG fully seeded: %s",
-		 lrng_sdrng_init->crypto_cb->lrng_drng_name(),
-		 lrng_sdrng_init->crypto_cb->lrng_hash_name(),
-		 LRNG_DRNG_SECURITY_STRENGTH_BITS, numa_drngs,
-		 lrng_sp80090b_compliant() ? "true" : "false",
-		 lrng_pool_highres_timer() ? "true" : "false",
-		 lrng_state_min_seeded() ? "true" : "false",
-		 lrng_state_fully_seeded() ? "true" : "false");
-	lrng_sdrng_unlock(lrng_sdrng_init, &flags);
-
-	fake_table.data = buf;
-	fake_table.maxlen = sizeof(buf);
-
-	return proc_dostring(&fake_table, write, buffer, lenp, ppos);
-}
-
 static int lrng_proc_do_entropy(struct ctl_table *table, int write,
 				void __user *buffer, size_t *lenp, loff_t *ppos)
 {
@@ -115,7 +71,6 @@ static int lrng_max_write_thresh = LRNG_POOL_SIZE_BITS;
 static char lrng_sysctl_bootid[16];
 static int lrng_sdrng_reseed_max_min;
 
-extern struct ctl_table random_table[];
 struct ctl_table random_table[] = {
 	{
 		.procname	= "poolsize",
@@ -169,11 +124,56 @@ struct ctl_table random_table[] = {
 		.proc_handler   = proc_dointvec,
 		.extra1		= &lrng_sdrng_reseed_max_min,
 	},
-	{
-		.procname	= "lrng_type",
-		.maxlen		= 30,
-		.mode		= 0444,
-		.proc_handler	= lrng_proc_do_type,
-	},
 	{ }
 };
+
+/* Number of online DRNGs */
+static u32 numa_drngs = 1;
+
+void lrng_pool_inc_numa_node(void)
+{
+	numa_drngs++;
+}
+
+static int lrng_proc_type_show(struct seq_file *m, void *v)
+{
+	struct lrng_sdrng *lrng_sdrng_init = lrng_sdrng_init_instance();
+	unsigned long flags = 0;
+	unsigned char buf[300];
+
+	lrng_sdrng_lock(lrng_sdrng_init, &flags);
+	snprintf(buf, sizeof(buf),
+#ifdef CONFIG_LRNG_TRNG_SUPPORT
+		 "TRNG present: true\n"
+#else
+		 "TRNG present: false\n"
+#endif
+		 "DRNG name: %s\n"
+		 "Hash for reading entropy pool: %s\n"
+		 "DRNG security strength: %d bits\n"
+		 "number of secondary DRNG instances: %u\n"
+		 "SP800-90B compliance: %s\n"
+		 "High-resolution timer: %s\n"
+		 "LRNG minimally seeded: %s\n"
+		 "LRNG fully seeded: %s\n",
+		 lrng_sdrng_init->crypto_cb->lrng_drng_name(),
+		 lrng_sdrng_init->crypto_cb->lrng_hash_name(),
+		 LRNG_DRNG_SECURITY_STRENGTH_BITS, numa_drngs,
+		 lrng_sp80090b_compliant() ? "true" : "false",
+		 lrng_pool_highres_timer() ? "true" : "false",
+		 lrng_state_min_seeded() ? "true" : "false",
+		 lrng_state_fully_seeded() ? "true" : "false");
+	lrng_sdrng_unlock(lrng_sdrng_init, &flags);
+
+	seq_write(m, buf, strlen(buf));
+
+	return 0;
+}
+
+static int __init lrng_proc_type_init(void)
+{
+	proc_create_single("lrng_type", 0444, NULL, &lrng_proc_type_show);
+	return 0;
+}
+
+module_init(lrng_proc_type_init);

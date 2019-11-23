@@ -181,7 +181,7 @@ void lrng_pool_set_entropy(u32 entropy_bits)
 		   lrng_entropy_to_data(entropy_bits));
 }
 
-void lrng_pool_configure(bool highres_timer, u32 irq_entropy_bits)
+static void lrng_pool_configure(bool highres_timer, u32 irq_entropy_bits)
 {
 	struct lrng_irq_info *irq_info = &lrng_pool.irq_info;
 
@@ -193,6 +193,27 @@ void lrng_pool_configure(bool highres_timer, u32 irq_entropy_bits)
 						&irq_info->num_events_thresh));
 	}
 }
+
+static void __init lrng_init_time_source(void)
+{
+	if (random_get_entropy() || random_get_entropy()) {
+		/*
+		 * As the highres timer is identified here, previous interrupts
+		 * obtained during boot time are treated like a lowres-timer
+		 * would have been present.
+		 */
+		lrng_pool_configure(true, LRNG_IRQ_ENTROPY_BITS);
+	} else {
+		lrng_health_disable();
+		lrng_pool_configure(false, LRNG_IRQ_ENTROPY_BITS *
+					   LRNG_IRQ_OVERSAMPLING_FACTOR);
+		pr_warn("operating without high-resolution timer and applying "
+			"IRQ oversampling factor %u\n",
+			LRNG_IRQ_OVERSAMPLING_FACTOR);
+	}
+}
+
+core_initcall(lrng_init_time_source);
 
 /* invoke function with buffer aligned to 4 bytes */
 void lrng_pool_lfsr(const u8 *buf, u32 buflen)
@@ -414,15 +435,17 @@ out:
  * @outbuf: buffer to store data in with size LRNG_DRNG_SECURITY_STRENGTH_BYTES
  * @requested_entropy_bits: requested bits of entropy -- the function will
  *			    return at least this amount of entropy if available
- * @drain: boolean indicating that that all entropy of pool can be used
- *	   (otherwise some emergency amount of entropy is left)
+ * @entropy_retain: amount of entropy in bits that should be left in the pool
  * @return: estimated entropy from the IRQs that was obtained
  */
 static u32 lrng_get_pool(const struct lrng_crypto_cb *crypto_cb, void *hash,
-			 u8 *outbuf, u32 requested_entropy_bits, bool drain)
+			 u8 *outbuf, u32 requested_entropy_bits,
+			 u32 entropy_retain)
 {
 	struct lrng_pool *pool = &lrng_pool;
+	struct lrng_state *state = &lrng_state;
 	unsigned long flags;
+
 	u32 irq_num_events_used, irq_num_events, avail_entropy_bits;
 
 	/* This get_pool operation must only be called once at a given time! */
@@ -438,38 +461,25 @@ static u32 lrng_get_pool(const struct lrng_crypto_cb *crypto_cb, void *hash,
 			min_t(u32, avail_entropy_bits, LRNG_POOL_SIZE_BITS);
 
 	/* How much entropy we need to and can we use? */
-	if (drain) {
-		struct lrng_state *state = &lrng_state;
-
-		/* read for the TRNG or not fully seeded 2ndary DRNG */
-		if (!state->lrng_fully_seeded) {
-			/*
-			 * During boot time, we read 256 bits data with
-			 * avail_entropy_bits entropy. In case our conservative
-			 * entropy estimate underestimates the available entropy
-			 * we can transport as much available entropy as
-			 * possible. The primary DRNG is no TRNG yet.
-			 */
-			requested_entropy_bits =
-					LRNG_DRNG_SECURITY_STRENGTH_BITS;
-		} else {
-			requested_entropy_bits = min_t(u32, avail_entropy_bits,
-						       requested_entropy_bits);
-		}
-	} else {
+	if (unlikely(!state->lrng_fully_seeded)) {
 		/*
-		 * Read for 2ndary DRNG: leave the emergency fill level.
-		 *
-		 * Only obtain data if we have at least the requested entropy
-		 * available. The idea is to prevent the transfer of, say
-		 * one byte at a time, because one byte of entropic data
-		 * can be brute forced by an attacker.
+		 * During boot time, we read 256 bits data with
+		 * avail_entropy_bits entropy. In case our conservative
+		 * entropy estimate underestimates the available entropy
+		 * we can transport as much available entropy as
+		 * possible. The TRNG does not operate as a TRNG yet.
 		 */
-		if ((requested_entropy_bits + LRNG_EMERG_ENTROPY) >
-		     avail_entropy_bits) {
+		requested_entropy_bits =
+				LRNG_DRNG_SECURITY_STRENGTH_BITS;
+	} else {
+		/* Provide all entropy above retaining level */
+		if (avail_entropy_bits < entropy_retain) {
 			requested_entropy_bits = 0;
 			goto out;
 		}
+		avail_entropy_bits -= entropy_retain;
+		requested_entropy_bits = min_t(u32, avail_entropy_bits,
+					       requested_entropy_bits);
 	}
 
 	/* Hash is a compression function: we generate entropy amount of data */
@@ -494,16 +504,18 @@ out:
 	 * Otherwise we reduce the amount of entropy we say we generated with
 	 * the hash_df.
 	 */
-	if ((irq_num_events_used + LRNG_CONDITIONING_ENTROPY_LOSS) <=
-	    lrng_entropy_to_data(avail_entropy_bits)) {
-		irq_num_events_used += LRNG_CONDITIONING_ENTROPY_LOSS;
-	} else {
-		if (unlikely(requested_entropy_bits <
-			     LRNG_CONDITIONING_ENTROPY_LOSS))
-			requested_entropy_bits = 0;
-		else
-			requested_entropy_bits -=
+	if (irq_num_events_used) {
+		if ((irq_num_events_used + LRNG_CONDITIONING_ENTROPY_LOSS) <=
+		    lrng_entropy_to_data(avail_entropy_bits)) {
+			irq_num_events_used += LRNG_CONDITIONING_ENTROPY_LOSS;
+		} else {
+			if (unlikely(requested_entropy_bits <
+				     LRNG_CONDITIONING_ENTROPY_LOSS))
+				requested_entropy_bits = 0;
+			else
+				requested_entropy_bits -=
 						LRNG_CONDITIONING_ENTROPY_LOSS;
+		}
 	}
 
 	/*
@@ -540,28 +552,27 @@ out:
 
 /* Fill the seed buffer with data from the noise sources */
 int lrng_fill_seed_buffer(const struct lrng_crypto_cb *crypto_cb, void *hash,
-			  struct entropy_buf *entropy_buf, bool drain)
+			  struct entropy_buf *entropy_buf, u32 entropy_retain)
 {
 	struct lrng_state *state = &lrng_state;
 	u32 total_entropy_bits = 0;
 
 	/* Require at least 128 bits of entropy for any reseed. */
 	if (state->lrng_fully_seeded &&
-	    lrng_avail_entropy() <
-	    lrng_slow_noise_req_entropy(lrng_read_wakeup_bits))
+	    (lrng_avail_entropy() <
+	     lrng_slow_noise_req_entropy(lrng_read_wakeup_bits) +
+	      entropy_retain))
 		goto wakeup;
-
-	/* Drain the pool completely during init and when /dev/random calls. */
-	total_entropy_bits = lrng_get_pool(crypto_cb, hash, entropy_buf->a,
-					   LRNG_DRNG_SECURITY_STRENGTH_BITS,
-					   drain);
 
 	/*
 	 * Concatenate the output of the noise sources. This would be the
 	 * spot to add an entropy extractor logic if desired. Note, this
 	 * has the ability to collect entropy equal or larger than the DRNG
-	 * strength to be able to feed /dev/random.
+	 * strength to be able to feed GRND_TRUERANDOM.
 	 */
+	total_entropy_bits = lrng_get_pool(crypto_cb, hash, entropy_buf->a,
+					   LRNG_DRNG_SECURITY_STRENGTH_BITS,
+					   entropy_retain);
 	total_entropy_bits += lrng_get_arch(entropy_buf->b);
 	total_entropy_bits += lrng_get_jent(entropy_buf->c,
 					    LRNG_DRNG_SECURITY_STRENGTH_BYTES);

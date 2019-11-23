@@ -122,7 +122,7 @@ static inline int _lrng_sdrng_seed(struct lrng_sdrng *sdrng)
 	u8 seedbuf[LRNG_DRNG_SECURITY_STRENGTH_BYTES]
 						__aligned(LRNG_KCAPI_ALIGN);
 	int ret = lrng_trng_seed(seedbuf, sizeof(seedbuf),
-				 !sdrng->fully_seeded);
+				 sdrng->fully_seeded ? LRNG_EMERG_ENTROPY : 0);
 
 	/* Update the DRNG state even though we received zero random data */
 	if (ret < 0) {
@@ -146,7 +146,7 @@ static inline int _lrng_sdrng_seed(struct lrng_sdrng *sdrng)
 
 	lrng_sdrng_lock(sdrng, &flags);
 	total_entropy_bits = lrng_fill_seed_buffer(sdrng->crypto_cb,
-						   sdrng->hash, &seedbuf, true);
+						   sdrng->hash, &seedbuf, 0);
 	lrng_sdrng_unlock(sdrng, &flags);
 
 	/* Allow the seeding operation to be called again */
@@ -346,22 +346,6 @@ void lrng_drngs_init_cc20(void)
 	if (lrng_get_available()) {
 		lrng_sdrng_unlock(&lrng_sdrng_init, &flags);
 		return;
-	}
-
-	if (random_get_entropy() || random_get_entropy()) {
-		/*
-		 * As the highres timer is identified here, previous interrupts
-		 * obtained during boot time are treated like a lowres-timer
-		 * would have been present.
-		 */
-		lrng_pool_configure(true, LRNG_IRQ_ENTROPY_BITS);
-	} else {
-		lrng_health_disable();
-		lrng_pool_configure(false, LRNG_IRQ_ENTROPY_BITS *
-					   LRNG_IRQ_OVERSAMPLING_FACTOR);
-		pr_warn("operating without high-resolution timer and applying "
-			"IRQ oversampling factor %u\n",
-			LRNG_IRQ_OVERSAMPLING_FACTOR);
 	}
 
 	lrng_sdrng_reset(&lrng_sdrng_init);

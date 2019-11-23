@@ -7,6 +7,7 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <linux/capability.h>
 #include <linux/lrng.h>
 
 #include "lrng_internal.h"
@@ -20,7 +21,7 @@ struct lrng_trng {
 	struct mutex lock;
 };
 
-/* TRNG for /dev/random and seed source for the secondary DRNG(s) */
+/* TRNG for GRND_TRUERANDOM and seed source for the secondary DRNG(s) */
 static struct lrng_trng lrng_trng = {
 	.trng		= &primary_chacha20,
 	.crypto_cb	= &lrng_cc20_crypto_cb,
@@ -41,6 +42,13 @@ void lrng_trng_init(void)
 	lrng_trng_reset();
 	lrng_cc20_init_state(&primary_chacha20);
 	mutex_unlock(&lrng_trng.lock);
+}
+
+u32 lrng_trng_retain(void)
+{
+	if (capable(CAP_SYS_ADMIN))
+		return 0;
+	return LRNG_EMERG_ENTROPY_TRNG_UNPRIV;
 }
 
 /************************* Random Number Generation ***************************/
@@ -140,7 +148,7 @@ unlock:
  *
  * lrng_pool_trylock() must be invoked successfully by caller.
  */
-int lrng_trng_seed(u8 *outbuf, u32 outbuflen, bool drain)
+int lrng_trng_seed(u8 *outbuf, u32 outbuflen, u32 entropy_retain)
 {
 	struct entropy_buf entropy_buf __aligned(LRNG_KCAPI_ALIGN);
 	struct lrng_trng *trng = &lrng_trng;
@@ -165,8 +173,14 @@ int lrng_trng_seed(u8 *outbuf, u32 outbuflen, bool drain)
 
 	mutex_lock(&trng->lock);
 	total_entropy_bits = lrng_fill_seed_buffer(trng->crypto_cb, trng->hash,
-						   &entropy_buf, drain);
+						   &entropy_buf,
+						   entropy_retain);
 	mutex_unlock(&trng->lock);
+
+	/*
+	 * Continue even of total_entropy_bits is zero - inject uninitialized
+	 * buffer into TRNG for pure mixing in this case.
+	 */
 
 	pr_debug("reseed TRNG from internal noise sources with %u bits "
 		 "of entropy\n", total_entropy_bits);
@@ -208,7 +222,7 @@ int lrng_trng_get(u8 *outbuf, u32 outbuflen)
 
 	if (lrng_pool_trylock())
 		return -EINPROGRESS;
-	ret = lrng_trng_seed(outbuf, outbuflen, true);
+	ret = lrng_trng_seed(outbuf, outbuflen, lrng_trng_retain());
 	if (ret >= 0) {
 		pr_debug("read %d bytes of full entropy data from TRNG\n", ret);
 	} else {

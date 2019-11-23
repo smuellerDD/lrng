@@ -12,6 +12,7 @@
 #include <linux/cryptohash.h>
 #include <linux/lrng.h>
 #include <linux/random.h>
+#include <linux/slab.h>
 
 #include "lrng_internal.h"
 

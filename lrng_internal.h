@@ -49,12 +49,19 @@
 #define LRNG_IRQ_ENTROPY_BITS		LRNG_DRNG_SECURITY_STRENGTH_BITS
 
 /*
- * Leave given amount of entropy in bits entropy pool to serve /dev/random while
- * /dev/urandom is stressed.
+ * Leave given amount of entropy in bits in entropy pool to serve
+ * GRND_TRUERANDOM called with CAP_SYS_ADMIN while /dev/urandom is stressed.
  *
  * This value is allowed to be changed.
  */
 #define LRNG_EMERG_ENTROPY		(LRNG_DRNG_SECURITY_STRENGTH_BITS * 2)
+
+/*
+ * Leave given amount of entropy in bits in entropy to serve GRND_TRUERANDOM
+ * called without CAP_SYS_ADMIN. Providing TRNG data to unprivileged users
+ * should have the least priority and should not affect other users of entropy.
+ */
+#define LRNG_EMERG_ENTROPY_TRNG_UNPRIV	(LRNG_EMERG_ENTROPY * 2)
 
 /*
  * Amount of entropy that is lost with the conditioning functions of LFSR and
@@ -141,7 +148,6 @@ bool lrng_state_fully_seeded(void);
 bool lrng_state_operational(void);
 bool lrng_pool_highres_timer(void);
 void lrng_pool_set_entropy(u32 entropy_bits);
-void lrng_pool_configure(bool highres_timer, u32 irq_entropy_bits);
 void lrng_pool_lfsr(const u8 *buf, u32 buflen);
 void lrng_pool_lfsr_nonaligned(const u8 *buf, u32 buflen);
 void lrng_pool_lfsr_u32(u32 value);
@@ -155,9 +161,8 @@ struct entropy_buf {
 	u32 now;
 };
 
-int lrng_fill_seed_buffer(const struct lrng_crypto_cb *crypto_cb,
-			  void *hash, struct entropy_buf *entropy_buf,
-			  bool drain);
+int lrng_fill_seed_buffer(const struct lrng_crypto_cb *crypto_cb, void *hash,
+			  struct entropy_buf *entropy_buf, u32 entropy_retain);
 void lrng_init_ops(u32 seed_bits);
 
 /************************** Jitter RNG Noise Source ***************************/
@@ -182,7 +187,8 @@ u32 lrng_slow_noise_req_entropy(u32 required_entropy_bits);
 void lrng_trng_reset(void);
 void lrng_trng_init(void);
 int lrng_trng_get(u8 *outbuf, u32 outbuflen);
-int lrng_trng_seed(u8 *outbuf, u32 outbuflen, bool drain);
+int lrng_trng_seed(u8 *outbuf, u32 outbuflen, u32 entropy_retain);
+u32 lrng_trng_retain(void);
 # ifdef CONFIG_LRNG_DRNG_SWITCH
 int lrng_trng_switch(const struct lrng_crypto_cb *cb);
 # endif
@@ -191,7 +197,12 @@ int lrng_trng_switch(const struct lrng_crypto_cb *cb);
 
 static inline void lrng_trng_reset(void) {}
 static inline void lrng_trng_init(void) {}
-#define lrng_trng_get lrng_sdrng_get_sleep
+static inline u32 lrng_trng_retain(void) { return 0; }
+
+static inline int lrng_trng_get(u8 *outbuf, u32 outbuflen)
+{
+	return -EOPNOTSUPP;
+}
 
 # ifdef CONFIG_LRNG_DRNG_SWITCH
 static inline int lrng_trng_switch(const struct lrng_crypto_cb *cb) {return 0; }

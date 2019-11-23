@@ -1,0 +1,188 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# Linux Random Number Generator configuration
+#
+
+menuconfig LRNG
+	bool "Linux Random Number Generator"
+	help
+	  The Linux Random Number Generator (LRNG) is the replacement
+	  of the existing /dev/random provided with drivers/char/random.c.
+	  It generates entropy from different noise sources and
+	  delivers significant entropy during boot.
+
+if LRNG
+
+choice
+	prompt "LRNG Entropy Pool Size"
+	default LRNG_POOL_SIZE_4096
+	help
+	  Select the size of the LRNG entropy pool. The size of the
+	  entropy pool is relevant for the amount of entropy that
+	  the LRNG can maintain as a maximum. The larger the size
+	  of the entropy pool is the more entropy can be maintained
+	  but the less often older entropic values are overwritten
+	  with new entropy.
+
+	config LRNG_POOL_SIZE_4096
+		bool "4096 bits (default)"
+
+	config LRNG_POOL_SIZE_8192
+		bool "8192 bits"
+
+	config LRNG_POOL_SIZE_16384
+		bool "16384 bits"
+
+	config LRNG_POOL_SIZE_32768
+		bool "32768 bits"
+
+	config LRNG_POOL_SIZE_65536
+		bool "65536 bits"
+
+	config LRNG_POOL_SIZE_131072
+		bool "131072 bits"
+endchoice
+
+config LRNG_POOL_SIZE
+	int
+	default 0 if LRNG_POOL_SIZE_4096
+	default 1 if LRNG_POOL_SIZE_8192
+	default 2 if LRNG_POOL_SIZE_16384
+	default 3 if LRNG_POOL_SIZE_32768
+	default 4 if LRNG_POOL_SIZE_65536
+	default 5 if LRNG_POOL_SIZE_131072
+
+menuconfig LRNG_DRNG_SWITCH
+	bool "Support DRNG runtime switching"
+	help
+	  The Linux RNG per default uses a ChaCha20 DRNG that is
+	  accessible via the external interfaces. With this configuration
+	  option other DRNGs can be selected and loaded at runtime.
+
+if LRNG_DRNG_SWITCH
+config LRNG_DRBG
+	tristate "SP800-90A support for the LRNG"
+	select CRYPTO_DRBG_MENU
+	select CRYPTO_CMAC if CRYPTO_DRBG_CTR
+	help
+	  Enable the SP800-90A DRBG support for the LRNG. Once the
+	  module is loaded, output from /dev/random, /dev/urandom,
+	  getrandom(2), or get_random_bytes is provided by a DRBG.
+
+config LRNG_KCAPI
+	tristate "Kernel Crypto API support for the LRNG"
+	select CRYPTO_RNG
+	help
+	  Enable the support for generic pseudo-random number
+	  generators offered by the kernel crypto API with the
+	  LRNG. Once the module is loaded, output from /dev/random,
+	  /dev/urandom, getrandom(2), or get_random_bytes is
+	  provided by the selected kernel crypto API RNG.
+endif # LRNG_DRNG_SWITCH
+
+config LRNG_JENT
+	bool "Enable Jitter RNG as LRNG Seed Source"
+	select CRYPTO_JITTERENTROPY
+	help
+	  The Linux RNG may use the Jitter RNG as noise source. Enabling
+	  this option enables the use of the Jitter RNG. Its default
+	  entropy level is 16 bits of entropy per 256 data bits delivered
+	  by the Jitter RNG. This entropy level can be changed at boot
+	  time or at runtime with the lrng_base.jitterrng configuration
+	  variable.
+
+config LRNG_TRNG_SUPPORT
+	bool "Enable True Random Number Generator support"
+	default y
+	help
+	  The true random number generator (TRNG) support, also
+	  known as DRNG with prediction resistance (SP800-90A
+	  terminology) or NTG.1 (AIS 31 terminology), generates
+	  random numbers after a successful reseed with entropy.
+	  Only when new entropy is provided for a new generation
+	  request, random data is provided with an equal amount
+	  as entropy was added. The TRNG is available via
+	  /dev/random.
+
+	  If the support is not enabled, /dev/random ensures that
+	  it received sufficient initial entropy and will produce
+	  random data without requiring a constant reseed with
+	  entropy. Yet it tries to regularly reseed itself with
+	  fresh entropy.
+
+	  With the TRNG support the /dev/random device will block
+	  if insufficient entropy is available.
+
+config LRNG_HEALTH_TESTS
+	bool "Enable noise source online health tests"
+	help
+	  The online health tests validate the noise source at
+	  runtime for fatal errors. These tests include SP800-90B
+	  compliant tests which are invoked if the system is booted
+	  with fips=1. In case of fatal errors during active
+	  SP800-90B tests, the issue is logged and the noise
+	  data is discarded. These tests are required for full
+	  compliance with SP800-90B.
+
+	  If unsure, say Y.
+
+config LRNG_RCT_BROKEN
+	bool "SP800-90B RCT with dangerous low cutoff value"
+	depends on LRNG_HEALTH_TESTS
+	depends on BROKEN
+	default n
+	help
+	  This option enables a dangerously low SP800-90B repetitive
+	  count test (RCT) cutoff value which makes it very likely
+	  that the RCT is triggered to raise a self test failure.
+
+	  This option is ONLY intended for developers wanting to
+	  test the effectiveness of the SP800-90B RCT health test.
+
+	  If unsure, say N.
+
+config LRNG_APT_BROKEN
+	bool "SP800-90B APT with dangerous low cutoff value"
+	depends on LRNG_HEALTH_TESTS
+	depends on BROKEN
+	default n
+	help
+	  This option enables a dangerously low SP800-90B adaptive
+	  proportion test (APT) cutoff value which makes it very
+	  likely that the RCT is triggered to raise a self test
+	  failure.
+
+	  This option is ONLY intended for developers wanting to
+	  test the effectiveness of the SP800-90B APT health test.
+
+	  If unsure, say N.
+
+# Default taken from SP800-90B sec 4.4.1 - significance level 2^-30
+config LRNG_RCT_CUTOFF
+	int
+	default 30 if !LRNG_RCT_BROKEN
+	default 1 if LRNG_RCT_BROKEN
+
+# Default taken from SP800-90B sec 4.4.2 - significance level 2^-30
+config LRNG_APT_CUTOFF
+	int
+	default 325 if !LRNG_APT_BROKEN
+	default 32 if LRNG_APT_BROKEN
+
+config LRNG_TESTING
+	bool "Enable entropy test interface to LRNG noise source"
+	depends on DEBUG_FS
+	help
+	  The test interface allows a privileged process to capture
+	  the raw unconditioned noise that is collected by the LRNG
+	  for statistical analysis. Extracted noise data is not used
+	  to seed the LRNG.
+
+	  The raw noise data can be obtained using the lrng_raw
+	  debugfs file. Using the option lrng_testing.boot_test=1
+	  the raw noise of the first 1000 entropy events since boot
+	  can be sampled.
+
+	  If unsure, say N.
+
+endif # LRNG

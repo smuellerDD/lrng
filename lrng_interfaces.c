@@ -51,10 +51,16 @@ static inline bool lrng_need_entropy(void)
 	return (lrng_avail_entropy() < lrng_write_wakeup_bits);
 }
 
-/* Is the entropy pool filled for /dev/random pull or DRNG fully seeded? */
+/* Is the entropy pool filled for TRNG pull or DRNG fully seeded? */
 static inline bool lrng_have_entropy_full(void)
 {
 	return (lrng_avail_entropy() >= lrng_read_wakeup_bits);
+}
+
+static inline bool lrng_have_entropy_full_trng(void)
+{
+	return (lrng_avail_entropy() >= lrng_read_wakeup_bits +
+					lrng_trng_retain());
 }
 
 void lrng_reader_wakeup(void)
@@ -424,7 +430,8 @@ static ssize_t lrng_read_common(char __user *buf, size_t nbytes,
 }
 
 static ssize_t
-lrng_trng_read_common(int nonblock, char __user *buf, size_t nbytes)
+lrng_read_common_block(int nonblock, char __user *buf, size_t nbytes,
+		       int (*lrng_read_random)(u8 *outbuf, u32 outbuflen))
 {
 	if (nbytes == 0)
 		return 0;
@@ -441,28 +448,28 @@ lrng_trng_read_common(int nonblock, char __user *buf, size_t nbytes)
 			return ret;
 	}
 
-	nbytes = min_t(u32, nbytes, LRNG_DRNG_BLOCKSIZE);
 	while (1) {
-		ssize_t n = lrng_read_common(buf, nbytes, lrng_trng_get);
+		ssize_t n = lrng_read_common(buf, nbytes, lrng_read_random);
 
 		if (n)
 			return n;
 
-		/* No entropy available.  Maybe wait and retry. */
+		/* No entropy available. Maybe wait and retry. */
 		if (nonblock)
 			return -EAGAIN;
 
 		wait_event_interruptible(lrng_read_wait,
-					 lrng_have_entropy_full());
+					 lrng_have_entropy_full_trng());
 		if (signal_pending(current))
 			return -ERESTARTSYS;
 	}
 }
 
-static ssize_t lrng_trng_read(struct file *file, char __user *buf,
-			      size_t nbytes, loff_t *ppos)
+static ssize_t lrng_read_block(struct file *file, char __user *buf,
+			       size_t nbytes, loff_t *ppos)
 {
-	return lrng_trng_read_common(file->f_flags & O_NONBLOCK, buf, nbytes);
+	return lrng_read_common_block(file->f_flags & O_NONBLOCK, buf, nbytes,
+				      lrng_sdrng_get_sleep);
 }
 
 static unsigned int lrng_trng_poll(struct file *file, poll_table *wait)
@@ -604,7 +611,7 @@ static int lrng_fasync(int fd, struct file *filp, int on)
 }
 
 const struct file_operations random_fops = {
-	.read  = lrng_trng_read,
+	.read  = lrng_read_block,
 	.write = lrng_drng_write,
 	.poll  = lrng_trng_poll,
 	.unlocked_ioctl = lrng_ioctl,
@@ -620,28 +627,39 @@ const struct file_operations urandom_fops = {
 	.llseek = noop_llseek,
 };
 
+/* These defines need to go to include/uapi/linux/random.h */
+#define GRND_INSECURE	0x0004
+#define GRND_TRUERANDOM	0x0008
 SYSCALL_DEFINE3(getrandom, char __user *, buf, size_t, count,
 		unsigned int, flags)
 {
-	if (flags & ~(GRND_NONBLOCK|GRND_RANDOM))
+	if (flags & ~(GRND_NONBLOCK|GRND_RANDOM|GRND_INSECURE|GRND_TRUERANDOM))
+		return -EINVAL;
+
+	/*
+	 * Requesting insecure and blocking randomness at the same time makes
+	 * no sense.
+	 */
+	if ((flags &
+	     (GRND_INSECURE|GRND_RANDOM)) == (GRND_INSECURE|GRND_RANDOM))
+		return -EINVAL;
+
+	/* Only allow GRND_TRUERANDOM by itself or with NONBLOCK */
+	if ((flags & GRND_TRUERANDOM) &&
+	    ((flags &~ GRND_TRUERANDOM) != 0) &&
+	    ((flags &~ (GRND_TRUERANDOM | GRND_NONBLOCK)) != 0))
 		return -EINVAL;
 
 	if (count > INT_MAX)
 		count = INT_MAX;
 
-	if (flags & GRND_RANDOM)
-		return lrng_trng_read_common(flags & GRND_NONBLOCK, buf, count);
+        if (flags & GRND_TRUERANDOM)
+		return lrng_read_common_block(flags & GRND_NONBLOCK, buf,
+					      count, lrng_trng_get);
+	if (flags & GRND_INSECURE)
+		return lrng_sdrng_read(NULL, buf, count, NULL);
 
-	if (unlikely(!lrng_state_operational())) {
-		int ret;
+	return lrng_read_common_block(flags & GRND_NONBLOCK, buf, count,
+				      lrng_sdrng_get_sleep);
 
-		if (flags & GRND_NONBLOCK)
-			return -EAGAIN;
-		ret = wait_event_interruptible(lrng_init_wait,
-					       lrng_state_operational());
-		if (unlikely(ret))
-			return ret;
-	}
-
-	return lrng_sdrng_read(NULL, buf, count, NULL);
 }

@@ -26,13 +26,20 @@
 #define LRNG_TESTING_RINGBUFFER_MASK	(LRNG_TESTING_RINGBUFFER_SIZE - 1)
 
 static u32 lrng_testing_rb[LRNG_TESTING_RINGBUFFER_SIZE];
-static atomic_t lrng_rb_reader = ATOMIC_INIT(0);
-static atomic_t lrng_rb_writer = ATOMIC_INIT(0);
-static atomic_t lrng_rb_first_in = ATOMIC_INIT(0);
+static u32 lrng_rb_reader = 0;
+static u32 lrng_rb_writer = 0;
 static atomic_t lrng_testing_enabled = ATOMIC_INIT(0);
 
 static DECLARE_WAIT_QUEUE_HEAD(lrng_raw_read_wait);
+static DEFINE_SPINLOCK(lrng_raw_lock);
 
+/*
+ * 0 ==> No boot test, gathering of runtime data allowed
+ * 1 ==> Boot test enabled and ready for collecting data, gathering runtime
+ *	 data is disabled
+ * 2 ==> Boot test completed and disabled, gathering of runtime data is
+ *	 disabled
+ */
 static u32 boot_test = 0;
 module_param(boot_test, uint, 0644);
 MODULE_PARM_DESC(boot_test, "Enable gathering boot time entropy of the first"
@@ -40,9 +47,12 @@ MODULE_PARM_DESC(boot_test, "Enable gathering boot time entropy of the first"
 
 static inline void lrng_raw_entropy_reset(void)
 {
-	atomic_set(&lrng_rb_reader, 0);
-	atomic_set(&lrng_rb_writer, 0);
-	atomic_set(&lrng_rb_first_in, 0);
+	unsigned long flags;
+
+	spin_lock_irqsave(&lrng_raw_lock, flags);
+	lrng_rb_reader = 0;
+	lrng_rb_writer = 0;
+	spin_unlock_irqrestore(&lrng_raw_lock, flags);
 }
 
 static void lrng_raw_entropy_init(void)
@@ -65,120 +75,104 @@ static void lrng_raw_entropy_fini(void)
 	if (boot_test)
 		return;
 
-	lrng_raw_entropy_reset();
 	atomic_set(&lrng_testing_enabled, 0);
+	lrng_raw_entropy_reset();
 	pr_warn("Disabling raw entropy collection\n");
 }
 
 bool lrng_raw_entropy_store(u32 value)
 {
-	unsigned int write_ptr;
-	unsigned int read_ptr;
+	unsigned long flags;
 
-	if (!atomic_read(&lrng_testing_enabled) && !boot_test)
+	if (!atomic_read(&lrng_testing_enabled) && (boot_test != 1))
 		return false;
 
-	write_ptr = (unsigned int)atomic_add_return_relaxed(1, &lrng_rb_writer);
-	read_ptr = (unsigned int)atomic_read(&lrng_rb_reader);
+	spin_lock_irqsave(&lrng_raw_lock, flags);
 
 	/*
 	 * Disable entropy testing for boot time testing after ring buffer
 	 * is filled.
 	 */
-	if (boot_test && write_ptr > LRNG_TESTING_RINGBUFFER_SIZE) {
-		pr_warn_once("Boot time entropy collection test disabled\n");
-		return false;
+	if (boot_test) {
+		if (lrng_rb_writer > LRNG_TESTING_RINGBUFFER_SIZE) {
+			boot_test = 2;
+			pr_warn_once("Boot time entropy collection test "
+				     "disabled\n");
+			spin_unlock_irqrestore(&lrng_raw_lock, flags);
+			return false;
+		}
+
+		if (lrng_rb_writer == 1)
+			pr_warn("Boot time entropy collection test enabled\n");
 	}
 
-	if (boot_test && !atomic_read(&lrng_rb_first_in))
-		pr_warn("Boot time entropy collection test enabled\n");
+	lrng_testing_rb[lrng_rb_writer & LRNG_TESTING_RINGBUFFER_MASK] = value;
+	lrng_rb_writer++;
 
-	lrng_testing_rb[write_ptr & LRNG_TESTING_RINGBUFFER_MASK] = value;
-
-	/* We got at least one event, enable the reader now. */
-	atomic_set(&lrng_rb_first_in, 1);
+	spin_unlock_irqrestore(&lrng_raw_lock, flags);
 
 	if (wq_has_sleeper(&lrng_raw_read_wait))
 		wake_up_interruptible(&lrng_raw_read_wait);
-
-	/*
-	 * Our writer is taking over the reader - this means the reader
-	 * one full ring buffer available. Thus we "push" the reader ahead
-	 * to guarantee that he will be able to consume the full ring.
-	 */
-	if (!boot_test &&
-	    ((write_ptr & LRNG_TESTING_RINGBUFFER_MASK) ==
-	    (read_ptr & LRNG_TESTING_RINGBUFFER_MASK)))
-		atomic_inc_return_relaxed(&lrng_rb_reader);
 
 	return true;
 }
 
 static inline bool lrng_raw_have_data(void)
 {
-	unsigned int read_ptr = (unsigned int)atomic_read(&lrng_rb_reader);
-	unsigned int write_ptr = (unsigned int)atomic_read(&lrng_rb_writer);
-
-	return (atomic_read(&lrng_rb_first_in) &&
-		(write_ptr & LRNG_TESTING_RINGBUFFER_MASK) !=
-		 (read_ptr & LRNG_TESTING_RINGBUFFER_MASK));
+	return ((lrng_rb_writer & LRNG_TESTING_RINGBUFFER_MASK) !=
+		 (lrng_rb_reader & LRNG_TESTING_RINGBUFFER_MASK));
 }
 
 static int lrng_raw_entropy_reader(u8 *outbuf, u32 outbuflen)
 {
+	unsigned long flags;
 	int collected_data = 0;
 
-	if (!atomic_read(&lrng_testing_enabled) && !boot_test)
-		return -EAGAIN;
-
-	if (!atomic_read(&lrng_rb_first_in)) {
-		wait_event_interruptible(lrng_raw_read_wait,
-					 lrng_raw_have_data());
-		if (signal_pending(current))
-			return -ERESTARTSYS;
-	}
+	lrng_raw_entropy_init();
 
 	while (outbuflen) {
-		unsigned int read_ptr =
-			(unsigned int)atomic_add_return_relaxed(
-							1, &lrng_rb_reader);
-		unsigned int write_ptr =
-			(unsigned int)atomic_read(&lrng_rb_writer);
+		spin_lock_irqsave(&lrng_raw_lock, flags);
 
-		/*
-		 * For boot time testing, only output one round of ring buffer.
-		 */
-		if (boot_test && read_ptr > LRNG_TESTING_RINGBUFFER_SIZE) {
-			collected_data = -ENOMSG;
-			goto out;
-		}
+		/* We have no data or reached the writer. */
+		if (!lrng_rb_writer || (lrng_rb_writer == lrng_rb_reader)) {
 
-		/* We reached the writer */
-		if (!boot_test && ((write_ptr & LRNG_TESTING_RINGBUFFER_MASK) ==
-		    (read_ptr & LRNG_TESTING_RINGBUFFER_MASK))) {
+			spin_unlock_irqrestore(&lrng_raw_lock, flags);
+
+			/*
+			 * Now we gathered all boot data, enable regular data
+			 * collection.
+			 */
+			if (boot_test) {
+				boot_test = 0;
+				goto out;
+			}
+
 			wait_event_interruptible(lrng_raw_read_wait,
 						 lrng_raw_have_data());
-			if (signal_pending(current))
-				return -ERESTARTSYS;
+			if (signal_pending(current)) {
+				collected_data = -ERESTARTSYS;
+				goto out;
+			}
 
 			continue;
 		}
 
 		/* We copy out word-wise */
-		if (outbuflen < sizeof(u32)) {
-			atomic_dec_return_relaxed(&lrng_rb_reader);
+		if (outbuflen < sizeof(u32))
 			goto out;
-		}
 
-		memcpy(outbuf,
-		       &lrng_testing_rb[read_ptr & LRNG_TESTING_RINGBUFFER_MASK],
-		       sizeof(u32));
+		memcpy(outbuf, &lrng_testing_rb[lrng_rb_reader], sizeof(u32));
+		lrng_rb_reader++;
+
+		spin_unlock_irqrestore(&lrng_raw_lock, flags);
+
 		outbuf += sizeof(u32);
 		outbuflen -= sizeof(u32);
 		collected_data += sizeof(u32);
 	}
 
 out:
+	lrng_raw_entropy_fini();
 	return collected_data;
 }
 
@@ -236,17 +230,6 @@ static int lrng_raw_extract_user(char __user *buf, size_t nbytes)
 	return ret;
 }
 
-/*
- * This data structure holds the dentry's of the debugfs files establishing
- * the interface to user space.
- */
-struct lrng_raw_debugfs {
-	struct dentry *lrng_raw_debugfs_root; /* root dentry */
-	struct dentry *lrng_raw_debugfs_lrng_raw; /* .../lrng_raw */
-};
-
-static struct lrng_raw_debugfs lrng_raw_debugfs;
-
 /* DebugFS operations and definition of the debugfs files */
 static ssize_t lrng_raw_read(struct file *file, char __user *to,
 			     size_t count, loff_t *ppos)
@@ -256,26 +239,15 @@ static ssize_t lrng_raw_read(struct file *file, char __user *to,
 
 	if (!count)
 		return 0;
-	lrng_raw_entropy_init();
+
 	ret = lrng_raw_extract_user(to, count);
-	lrng_raw_entropy_fini();
 	if (ret < 0)
 		return ret;
+
 	count -= ret;
 	*ppos = pos + count;
-	return ret;
-}
 
-/* Module init: allocate memory, register the debugfs files */
-static int lrng_raw_debugfs_init(void)
-{
-	lrng_raw_debugfs.lrng_raw_debugfs_root =
-		debugfs_create_dir(KBUILD_MODNAME, NULL);
-	if (IS_ERR(lrng_raw_debugfs.lrng_raw_debugfs_root)) {
-		lrng_raw_debugfs.lrng_raw_debugfs_root = NULL;
-		return PTR_ERR(lrng_raw_debugfs.lrng_raw_debugfs_root);
-	}
-	return 0;
+	return ret;
 }
 
 static struct file_operations lrng_raw_name_fops = {
@@ -283,42 +255,15 @@ static struct file_operations lrng_raw_name_fops = {
 	.read = lrng_raw_read,
 };
 
-static int lrng_raw_debugfs_init_name(void)
+static int __init lrng_raw_init(void)
 {
-	lrng_raw_debugfs.lrng_raw_debugfs_lrng_raw =
-		debugfs_create_file("lrng_raw", 0400,
-				    lrng_raw_debugfs.lrng_raw_debugfs_root,
-				    NULL, &lrng_raw_name_fops);
-	if (IS_ERR(lrng_raw_debugfs.lrng_raw_debugfs_lrng_raw)) {
-		lrng_raw_debugfs.lrng_raw_debugfs_lrng_raw = NULL;
-		return PTR_ERR(lrng_raw_debugfs.lrng_raw_debugfs_lrng_raw);
-	}
+	struct dentry *lrng_raw_debugfs_root;
+
+	lrng_raw_debugfs_root = debugfs_create_dir(KBUILD_MODNAME, NULL);
+	debugfs_create_file_unsafe("lrng_raw", 0400, lrng_raw_debugfs_root,
+				   NULL, &lrng_raw_name_fops);
+
 	return 0;
 }
 
-static int __init lrng_raw_init(void)
-{
-	int ret = lrng_raw_debugfs_init();
-
-	if (ret < 0)
-		return ret;
-
-	ret = lrng_raw_debugfs_init_name();
-	if (ret < 0)
-		debugfs_remove_recursive(
-					lrng_raw_debugfs.lrng_raw_debugfs_root);
-
-	return ret;
-}
-
-static void __exit lrng_raw_exit(void)
-{
-	debugfs_remove_recursive(lrng_raw_debugfs.lrng_raw_debugfs_root);
-}
-
 module_init(lrng_raw_init);
-module_exit(lrng_raw_exit);
-
-MODULE_LICENSE("Dual BSD/GPL");
-MODULE_AUTHOR("Stephan Mueller <smueller@chronox.de>");
-MODULE_DESCRIPTION("Kernel module for gathering raw entropy");
