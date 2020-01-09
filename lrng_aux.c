@@ -51,7 +51,7 @@ u64 get_random_u64(void)
 	batch = raw_cpu_ptr(&batched_entropy_u64);
 	spin_lock_irqsave(&batch->batch_lock, flags);
 	if (batch->position % ARRAY_SIZE(batch->entropy_u64) == 0) {
-		lrng_sdrng_get_atomic((u8 *)batch->entropy_u64,
+		lrng_drng_get_atomic((u8 *)batch->entropy_u64,
 				      LRNG_DRNG_BLOCKSIZE);
 		batch->position = 0;
 	}
@@ -79,7 +79,7 @@ u32 get_random_u32(void)
 	batch = raw_cpu_ptr(&batched_entropy_u32);
 	spin_lock_irqsave(&batch->batch_lock, flags);
 	if (batch->position % ARRAY_SIZE(batch->entropy_u32) == 0) {
-		lrng_sdrng_get_atomic((u8 *)batch->entropy_u32,
+		lrng_drng_get_atomic((u8 *)batch->entropy_u32,
 				      LRNG_DRNG_BLOCKSIZE);
 		batch->position = 0;
 	}

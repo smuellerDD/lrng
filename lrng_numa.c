@@ -2,7 +2,7 @@
 /*
  * LRNG NUMA support
  *
- * Copyright (C) 2016 - 2019, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2016 - 2020, Stephan Mueller <smueller@chronox.de>
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -12,82 +12,82 @@
 
 #include "lrng_internal.h"
 
-static struct lrng_sdrng **lrng_sdrng __read_mostly = NULL;
+static struct lrng_drng **lrng_drng __read_mostly = NULL;
 
-struct lrng_sdrng **lrng_sdrng_instances(void)
+struct lrng_drng **lrng_drng_instances(void)
 {
-	return lrng_sdrng;
+	return lrng_drng;
 }
 
 /* Allocate the data structures for the per-NUMA node DRNGs */
 static void _lrng_drngs_numa_alloc(struct work_struct *work)
 {
-	struct lrng_sdrng **sdrngs;
-	struct lrng_sdrng *lrng_sdrng_init = lrng_sdrng_init_instance();
+	struct lrng_drng **drngs;
+	struct lrng_drng *lrng_drng_init = lrng_drng_init_instance();
 	u32 node;
-	bool init_sdrng_used = false;
+	bool init_drng_used = false;
 
 	mutex_lock(&lrng_crypto_cb_update);
 
 	/* per-NUMA-node DRNGs are already present */
-	if (lrng_sdrng)
+	if (lrng_drng)
 		goto unlock;
 
-	sdrngs = kcalloc(nr_node_ids, sizeof(void *), GFP_KERNEL|__GFP_NOFAIL);
+	drngs = kcalloc(nr_node_ids, sizeof(void *), GFP_KERNEL|__GFP_NOFAIL);
 	for_each_online_node(node) {
-		struct lrng_sdrng *sdrng;
+		struct lrng_drng *drng;
 
-		if (!init_sdrng_used) {
-			sdrngs[node] = lrng_sdrng_init;
-			init_sdrng_used = true;
+		if (!init_drng_used) {
+			drngs[node] = lrng_drng_init;
+			init_drng_used = true;
 			continue;
 		}
 
-		sdrng = kmalloc_node(sizeof(struct lrng_sdrng),
+		drng = kmalloc_node(sizeof(struct lrng_drng),
 				     GFP_KERNEL|__GFP_NOFAIL, node);
-		memset(sdrng, 0, sizeof(lrng_sdrng));
+		memset(drng, 0, sizeof(lrng_drng));
 
-		sdrng->crypto_cb = lrng_sdrng_init->crypto_cb;
-		sdrng->sdrng = sdrng->crypto_cb->lrng_drng_alloc(
+		drng->crypto_cb = lrng_drng_init->crypto_cb;
+		drng->drng = drng->crypto_cb->lrng_drng_alloc(
 					LRNG_DRNG_SECURITY_STRENGTH_BYTES);
-		if (IS_ERR(sdrng->sdrng)) {
-			kfree(sdrng);
+		if (IS_ERR(drng->drng)) {
+			kfree(drng);
 			goto err;
 		}
 
-		mutex_init(&sdrng->lock);
-		spin_lock_init(&sdrng->spin_lock);
+		mutex_init(&drng->lock);
+		spin_lock_init(&drng->spin_lock);
 
 		/*
 		 * No reseeding of NUMA DRNGs from previous DRNGs as this
 		 * would complicate the code. Let it simply reseed.
 		 */
-		lrng_sdrng_reset(sdrng);
-		sdrngs[node] = sdrng;
+		lrng_drng_reset(drng);
+		drngs[node] = drng;
 
 		lrng_pool_inc_numa_node();
-		pr_info("secondary DRNG for NUMA node %d allocated\n", node);
+		pr_info("DRNG for NUMA node %d allocated\n", node);
 	}
 
 	/* Ensure that all NUMA nodes receive changed memory here. */
 	mb();
 
-	if (!cmpxchg(&lrng_sdrng, NULL, sdrngs))
+	if (!cmpxchg(&lrng_drng, NULL, drngs))
 		goto unlock;
 
 err:
 	for_each_online_node(node) {
-		struct lrng_sdrng *sdrng = sdrngs[node];
+		struct lrng_drng *drng = drngs[node];
 
-		if (sdrng == lrng_sdrng_init)
+		if (drng == lrng_drng_init)
 			continue;
 
-		if (sdrng) {
-			sdrng->crypto_cb->lrng_drng_dealloc(sdrng->sdrng);
-			kfree(sdrng);
+		if (drng) {
+			drng->crypto_cb->lrng_drng_dealloc(drng->drng);
+			kfree(drng);
 		}
 	}
-	kfree(sdrngs);
+	kfree(drngs);
 
 unlock:
 	mutex_unlock(&lrng_crypto_cb_update);

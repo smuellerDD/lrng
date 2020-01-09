@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 OR BSD-2-Clause */
 /*
- * Copyright (C) 2018 - 2019, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2018 - 2020, Stephan Mueller <smueller@chronox.de>
  */
 
 #ifndef _LRNG_INTERNAL_H
@@ -13,6 +13,17 @@
 
 /*************************** General LRNG parameter ***************************/
 
+/* Entropy pool parameter
+ *
+ * The LRNG_POOL_SIZE cannot be smaller than 64 bytes as the SHA-1 operation
+ * in lrng_chacha20.c requires multiples of 64 bytes
+ */
+#define LRNG_POOL_SIZE			(16 << CONFIG_LRNG_POOL_SIZE)
+#define LRNG_POOL_WORD_BYTES		(4)	/* (sizeof(atomic_t)) */
+#define LRNG_POOL_SIZE_BYTES		(LRNG_POOL_SIZE * LRNG_POOL_WORD_BYTES)
+#define LRNG_POOL_SIZE_BITS		(LRNG_POOL_SIZE_BYTES * 8)
+#define LRNG_POOL_WORD_BITS		(LRNG_POOL_WORD_BYTES * 8)
+
 /* Security strength of LRNG -- this must match DRNG security strength */
 #define LRNG_DRNG_SECURITY_STRENGTH_BYTES 32
 #define LRNG_DRNG_SECURITY_STRENGTH_BITS (LRNG_DRNG_SECURITY_STRENGTH_BYTES * 8)
@@ -20,7 +31,7 @@
 
 /*
  * SP800-90A defines a maximum request size of 1<<16 bytes. The given value is
- * considered a safer margin. This applies to the secondary DRNGs.
+ * considered a safer margin.
  *
  * This value is allowed to be changed.
  */
@@ -30,8 +41,7 @@
  * SP800-90A defines a maximum number of requests between reseeds of 2^48.
  * The given value is considered a much safer margin, balancing requests for
  * frequent reseeds with the need to conserve entropy. This value MUST NOT be
- * larger than INT_MAX because it is used in an atomic_t. This applies to the
- * secondary DRNGs.
+ * larger than INT_MAX because it is used in an atomic_t.
  *
  * This value is allowed to be changed.
  */
@@ -49,27 +59,6 @@
 #define LRNG_IRQ_ENTROPY_BITS		LRNG_DRNG_SECURITY_STRENGTH_BITS
 
 /*
- * Leave given amount of entropy in bits in entropy pool to serve
- * GRND_TRUERANDOM called with CAP_SYS_ADMIN while /dev/urandom is stressed.
- *
- * This value is allowed to be changed.
- */
-#define LRNG_EMERG_ENTROPY		(LRNG_DRNG_SECURITY_STRENGTH_BITS * 2)
-
-/*
- * Leave given amount of entropy in bits in entropy to serve GRND_TRUERANDOM
- * called without CAP_SYS_ADMIN. Providing TRNG data to unprivileged users
- * should have the least priority and should not affect other users of entropy.
- */
-#define LRNG_EMERG_ENTROPY_TRNG_UNPRIV	(LRNG_EMERG_ENTROPY * 2)
-
-/*
- * Amount of entropy that is lost with the conditioning functions of LFSR and
- * hash_df as shown with the entropy analysis compliant to SP800-90B.
- */
-#define LRNG_CONDITIONING_ENTROPY_LOSS	1
-
-/*
  * Min required seed entropy is 128 bits covering the minimum entropy
  * requirement of SP800-131A and the German BSI's TR02102.
  *
@@ -78,6 +67,24 @@
 #define LRNG_FULL_SEED_ENTROPY_BITS	LRNG_DRNG_SECURITY_STRENGTH_BITS
 #define LRNG_MIN_SEED_ENTROPY_BITS	128
 #define LRNG_INIT_ENTROPY_BITS		32
+
+/*
+ * Amount of entropy that is lost with the conditioning functions of LFSR and
+ * hash_df as shown with the entropy analysis compliant to SP800-90B.
+ */
+#define LRNG_CONDITIONING_ENTROPY_LOSS	1
+
+/*
+ * Wakeup value
+ *
+ * This value is allowed to be changed.
+ */
+#if (LRNG_POOL_SIZE_BITS <= (LRNG_DRNG_SECURITY_STRENGTH_BITS * 2))
+# define LRNG_WRITE_WAKEUP_ENTROPY	(LRNG_DRNG_SECURITY_STRENGTH_BITS + \
+					LRNG_CONDITIONING_ENTROPY_LOSS)
+#else
+# define LRNG_WRITE_WAKEUP_ENTROPY	(LRNG_DRNG_SECURITY_STRENGTH_BITS * 2)
+#endif
 
 /*
  * Oversampling factor of IRQ events to obtain
@@ -103,8 +110,7 @@
 
 /************************ Default DRNG implementation *************************/
 
-extern struct chacha20_state primary_chacha20;
-extern struct chacha20_state secondary_chacha20;
+extern struct chacha20_state chacha20;
 extern const struct lrng_crypto_cb lrng_cc20_crypto_cb;
 void lrng_cc20_init_state(struct chacha20_state *state);
 
@@ -118,11 +124,9 @@ static inline void lrng_pool_inc_numa_node(void) { }
 
 /****************************** LRNG interfaces *******************************/
 
-extern u32 lrng_read_wakeup_bits;
 extern u32 lrng_write_wakeup_bits;
-extern int lrng_sdrng_reseed_max_time;
+extern int lrng_drng_reseed_max_time;
 
-void lrng_reader_wakeup(void);
 void lrng_writer_wakeup(void);
 void lrng_init_wakeup(void);
 void lrng_debug_report_seedlevel(const char *name);
@@ -130,12 +134,13 @@ void lrng_process_ready_list(void);
 
 /************************** Entropy pool management ***************************/
 
-#define LRNG_POOL_SIZE			(128 << CONFIG_LRNG_POOL_SIZE)
-#define LRNG_POOL_WORD_BYTES		(sizeof(atomic_t))
-#define LRNG_POOL_SIZE_BYTES		(LRNG_POOL_SIZE * LRNG_POOL_WORD_BYTES)
-#define LRNG_POOL_SIZE_BITS		(LRNG_POOL_SIZE_BYTES * 8)
-#define LRNG_POOL_WORD_BITS		(LRNG_POOL_WORD_BYTES * 8)
+enum lrng_external_noise_source {
+	lrng_noise_source_hw,
+	lrng_noise_source_user
+};
 
+bool lrng_state_exseed_allow(enum lrng_external_noise_source source);
+void lrng_state_exseed_set(enum lrng_external_noise_source source, bool type);
 void lrng_state_init_seed_work(void);
 u32 lrng_avail_entropy(void);
 void lrng_set_entropy_thresh(u32 new);
@@ -180,41 +185,11 @@ static inline u32 lrng_jent_entropylevel(void) { return 0; }
 u32 lrng_get_arch(u8 *outbuf);
 u32 lrng_slow_noise_req_entropy(u32 required_entropy_bits);
 
-/****************** True Random Number Generator processing *******************/
-
-#ifdef CONFIG_LRNG_TRNG_SUPPORT
-
-void lrng_trng_reset(void);
-void lrng_trng_init(void);
-int lrng_trng_get(u8 *outbuf, u32 outbuflen);
-int lrng_trng_seed(u8 *outbuf, u32 outbuflen, u32 entropy_retain);
-u32 lrng_trng_retain(void);
-# ifdef CONFIG_LRNG_DRNG_SWITCH
-int lrng_trng_switch(const struct lrng_crypto_cb *cb);
-# endif
-
-#else	/* CONFIG_LRNG_TRNG_SUPPORT */
-
-static inline void lrng_trng_reset(void) {}
-static inline void lrng_trng_init(void) {}
-static inline u32 lrng_trng_retain(void) { return 0; }
-
-static inline int lrng_trng_get(u8 *outbuf, u32 outbuflen)
-{
-	return -EOPNOTSUPP;
-}
-
-# ifdef CONFIG_LRNG_DRNG_SWITCH
-static inline int lrng_trng_switch(const struct lrng_crypto_cb *cb) {return 0; }
-# endif
-
-#endif	/* CONFIG_LRNG_TRNG_SUPPORT */
-
-/************************* secondary DRNG processing **************************/
+/****************************** DRNG processing *******************************/
 
 /* Secondary DRNG state handle */
-struct lrng_sdrng {
-	void *sdrng;				/* DRNG handle */
+struct lrng_drng {
+	void *drng;				/* DRNG handle */
 	void *hash;				/* Hash handle */
 	const struct lrng_crypto_cb *crypto_cb;	/* Crypto callbacks */
 	atomic_t requests;			/* Number of DRNG requests */
@@ -227,49 +202,59 @@ struct lrng_sdrng {
 
 extern struct mutex lrng_crypto_cb_update;
 
-struct lrng_sdrng *lrng_sdrng_init_instance(void);
-struct lrng_sdrng *lrng_sdrng_atomic_instance(void);
+struct lrng_drng *lrng_drng_init_instance(void);
+struct lrng_drng *lrng_drng_atomic_instance(void);
 
-static __always_inline bool lrng_sdrng_is_atomic(struct lrng_sdrng *sdrng)
+static __always_inline bool lrng_drng_is_atomic(struct lrng_drng *drng)
 {
-	return (sdrng->sdrng == lrng_sdrng_atomic_instance()->sdrng);
+	return (drng->drng == lrng_drng_atomic_instance()->drng);
 }
 
-/* Lock the secondary DRNG */
-static __always_inline void lrng_sdrng_lock(struct lrng_sdrng *sdrng,
-					    unsigned long *flags)
+/* Lock the DRNG */
+static __always_inline void lrng_drng_lock(struct lrng_drng *drng,
+					   unsigned long *flags)
 {
 	/* Use spin lock in case the atomic DRNG context is used */
-	if (lrng_sdrng_is_atomic(sdrng))
-		spin_lock_irqsave(&sdrng->spin_lock, *flags);
-	else
-		mutex_lock(&sdrng->lock);
+	if (lrng_drng_is_atomic(drng)) {
+		spin_lock_irqsave(&drng->spin_lock, *flags);
+
+		/*
+		 * In case a lock transition happened while we were spinning,
+		 * catch this case and use the new lock type.
+		 */
+		if (unlikely(!lrng_drng_is_atomic(drng))) {
+			spin_unlock_irqrestore(&drng->spin_lock, *flags);
+			mutex_lock(&drng->lock);
+		}
+	} else {
+		mutex_lock(&drng->lock);
+	}
 }
 
-/* Unlock the secondary DRNG */
-static __always_inline void lrng_sdrng_unlock(struct lrng_sdrng *sdrng,
-					      unsigned long *flags)
+/* Unlock the DRNG */
+static __always_inline void lrng_drng_unlock(struct lrng_drng *drng,
+					     unsigned long *flags)
 {
-	if (lrng_sdrng_is_atomic(sdrng))
-		spin_unlock_irqrestore(&sdrng->spin_lock, *flags);
+	if (lrng_drng_is_atomic(drng))
+		spin_unlock_irqrestore(&drng->spin_lock, *flags);
 	else
-		mutex_unlock(&sdrng->lock);
+		mutex_unlock(&drng->lock);
 }
 
 bool lrng_get_available(void);
 void lrng_set_available(void);
 void lrng_drngs_init_cc20(void);
-void lrng_sdrng_reset(struct lrng_sdrng *sdrng);
-int lrng_sdrng_get_atomic(u8 *outbuf, u32 outbuflen);
-int lrng_sdrng_get_sleep(u8 *outbuf, u32 outbuflen);
-void lrng_sdrng_force_reseed(void);
-void lrng_sdrng_seed_work(struct work_struct *dummy);
+void lrng_drng_reset(struct lrng_drng *drng);
+int lrng_drng_get_atomic(u8 *outbuf, u32 outbuflen);
+int lrng_drng_get_sleep(u8 *outbuf, u32 outbuflen);
+void lrng_drng_force_reseed(void);
+void lrng_drng_seed_work(struct work_struct *dummy);
 
 #ifdef CONFIG_NUMA
-struct lrng_sdrng **lrng_sdrng_instances(void);
+struct lrng_drng **lrng_drng_instances(void);
 void lrng_drngs_numa_alloc(void);
 #else	/* CONFIG_NUMA */
-static inline struct lrng_sdrng **lrng_sdrng_instances(void) { return NULL; }
+static inline struct lrng_drng **lrng_drng_instances(void) { return NULL; }
 static inline void lrng_drngs_numa_alloc(void) { return; }
 #endif /* CONFIG_NUMA */
 

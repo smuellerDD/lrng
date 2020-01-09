@@ -2,7 +2,7 @@
 /*
  * LRNG Entropy pool management
  *
- * Copyright (C) 2016 - 2019, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2016 - 2020, Stephan Mueller <smueller@chronox.de>
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -15,69 +15,25 @@
 #include <linux/workqueue.h>
 
 #include "lrng_internal.h"
+#include "lrng_lfsr.h"
 
 struct lrng_state {
-	bool lrng_operational;			/* Is DRNG operational? */
-	bool lrng_fully_seeded;			/* Is DRNG fully seeded? */
-	bool lrng_min_seeded;			/* Is DRNG minimally seeded? */
+	bool lrng_operational;		/* Is DRNG operational? */
+	bool lrng_fully_seeded;		/* Is DRNG fully seeded? */
+	bool lrng_min_seeded;		/* Is DRNG minimally seeded? */
+
+	/*
+	 * To ensure that external entropy providers cannot dominate the
+	 * internal noise sources but yet cannot be dominated by internal
+	 * noise sources, the following booleans are intended to allow
+	 * external to provide seed once when a DRNG reseed occurs. This
+	 * triggering of external noise source is performed even when the
+	 * entropy pool has sufficient entropy.
+	 */
+	bool lrng_seed_hw;		/* Allow HW to provide seed */
+	bool lrng_seed_user;		/* Allow user space to provide seed */
+
 	struct work_struct lrng_seed_work;	/* (re)seed work queue */
-};
-
-/* Status information about IRQ noise source */
-struct lrng_irq_info {
-	atomic_t num_events;	/* Number of healthy IRQs since last read */
-	atomic_t num_events_thresh;	/* Reseed threshold */
-	atomic_t reseed_in_progress;	/* Flag for on executing reseed */
-	bool irq_highres_timer;	/* Is high-resolution timer available? */
-	u32 irq_entropy_bits;	/* LRNG_IRQ_ENTROPY_BITS? */
-};
-
-/*
- * This is the entropy pool used by the slow noise source. Its size should
- * be at least as large as LRNG_DRNG_SECURITY_STRENGTH_BITS.
- *
- * The pool array is aligned to 8 bytes to comfort the kernel crypto API cipher
- * implementations of the hash functions used to read the pool: for some
- * accelerated implementations, we need an alignment to avoid a realignment
- * which involves memcpy(). The alignment to 8 bytes should satisfy all crypto
- * implementations.
- *
- * LRNG_POOL_SIZE is allowed to be changed only if the taps of the polynomial
- * used for the LFSR are changed as well. The size must be in powers of 2 due
- * to the mask handling in lrng_pool_lfsr_u32 which uses AND instead of modulo.
- */
-struct lrng_pool {
-	union {
-		struct {
-			/*
-			 * hash_df implementation: counter, requested_bits and
-			 * pool form a linear buffer that is used in the
-			 * hash_df function specified in SP800-90A section
-			 * 10.3.1
-			 */
-			unsigned char counter;
-			__be32 requested_bits;
-
-			/* Pool */
-			atomic_t pool[LRNG_POOL_SIZE];
-			/* Ptr into pool for next IRQ word injection */
-			atomic_t pool_ptr;
-			/* rotate for LFSR */
-			atomic_t input_rotate;
-			/* All NUMA DRNGs seeded? */
-			bool all_online_numa_node_seeded;
-			/* IRQ noise source status info */
-			struct lrng_irq_info irq_info;
-			/* Serialize read of entropy pool */
-			spinlock_t lock;
-		};
-		/*
-		 * Static SHA-1 implementation in lrng_cc20_hash_buffer
-		 * processes data 64-byte-wise. Hence, ensure proper size
-		 * of LRNG entropy pool data structure.
-		 */
-		u8 hash_input_buf[LRNG_POOL_SIZE_BYTES + 64];
-	};
 };
 
 static struct lrng_pool lrng_pool __aligned(LRNG_KCAPI_ALIGN) = {
@@ -90,13 +46,36 @@ static struct lrng_pool lrng_pool __aligned(LRNG_KCAPI_ALIGN) = {
 	.lock		= __SPIN_LOCK_UNLOCKED(lrng_pool.lock)
 };
 
-static struct lrng_state lrng_state = { false, false, false, };
+static struct lrng_state lrng_state = { false, false, false, true, true };
 
 /********************************** Helper ***********************************/
 
+/* External entropy provider is allowed to provide seed data */
+bool lrng_state_exseed_allow(enum lrng_external_noise_source source)
+{
+	if (source == lrng_noise_source_hw)
+		return lrng_state.lrng_seed_hw;
+	return lrng_state.lrng_seed_user;
+}
+
+/* Enable / disable external entropy provider to furnish seed */
+void lrng_state_exseed_set(enum lrng_external_noise_source source, bool type)
+{
+	if (source == lrng_noise_source_hw)
+		lrng_state.lrng_seed_hw = type;
+	else
+		lrng_state.lrng_seed_user = type;
+}
+
+static inline void lrng_state_exseed_allow_all(void)
+{
+	lrng_state_exseed_set(lrng_noise_source_hw, true);
+	lrng_state_exseed_set(lrng_noise_source_user, true);
+}
+
 void lrng_state_init_seed_work(void)
 {
-	INIT_WORK(&lrng_state.lrng_seed_work, lrng_sdrng_seed_work);
+	INIT_WORK(&lrng_state.lrng_seed_work, lrng_drng_seed_work);
 }
 
 static inline u32 lrng_entropy_to_data(u32 entropy_bits)
@@ -125,9 +104,9 @@ void lrng_set_entropy_thresh(u32 new)
 
 /*
  * Reading of the LRNG pool is only allowed by one caller. The reading is
- * only performed to (re)seed the TRNG or SDRNGs. Thus, if this "lock" is
- * already taken, the reseeding operation is in progress. The caller is not
- * intended to wait but continue with its other operation.
+ * only performed to (re)seed DRNGs. Thus, if this "lock" is already taken,
+ * the reseeding operation is in progress. The caller is not intended to wait
+ * but continue with its other operation.
  */
 int lrng_pool_trylock(void)
 {
@@ -147,6 +126,7 @@ void lrng_reset_state(void)
 	lrng_state.lrng_operational = false;
 	lrng_state.lrng_fully_seeded = false;
 	lrng_state.lrng_min_seeded = false;
+	lrng_pool.all_online_numa_node_seeded = false;
 	pr_debug("reset LRNG\n");
 }
 
@@ -194,7 +174,7 @@ static void lrng_pool_configure(bool highres_timer, u32 irq_entropy_bits)
 	}
 }
 
-static void __init lrng_init_time_source(void)
+static int __init lrng_init_time_source(void)
 {
 	if (random_get_entropy() || random_get_entropy()) {
 		/*
@@ -211,6 +191,8 @@ static void __init lrng_init_time_source(void)
 			"IRQ oversampling factor %u\n",
 			LRNG_IRQ_OVERSAMPLING_FACTOR);
 	}
+
+	return 0;
 }
 
 core_initcall(lrng_init_time_source);
@@ -243,89 +225,12 @@ void lrng_pool_lfsr_nonaligned(const u8 *buf, u32 buflen)
 
 /**************************** Interrupt processing ****************************/
 
-/*
- * Implement a (modified) twisted Generalized Feedback Shift Register. (See M.
- * Matsumoto & Y. Kurita, 1992.  Twisted GFSR generators. ACM Transactions on
- * Modeling and Computer Simulation 2(3):179-194.  Also see M. Matsumoto & Y.
- * Kurita, 1994.  Twisted GFSR generators II.  ACM Transactions on Modeling and
- * Computer Simulation 4:254-266).
- */
-static u32 const lrng_twist_table[8] = {
-	0x00000000, 0x3b6e20c8, 0x76dc4190, 0x4db26158,
-	0xedb88320, 0xd6d6a3e8, 0x9b64c2b0, 0xa00ae278 };
-
-/*
- * The polynomials for the LFSR are taken from the document "Table of Linear
- * Feedback Shift Registers" by Roy Ward, Tim Molteno, October 26, 2007.
- * The first polynomial is from "Primitive Binary Polynomials" by Wayne
- * Stahnke (1973) and is primitive as well as irreducible.
- *
- * Note, the tap values are smaller by one compared to the documentation because
- * they are used as an index into an array where the index starts by zero.
- *
- * All polynomials were also checked to be primitive and irreducible with magma
- * which ensures that the key property of the LFSR providing a compression
- * function for entropy is guaranteed.
- */
-static u32 const lrng_lfsr_polynomial[][4] = {
-	{ 127, 28, 26, 1 },			/* 128 words by Stahnke */
-	{ 255, 253, 250, 245 },			/* 256 words */
-	{ 511, 509, 506, 503 },			/* 512 words */
-	{ 1023, 1014, 1001, 1000 },		/* 1024 words */
-	{ 2047, 2034, 2033, 2028 },		/* 2048 words */
-	{ 4095, 4094, 4080, 4068 },		/* 4096 words */
-};
-
 /**
  * Hot code path - inject data into entropy pool using LFSR
  */
 void lrng_pool_lfsr_u32(u32 value)
 {
-	/*
-	 * Process the LFSR by altering not adjacent words but rather
-	 * more spaced apart words. Using a prime number ensures that all words
-	 * are processed evenly. As some the LFSR polynomials taps are close
-	 * together, processing adjacent words with the LSFR taps may be
-	 * inappropriate as the data just mixed-in at these taps may be not
-	 * independent from the current data to be mixed in.
-	 */
-	u32 ptr = (u32)atomic_add_return_relaxed(67, &lrng_pool.pool_ptr) &
-							(LRNG_POOL_SIZE - 1);
-	/*
-	 * Add 7 bits of rotation to the pool. At the beginning of the
-	 * pool, add an extra 7 bits rotation, so that successive passes
-	 * spread the input bits across the pool evenly.
-	 *
-	 * Note, there is a race between getting ptr and calculating
-	 * input_rotate when ptr is is obtained on two or more CPUs at the
-	 * same time. This race is irrelevant as it may only come into effect
-	 * if 3 or more CPUs race at the same time which is very unlikely. If
-	 * the race happens, it applies to one event only. As this rolling
-	 * supports the LFSR without being strictly needed, we accept this
-	 * race.
-	 */
-	u32 input_rotate = (u32)atomic_add_return_relaxed((ptr ? 7 : 14),
-					&lrng_pool.input_rotate) & 31;
-	u32 word = rol32(value, input_rotate);
-
-	BUILD_BUG_ON(LRNG_POOL_SIZE - 1 !=
-		     lrng_lfsr_polynomial[CONFIG_LRNG_POOL_SIZE][0]);
-	word ^= atomic_read_u32(&lrng_pool.pool[ptr]);
-	word ^= atomic_read_u32(&lrng_pool.pool[
-		(ptr + lrng_lfsr_polynomial[CONFIG_LRNG_POOL_SIZE][0]) &
-		       (LRNG_POOL_SIZE - 1)]);
-	word ^= atomic_read_u32(&lrng_pool.pool[
-		(ptr + lrng_lfsr_polynomial[CONFIG_LRNG_POOL_SIZE][1]) &
-		       (LRNG_POOL_SIZE - 1)]);
-	word ^= atomic_read_u32(&lrng_pool.pool[
-		(ptr + lrng_lfsr_polynomial[CONFIG_LRNG_POOL_SIZE][2]) &
-		       (LRNG_POOL_SIZE - 1)]);
-	word ^= atomic_read_u32(&lrng_pool.pool[
-		(ptr + lrng_lfsr_polynomial[CONFIG_LRNG_POOL_SIZE][3]) &
-		       (LRNG_POOL_SIZE - 1)]);
-
-	word = (word >> 3) ^ lrng_twist_table[word & 7];
-	atomic_set(&lrng_pool.pool[ptr], word);
+	_lrng_pool_lfsr_u32(&lrng_pool, value);
 }
 
 /**
@@ -337,11 +242,8 @@ void lrng_pool_add_irq(u32 irq_num)
 
 	atomic_add(irq_num, &irq_info->num_events);
 
-	/* Wake sleeping readers */
-	lrng_reader_wakeup();
-
 	/*
-	 * Once all secondary DRNGs are fully seeded, the interrupt noise
+	 * Once all DRNGs are fully seeded, the interrupt noise
 	 * sources will not trigger any reseeding any more.
 	 */
 	if (likely(lrng_pool.all_online_numa_node_seeded))
@@ -373,10 +275,9 @@ void lrng_pool_add_entropy(u32 entropy_bits)
  * Generate a hashed output of pool using the SP800-90A section 10.3.1 hash_df
  * function
  */
-static inline u32 lrng_pool_hash_df(const struct lrng_crypto_cb *crypto_cb,
-				    void *hash, u8 *outbuf, u32 requested_bits)
+u32 __lrng_pool_hash_df(const struct lrng_crypto_cb *crypto_cb, void *hash,
+			struct lrng_pool *pool, u8 *outbuf, u32 requested_bits)
 {
-	struct lrng_pool *pool = &lrng_pool;
 	u32 digestsize, requested_bytes = requested_bits >> 3,
 	    generated_bytes = 0;
 	u8 digest[64] __aligned(LRNG_KCAPI_ALIGN);
@@ -417,6 +318,13 @@ out:
 	return (generated_bytes<<3);
 }
 
+static inline u32 lrng_pool_hash_df(const struct lrng_crypto_cb *crypto_cb,
+				    void *hash, u8 *outbuf, u32 requested_bits)
+{
+	return __lrng_pool_hash_df(crypto_cb, hash, &lrng_pool, outbuf,
+				   requested_bits);
+}
+
 /**
  * Read the entropy pool out for use.
  *
@@ -444,6 +352,7 @@ static u32 lrng_get_pool(const struct lrng_crypto_cb *crypto_cb, void *hash,
 {
 	struct lrng_pool *pool = &lrng_pool;
 	struct lrng_state *state = &lrng_state;
+	struct lrng_irq_info *irq_info = &pool->irq_info;
 	unsigned long flags;
 
 	u32 irq_num_events_used, irq_num_events, avail_entropy_bits;
@@ -452,7 +361,7 @@ static u32 lrng_get_pool(const struct lrng_crypto_cb *crypto_cb, void *hash,
 	spin_lock_irqsave(&pool->lock, flags);
 
 	/* How many unused interrupts are in entropy pool? */
-	irq_num_events = atomic_read_u32(&lrng_pool.irq_info.num_events);
+	irq_num_events = atomic_read_u32(&irq_info->num_events);
 	/* Convert available interrupts into entropy statement */
 	avail_entropy_bits = lrng_data_to_entropy(irq_num_events);
 
@@ -467,7 +376,8 @@ static u32 lrng_get_pool(const struct lrng_crypto_cb *crypto_cb, void *hash,
 		 * avail_entropy_bits entropy. In case our conservative
 		 * entropy estimate underestimates the available entropy
 		 * we can transport as much available entropy as
-		 * possible. The TRNG does not operate as a TRNG yet.
+		 * possible. The entropy pool does not operate compliant to
+		 * the German AIS 21/31 NTG.1 yet.
 		 */
 		requested_entropy_bits =
 				LRNG_DRNG_SECURITY_STRENGTH_BITS;
@@ -533,11 +443,11 @@ out:
 	 * above might get unnecessarily thrown away by the min()
 	 * operation below; the same argument applies there.
 	 */
-	irq_num_events = atomic_read_u32(&lrng_pool.irq_info.num_events);
+	irq_num_events = atomic_read_u32(&irq_info->num_events);
 	irq_num_events = min_t(u32, irq_num_events,
 			       lrng_entropy_to_data(LRNG_POOL_SIZE_BITS));
 	irq_num_events -= irq_num_events_used;
-	atomic_set(&lrng_pool.irq_info.num_events, irq_num_events);
+	atomic_set(&irq_info->num_events, irq_num_events);
 
 	spin_unlock_irqrestore(&pool->lock, flags);
 
@@ -560,7 +470,8 @@ int lrng_fill_seed_buffer(const struct lrng_crypto_cb *crypto_cb, void *hash,
 	/* Require at least 128 bits of entropy for any reseed. */
 	if (state->lrng_fully_seeded &&
 	    (lrng_avail_entropy() <
-	     lrng_slow_noise_req_entropy(lrng_read_wakeup_bits) +
+	     lrng_slow_noise_req_entropy(LRNG_MIN_SEED_ENTROPY_BITS +
+					 LRNG_CONDITIONING_ENTROPY_LOSS) +
 	      entropy_retain))
 		goto wakeup;
 
@@ -568,7 +479,7 @@ int lrng_fill_seed_buffer(const struct lrng_crypto_cb *crypto_cb, void *hash,
 	 * Concatenate the output of the noise sources. This would be the
 	 * spot to add an entropy extractor logic if desired. Note, this
 	 * has the ability to collect entropy equal or larger than the DRNG
-	 * strength to be able to feed GRND_TRUERANDOM.
+	 * strength.
 	 */
 	total_entropy_bits = lrng_get_pool(crypto_cb, hash, entropy_buf->a,
 					   LRNG_DRNG_SECURITY_STRENGTH_BITS,
@@ -580,15 +491,17 @@ int lrng_fill_seed_buffer(const struct lrng_crypto_cb *crypto_cb, void *hash,
 	/* also reseed the DRNG with the current time stamp */
 	entropy_buf->now = random_get_entropy();
 
+	/* allow external entropy provider to provide seed */
+	lrng_state_exseed_allow_all();
+
 wakeup:
 	/*
 	 * Shall we wake up user space writers? This location covers
-	 * /dev/urandom as well, but also ensures that the user space provider
-	 * does not dominate the internal noise sources since in case the
-	 * first call of this function finds sufficient entropy in the TRNG, it
-	 * will not trigger the wakeup. This implies that when the next
-	 * /dev/urandom read happens, the TRNG is drained and the internal
-	 * noise sources are asked to feed the TRNG.
+	 * ensures that the user space provider does not dominate the internal
+	 * noise sources since in case the first call of this function finds
+	 * sufficient entropy in the entropy pool, it will not trigger the
+	 * wakeup. This implies that when the next /dev/urandom read happens,
+	 * the entropy pool is drained.
 	 */
 	lrng_writer_wakeup();
 
@@ -613,6 +526,7 @@ void lrng_init_ops(u32 seed_bits)
 	/* DRNG is seeded with full security strength */
 	if (state->lrng_fully_seeded) {
 		state->lrng_operational = lrng_sp80090b_startup_complete();
+		lrng_process_ready_list();
 		lrng_init_wakeup();
 	} else if (seed_bits >= LRNG_FULL_SEED_ENTROPY_BITS) {
 		invalidate_batched_entropy();

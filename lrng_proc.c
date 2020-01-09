@@ -2,7 +2,7 @@
 /*
  * LRNG proc and sysctl interfaces
  *
- * Copyright (C) 2016 - 2019, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2016 - 2020, Stephan Mueller <smueller@chronox.de>
  */
 
 #include <linux/lrng.h>
@@ -64,12 +64,10 @@ static int lrng_proc_do_entropy(struct ctl_table *table, int write,
 }
 
 static int lrng_sysctl_poolsize = LRNG_POOL_SIZE_BITS;
-static int lrng_min_read_thresh = LRNG_POOL_WORD_BITS;
 static int lrng_min_write_thresh;
-static int lrng_max_read_thresh = LRNG_POOL_SIZE_BITS;
 static int lrng_max_write_thresh = LRNG_POOL_SIZE_BITS;
 static char lrng_sysctl_bootid[16];
-static int lrng_sdrng_reseed_max_min;
+static int lrng_drng_reseed_max_min;
 
 struct ctl_table random_table[] = {
 	{
@@ -84,15 +82,6 @@ struct ctl_table random_table[] = {
 		.maxlen		= sizeof(int),
 		.mode		= 0444,
 		.proc_handler	= lrng_proc_do_entropy,
-	},
-	{
-		.procname	= "read_wakeup_threshold",
-		.data		= &lrng_read_wakeup_bits,
-		.maxlen		= sizeof(int),
-		.mode		= 0644,
-		.proc_handler	= proc_dointvec_minmax,
-		.extra1		= &lrng_min_read_thresh,
-		.extra2		= &lrng_max_read_thresh,
 	},
 	{
 		.procname	= "write_wakeup_threshold",
@@ -118,11 +107,11 @@ struct ctl_table random_table[] = {
 	},
 	{
 		.procname       = "urandom_min_reseed_secs",
-		.data           = &lrng_sdrng_reseed_max_time,
+		.data           = &lrng_drng_reseed_max_time,
 		.maxlen         = sizeof(int),
 		.mode           = 0644,
 		.proc_handler   = proc_dointvec,
-		.extra1		= &lrng_sdrng_reseed_max_min,
+		.extra1		= &lrng_drng_reseed_max_min,
 	},
 	{ }
 };
@@ -137,33 +126,28 @@ void lrng_pool_inc_numa_node(void)
 
 static int lrng_proc_type_show(struct seq_file *m, void *v)
 {
-	struct lrng_sdrng *lrng_sdrng_init = lrng_sdrng_init_instance();
+	struct lrng_drng *lrng_drng_init = lrng_drng_init_instance();
 	unsigned long flags = 0;
 	unsigned char buf[300];
 
-	lrng_sdrng_lock(lrng_sdrng_init, &flags);
+	lrng_drng_lock(lrng_drng_init, &flags);
 	snprintf(buf, sizeof(buf),
-#ifdef CONFIG_LRNG_TRNG_SUPPORT
-		 "TRNG present: true\n"
-#else
-		 "TRNG present: false\n"
-#endif
 		 "DRNG name: %s\n"
 		 "Hash for reading entropy pool: %s\n"
 		 "DRNG security strength: %d bits\n"
-		 "number of secondary DRNG instances: %u\n"
+		 "number of DRNG instances: %u\n"
 		 "SP800-90B compliance: %s\n"
 		 "High-resolution timer: %s\n"
 		 "LRNG minimally seeded: %s\n"
 		 "LRNG fully seeded: %s\n",
-		 lrng_sdrng_init->crypto_cb->lrng_drng_name(),
-		 lrng_sdrng_init->crypto_cb->lrng_hash_name(),
+		 lrng_drng_init->crypto_cb->lrng_drng_name(),
+		 lrng_drng_init->crypto_cb->lrng_hash_name(),
 		 LRNG_DRNG_SECURITY_STRENGTH_BITS, numa_drngs,
 		 lrng_sp80090b_compliant() ? "true" : "false",
 		 lrng_pool_highres_timer() ? "true" : "false",
 		 lrng_state_min_seeded() ? "true" : "false",
 		 lrng_state_fully_seeded() ? "true" : "false");
-	lrng_sdrng_unlock(lrng_sdrng_init, &flags);
+	lrng_drng_unlock(lrng_drng_init, &flags);
 
 	seq_write(m, buf, strlen(buf));
 

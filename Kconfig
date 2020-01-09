@@ -24,6 +24,15 @@ choice
 	  but the less often older entropic values are overwritten
 	  with new entropy.
 
+	config LRNG_POOL_SIZE_512
+		bool "512 bits"
+
+	config LRNG_POOL_SIZE_1024
+		bool "1024 bits"
+
+	config LRNG_POOL_SIZE_2048
+		bool "2048 bits"
+
 	config LRNG_POOL_SIZE_4096
 		bool "4096 bits (default)"
 
@@ -45,12 +54,15 @@ endchoice
 
 config LRNG_POOL_SIZE
 	int
-	default 0 if LRNG_POOL_SIZE_4096
-	default 1 if LRNG_POOL_SIZE_8192
-	default 2 if LRNG_POOL_SIZE_16384
-	default 3 if LRNG_POOL_SIZE_32768
-	default 4 if LRNG_POOL_SIZE_65536
-	default 5 if LRNG_POOL_SIZE_131072
+	default 0 if LRNG_POOL_SIZE_512
+	default 1 if LRNG_POOL_SIZE_1024
+	default 2 if LRNG_POOL_SIZE_2048
+	default 3 if LRNG_POOL_SIZE_4096
+	default 4 if LRNG_POOL_SIZE_8192
+	default 5 if LRNG_POOL_SIZE_16384
+	default 6 if LRNG_POOL_SIZE_32768
+	default 7 if LRNG_POOL_SIZE_65536
+	default 8 if LRNG_POOL_SIZE_131072
 
 menuconfig LRNG_DRNG_SWITCH
 	bool "Support DRNG runtime switching"
@@ -90,28 +102,6 @@ config LRNG_JENT
 	  by the Jitter RNG. This entropy level can be changed at boot
 	  time or at runtime with the lrng_base.jitterrng configuration
 	  variable.
-
-config LRNG_TRNG_SUPPORT
-	bool "Enable True Random Number Generator support"
-	default y
-	help
-	  The true random number generator (TRNG) support, also
-	  known as DRNG with prediction resistance (SP800-90A
-	  terminology) or NTG.1 (AIS 31 terminology), generates
-	  random numbers after a successful reseed with entropy.
-	  Only when new entropy is provided for a new generation
-	  request, random data is provided with an equal amount
-	  as entropy was added. The TRNG is available via
-	  /dev/random.
-
-	  If the support is not enabled, /dev/random ensures that
-	  it received sufficient initial entropy and will produce
-	  random data without requiring a constant reseed with
-	  entropy. Yet it tries to regularly reseed itself with
-	  fresh entropy.
-
-	  With the TRNG support the /dev/random device will block
-	  if insufficient entropy is available.
 
 config LRNG_HEALTH_TESTS
 	bool "Enable noise source online health tests"
@@ -184,5 +174,30 @@ config LRNG_TESTING
 	  can be sampled.
 
 	  If unsure, say N.
+
+config LRNG_SELFTEST
+	bool "Enable power-on and on-demand self-tests"
+	help
+	  The power-on self tests are executed during boot time
+	  covering the ChaCha20 DRNG, the LFSR processing and the
+	  time stamp management of the LRNG.
+
+	  The on-demand self-tests are triggered by writing any
+	  value into the SysFS file selftest_status. At the same
+	  time, when reading this file, the test status is
+	  returned. A zero indicates that all tests were executed
+	  successfully.
+
+	  If unsure, say Y.
+
+if LRNG_SELFTEST
+
+config LRNG_SELFTEST_PANIC
+	bool "Panic the kernel upon self-test failure"
+	help
+	  If the option is enabled, the kernel is terminated if an
+	  LRNG power-on self-test failure is detected.
+
+endif # LRNG_SELFTEST
 
 endif # LRNG

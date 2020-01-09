@@ -2,10 +2,13 @@
 /*
  * LRNG Fast Noise Source: Jitter RNG
  *
- * Copyright (C) 2016 - 2019, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2016 - 2020, Stephan Mueller <smueller@chronox.de>
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
+#include <linux/types.h>
+#include <crypto/internal/jitterentropy.h>
 
 #include "lrng_internal.h"
 
@@ -29,10 +32,6 @@ MODULE_PARM_DESC(jitterrng, "Entropy in bits of 256 data bits from Jitter "
  * @return > 0 on success where value provides the added entropy in bits
  *	   0 if no fast source was available
  */
-struct rand_data;
-struct rand_data *jent_lrng_entropy_collector(void);
-int jent_read_entropy(struct rand_data *ec, unsigned char *data,
-		      unsigned int len);
 static struct rand_data *lrng_jent_state;
 
 u32 lrng_get_jent(u8 *outbuf, unsigned int outbuflen)

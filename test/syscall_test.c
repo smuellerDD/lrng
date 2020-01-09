@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2019, Stephan Mueller <smueller@chronox.de>
  *
  * License: see LICENSE file in root directory
  *
@@ -28,11 +28,19 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <linux/random.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <sys/ioctl.h>
 #include <sys/random.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
-#define GRND_INSECURE	0x0004
-#define GRND_TRUERANDOM	0x0008
+#ifndef GRND_INSECURE
+# define GRND_INSECURE	0x0004
+#endif
 
 static inline ssize_t __getrandom(uint8_t *buffer, size_t bufferlen,
 				  unsigned int flags)
@@ -69,14 +77,120 @@ static inline ssize_t getrandom_insecure(uint8_t *buffer, size_t bufferlen)
 	return __getrandom(buffer, bufferlen, GRND_INSECURE);
 }
 
-static inline ssize_t getrandom_trng(uint8_t *buffer, size_t bufferlen)
+static size_t read_entropy_avail(int fd)
 {
-	return __getrandom(buffer, bufferlen, GRND_TRUERANDOM);
+	ssize_t data = 0;
+	char buf[11] = { 0 };
+	size_t entropy = 0;
+
+	data = read(fd, buf, sizeof(buf));
+	lseek(fd, 0, SEEK_SET);
+
+	if (data < 0)
+		return 0;
+	if (data == 0)
+		return 0;
+
+	entropy = strtoul(buf, NULL, 10);
+	if (entropy > INT_MAX)
+		return 0;
+
+	return entropy;
 }
 
-static inline ssize_t getrandom_trng_nonblock(uint8_t *buffer, size_t bufferlen)
+static ssize_t getrandom_ntg1(uint8_t *buffer, size_t bufferlen,
+			      unsigned int flags)
 {
-	return __getrandom(buffer, bufferlen, GRND_TRUERANDOM | GRND_NONBLOCK);
+	struct stat statdata;
+	size_t avail_entropy;
+	ssize_t ret;
+	static int lrng_type = 1;
+	int fd = 1;
+
+	(void)flags;
+
+	if (lrng_type > 0)
+		lrng_type = stat("/proc/lrng_type", &statdata);
+
+	/*
+	 * One request cannot be larger than the security strength and thus
+	 * the reseed size of the RNG.
+	 */
+	if (bufferlen > 32)
+		return -EINVAL;
+
+	/*
+	 * Read the amount of available entropy and reject the call if
+	 * we cannot satisfy the request.
+	 *
+	 * Note, instead of an error we could poll this file to wait until
+	 * sufficient data is available.
+	 */
+	fd = open("/proc/sys/kernel/random/entropy_avail", O_RDONLY);
+	if (fd < 0) {
+		ret = -errno;
+		goto out;
+	}
+
+	avail_entropy = read_entropy_avail(fd) >> 3;
+
+	/*
+	 * Require at least twice the amount of entropy to be reseeded
+	 * as a safety measure.
+	 */
+	if ((bufferlen * 2) > avail_entropy) {
+		ret = -E2BIG;
+		goto out;
+	}
+
+	close(fd);
+	fd = open("/dev/random", O_RDWR);
+	if (fd < 0) {
+		ret = -errno;
+		goto out;
+	}
+
+	/* Triggering a reseed operation */
+	if (lrng_type >= 0) {
+		/* Unprivileged operation */
+		ret = write(fd, "0", 1);
+		if (ret < 0) {
+			ret = -errno;
+			goto out;
+		}
+		if (ret != 1) {
+			ret = -EFAULT;
+			goto out;
+		}
+	} else {
+		/* Requiring CAP_SYS_ADMIN */
+		if (ioctl(fd, RNDRESEEDCRNG) < 0) {
+			ret = -errno;
+			goto out;
+		}
+	}
+
+	/*
+	 * Read random data from a freshly seeded DRNG.
+	 *
+	 * Note, there is a race: the reseed and the gathering of random
+	 * data is a non-atomic operation. This means that other processes
+	 * could gather random data between the reseed trigger and our read
+	 * operation here. This race implies that this call here does not
+	 * gather the first random data after a reseed, which are for sure
+	 * fully NTG.1 compliant data, but the second or third block of
+	 * random data after a reseed.
+	 *
+	 * Note 2, there is a race: In case of the LRNG and the possible
+	 * presence of an independent atomic DRNG, the atomic DRNG may be
+	 * reseeded with the first 32 random bytes of the DRNG we pull from.
+	 */
+	ret = getrandom_urandom(buffer, bufferlen);
+
+out:
+	if (fd >= 0)
+		close(fd);
+	return ret;
 }
 
 #ifdef TEST
@@ -119,7 +233,6 @@ static inline void end_time(struct timespec *ts)
 {
 	get_nstime(ts);
 }
-
 
 /*
  * Convert an integer value into a string value that displays the integer
@@ -166,6 +279,11 @@ static int print_status(size_t buflen,
 	return 0;
 }
 
+static inline ssize_t __getrandom_ntg1(uint8_t *buffer, size_t bufferlen)
+{
+	return getrandom_ntg1(buffer, bufferlen, 0);
+}
+
 int main(int argc, char *argv[])
 {
 #define MAXLEN	65536
@@ -183,32 +301,28 @@ int main(int argc, char *argv[])
 		static struct option options[] =
 		{
 			{"urandom", 0, 0, 'u'},
-			{"random", 0, 0, 'r'},
 			{"insecure", 0, 0, 'i'},
-			{"trng", 0, 0, 't'},
-			{"trng-nonblock", 0, 0, 'n'},
+			{"random", 0, 0, 'r'},
+			{"ntg1", 0, 0, 'n'},
 			{"buflen", 1, 0, 'b'},
 			{0, 0, 0, 0}
 		};
-		c = getopt_long(argc, argv, "uritnb:", options, &opt_index);
-		if (-1 == c)
+		c = getopt_long(argc, argv, "uirnb:", options, &opt_index);
+		if (c == -1)
 			break;
 		switch (c)
 		{
 			case 'u':
 				rnd = &getrandom_urandom;
 				break;
-			case 'r':
-				rnd = &getrandom_random;
-				break;
 			case 'i':
 				rnd = &getrandom_insecure;
 				break;
-			case 't':
-				rnd = &getrandom_trng;
+			case 'r':
+				rnd = &getrandom_random;
 				break;
 			case 'n':
-				rnd = &getrandom_trng_nonblock;
+				rnd = &__getrandom_ntg1;
 				break;
 			case 'b':
 				tmp = strtoul(optarg, NULL, 10);
@@ -232,6 +346,6 @@ int main(int argc, char *argv[])
 	ret = print_status(ret, ret, totaltime);
 
 out:
-	return ret;
+	return -ret;
 }
 #endif	/* TEST */

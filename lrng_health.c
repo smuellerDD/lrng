@@ -2,7 +2,7 @@
 /*
  * Linux Random Number Generator (LRNG) Health Testing
  *
- * Copyright (C) 2019, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2019 - 2020, Stephan Mueller <smueller@chronox.de>
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -111,12 +111,12 @@ static inline void lrng_sp80090b_startup(struct lrng_health *health)
 		lrng_init_ops(0);
 
 		/*
-		 * Force a reseed of secondary DRNGs to ensure they are
-		 * seeded with entropy that passed the SP800-90B health tests.
-		 * As the primary DRNG always will reseed before generating
+		 * Force a reseed of DRNGs to ensure they are seeded with
+		 * entropy that passed the SP800-90B health tests.
+		 * As the DRNG always will reseed before generating
 		 * random numbers, it does not need a reseed trigger.
 		 */
-		lrng_sdrng_force_reseed();
+		lrng_drng_force_reseed();
 	}
 }
 

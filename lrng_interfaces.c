@@ -2,7 +2,7 @@
 /*
  * LRNG User and kernel space interfaces
  *
- * Copyright (C) 2016 - 2019, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2016 - 2020, Stephan Mueller <smueller@chronox.de>
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -21,54 +21,25 @@
 #include "lrng_internal.h"
 
 /*
- * The minimum number of bits of entropy before we wake up a read on
- * /dev/random.
- */
-u32 lrng_read_wakeup_bits = LRNG_MIN_SEED_ENTROPY_BITS +
-			    LRNG_CONDITIONING_ENTROPY_LOSS;
-
-/*
  * If the entropy count falls under this number of bits, then we
  * should wake up processes which are selecting or polling on write
  * access to /dev/random.
  */
-u32 lrng_write_wakeup_bits = LRNG_EMERG_ENTROPY +
-			     2 * LRNG_DRNG_SECURITY_STRENGTH_BITS;
+u32 lrng_write_wakeup_bits = LRNG_WRITE_WAKEUP_ENTROPY;
 
 static LIST_HEAD(lrng_ready_list);
 static DEFINE_SPINLOCK(lrng_ready_list_lock);
 
-static DECLARE_WAIT_QUEUE_HEAD(lrng_read_wait);
 static DECLARE_WAIT_QUEUE_HEAD(lrng_write_wait);
 static DECLARE_WAIT_QUEUE_HEAD(lrng_init_wait);
 static struct fasync_struct *fasync;
 
 /********************************** Helper ***********************************/
 
-/* Is the primary DRNG seed level too low? */
+/* Is the DRNG seed level too low? */
 static inline bool lrng_need_entropy(void)
 {
 	return (lrng_avail_entropy() < lrng_write_wakeup_bits);
-}
-
-/* Is the entropy pool filled for TRNG pull or DRNG fully seeded? */
-static inline bool lrng_have_entropy_full(void)
-{
-	return (lrng_avail_entropy() >= lrng_read_wakeup_bits);
-}
-
-static inline bool lrng_have_entropy_full_trng(void)
-{
-	return (lrng_avail_entropy() >= lrng_read_wakeup_bits +
-					lrng_trng_retain());
-}
-
-void lrng_reader_wakeup(void)
-{
-	if (lrng_have_entropy_full() && wq_has_sleeper(&lrng_read_wait)) {
-		wake_up_interruptible(&lrng_read_wait);
-		kill_fasync(&fasync, SIGIO, POLL_IN);
-	}
 }
 
 void lrng_writer_wakeup(void)
@@ -82,11 +53,12 @@ void lrng_writer_wakeup(void)
 void lrng_init_wakeup(void)
 {
 	wake_up_all(&lrng_init_wait);
+	kill_fasync(&fasync, SIGIO, POLL_IN);
 }
 
 /**
- * Ping all kernel internal callers waiting until the DRNG is fully
- * seeded that the DRNG is now fully seeded.
+ * Ping all kernel internal callers waiting until the DRNG is at least minimally
+ * seeded to inform that the DRNG reached that seed level.
  *
  * When the SP800-90B testing is enabled, the ping only happens if the SP800-90B
  * startup health tests are completed. This implies that kernel internal
@@ -138,33 +110,37 @@ void lrng_debug_report_seedlevel(const char *name)
  * when our pool is full.
  *
  * @buffer: buffer holding the entropic data from HW noise sources to be used to
- *	    (re)seed the DRNG.
+ *	    insert into entropy pool.
  * @count: length of buffer
  * @entropy_bits: amount of entropy in buffer (value is in bits)
  */
 void add_hwgenerator_randomness(const char *buffer, size_t count,
 				size_t entropy_bits)
 {
-	/* DRNG is not yet online */
-	if (!lrng_get_available())
-		return;
 	/*
 	 * Suspend writing if we are fully loaded with entropy.
 	 * We'll be woken up again once below lrng_write_wakeup_thresh,
 	 * or when the calling thread is about to terminate.
 	 */
-	wait_event_interruptible(lrng_write_wait, lrng_need_entropy() ||
-						  kthread_should_stop() ||
-						  freezing(current));
+	wait_event_interruptible(lrng_write_wait,
+				lrng_need_entropy() ||
+				lrng_state_exseed_allow(lrng_noise_source_hw) ||
+				kthread_should_stop());
+	lrng_state_exseed_set(lrng_noise_source_hw, false);
 	lrng_pool_lfsr_nonaligned(buffer, count);
 	lrng_pool_add_entropy(entropy_bits);
 }
 EXPORT_SYMBOL_GPL(add_hwgenerator_randomness);
 
-/* Handle random seed passed by bootloader.
+/**
+ * Handle random seed passed by bootloader.
  * If the seed is trustworthy, it would be regarded as hardware RNGs. Otherwise
  * it would be regarded as device data.
  * The decision is controlled by CONFIG_RANDOM_TRUST_BOOTLOADER.
+ *
+ * @buf: buffer holding the entropic data from HW noise sources to be used to
+ *	 insert into entropy pool.
+ * @size: length of buffer
  */
 void add_bootloader_randomness(const void *buf, unsigned int size)
 {
@@ -193,13 +169,17 @@ void add_input_randomness(unsigned int type, unsigned int code,
 }
 EXPORT_SYMBOL_GPL(add_input_randomness);
 
-/*
- * Add device- or boot-specific data to the input pool to help
+/**
+ * Add device- or boot-specific data to the entropy pool to help
  * initialize it.
  *
  * None of this adds any entropy; it is meant to avoid the problem of
  * the entropy pool having similar initial state across largely
  * identical devices.
+ *
+ * @buf: buffer holding the entropic data from HW noise sources to be used to
+ *	 insert into entropy pool.
+ * @size: length of buffer
  */
 void add_device_randomness(const void *buf, unsigned int size)
 {
@@ -217,6 +197,8 @@ EXPORT_SYMBOL(add_disk_randomness);
 
 /**
  * Delete a previously registered readiness callback function.
+ *
+ * @rdy: callback definition that was registered initially
  */
 void del_random_ready_callback(struct random_ready_callback *rdy)
 {
@@ -235,8 +217,10 @@ void del_random_ready_callback(struct random_ready_callback *rdy)
 EXPORT_SYMBOL(del_random_ready_callback);
 
 /**
- * Add a callback function that will be invoked when the DRNG is fully seeded.
+ * Add a callback function that will be invoked when the DRNG is mimimally
+ * seeded.
  *
+ * @rdy: callback definition to be invoked when the LRNG is seeded
  * @return: 0 if callback is successfully added
  *          -EALREADY if pool is already initialised (callback not called)
  *	    -ENOENT if module for callback is not alive
@@ -284,7 +268,7 @@ EXPORT_SYMBOL(add_random_ready_callback);
  */
 void get_random_bytes(void *buf, int nbytes)
 {
-	lrng_sdrng_get_atomic((u8 *)buf, (u32)nbytes);
+	lrng_drng_get_atomic((u8 *)buf, (u32)nbytes);
 	lrng_debug_report_seedlevel("get_random_bytes");
 }
 EXPORT_SYMBOL(get_random_bytes);
@@ -301,7 +285,7 @@ EXPORT_SYMBOL(get_random_bytes);
  */
 void get_random_bytes_full(void *buf, int nbytes)
 {
-	lrng_sdrng_get_sleep((u8 *)buf, (u32)nbytes);
+	lrng_drng_get_sleep((u8 *)buf, (u32)nbytes);
 	lrng_debug_report_seedlevel("get_random_bytes_full");
 }
 EXPORT_SYMBOL(get_random_bytes_full);
@@ -357,7 +341,7 @@ int __must_check get_random_bytes_arch(void *buf, int nbytes)
 	}
 
 	if (nbytes)
-		lrng_sdrng_get_atomic((u8 *)p, (u32)nbytes);
+		lrng_drng_get_atomic((u8 *)p, (u32)nbytes);
 
 	return nbytes;
 }
@@ -365,8 +349,7 @@ EXPORT_SYMBOL(get_random_bytes_arch);
 
 /************************ LRNG user output interfaces *************************/
 
-static ssize_t lrng_read_common(char __user *buf, size_t nbytes,
-			int (*lrng_read_random)(u8 *outbuf, u32 outbuflen))
+static ssize_t lrng_read_common(char __user *buf, size_t nbytes)
 {
 	ssize_t ret = 0;
 	u8 tmpbuf[LRNG_DRNG_BLOCKSIZE] __aligned(LRNG_KCAPI_ALIGN);
@@ -381,7 +364,7 @@ static ssize_t lrng_read_common(char __user *buf, size_t nbytes,
 	 * request sizes, such as 16 or 32 bytes, avoid a kmalloc overhead for
 	 * those by using the stack variable of tmpbuf.
 	 */
-	if (nbytes > sizeof(tmpbuf)) {
+	if (!IS_ENABLED(CONFIG_BASE_SMALL) && (nbytes > sizeof(tmpbuf))) {
 		tmplen = min_t(u32, nbytes, LRNG_DRNG_MAX_REQSIZE);
 		tmp_large = kmalloc(tmplen + LRNG_KCAPI_ALIGN, GFP_KERNEL);
 		if (!tmp_large)
@@ -404,7 +387,7 @@ static ssize_t lrng_read_common(char __user *buf, size_t nbytes,
 			schedule();
 		}
 
-		rc = lrng_read_random(tmp, todo);
+		rc = lrng_drng_get_sleep(tmp, todo);
 		if (rc <= 0) {
 			if (rc < 0)
 				ret = rc;
@@ -430,8 +413,7 @@ static ssize_t lrng_read_common(char __user *buf, size_t nbytes,
 }
 
 static ssize_t
-lrng_read_common_block(int nonblock, char __user *buf, size_t nbytes,
-		       int (*lrng_read_random)(u8 *outbuf, u32 outbuflen))
+lrng_read_common_block(int nonblock, char __user *buf, size_t nbytes)
 {
 	if (nbytes == 0)
 		return 0;
@@ -448,40 +430,26 @@ lrng_read_common_block(int nonblock, char __user *buf, size_t nbytes,
 			return ret;
 	}
 
-	while (1) {
-		ssize_t n = lrng_read_common(buf, nbytes, lrng_read_random);
-
-		if (n)
-			return n;
-
-		/* No entropy available. Maybe wait and retry. */
-		if (nonblock)
-			return -EAGAIN;
-
-		wait_event_interruptible(lrng_read_wait,
-					 lrng_have_entropy_full_trng());
-		if (signal_pending(current))
-			return -ERESTARTSYS;
-	}
+	return lrng_read_common(buf, nbytes);
 }
 
-static ssize_t lrng_read_block(struct file *file, char __user *buf,
-			       size_t nbytes, loff_t *ppos)
+static ssize_t lrng_drng_read_block(struct file *file, char __user *buf,
+				     size_t nbytes, loff_t *ppos)
 {
-	return lrng_read_common_block(file->f_flags & O_NONBLOCK, buf, nbytes,
-				      lrng_sdrng_get_sleep);
+	return lrng_read_common_block(file->f_flags & O_NONBLOCK, buf, nbytes);
 }
 
-static unsigned int lrng_trng_poll(struct file *file, poll_table *wait)
+static unsigned int lrng_random_poll(struct file *file, poll_table *wait)
 {
 	__poll_t mask;
 
-	poll_wait(file, &lrng_read_wait, wait);
+	poll_wait(file, &lrng_init_wait, wait);
 	poll_wait(file, &lrng_write_wait, wait);
 	mask = 0;
-	if (lrng_have_entropy_full())
+	if (lrng_state_operational())
 		mask |= EPOLLIN | EPOLLRDNORM;
-	if (lrng_need_entropy())
+	if (lrng_need_entropy() ||
+	    lrng_state_exseed_allow(lrng_noise_source_user))
 		mask |= EPOLLOUT | EPOLLWRNORM;
 	return mask;
 }
@@ -516,15 +484,15 @@ static ssize_t lrng_drng_write_common(const char __user *buffer, size_t count,
 		cond_resched();
 	}
 
-	/* Force reseed of secondary DRNG during next data request. */
+	/* Force reseed of DRNG during next data request. */
 	if (!orig_entropy_bits)
-		lrng_sdrng_force_reseed();
+		lrng_drng_force_reseed();
 
 	return ret;
 }
 
-static ssize_t lrng_sdrng_read(struct file *file, char __user *buf,
-			       size_t nbytes, loff_t *ppos)
+static ssize_t lrng_drng_read(struct file *file, char __user *buf,
+			      size_t nbytes, loff_t *ppos)
 {
 	if (!lrng_state_min_seeded())
 		pr_notice_ratelimited("%s - use of insufficiently seeded DRNG "
@@ -534,7 +502,7 @@ static ssize_t lrng_sdrng_read(struct file *file, char __user *buf,
 		pr_debug_ratelimited("%s - use of not fully seeded DRNG (%zu "
 				     "bytes read)\n", current->comm, nbytes);
 
-	return lrng_read_common(buf, nbytes, lrng_sdrng_get_sleep);
+	return lrng_read_common(buf, nbytes);
 }
 
 static ssize_t lrng_drng_write(struct file *file, const char __user *buffer,
@@ -577,6 +545,7 @@ static long lrng_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		if (size < 0)
 			return -EINVAL;
+		lrng_state_exseed_set(lrng_noise_source_user, false);
 		/* there cannot be more entropy than data */
 		ent_count_bits = min(ent_count_bits, size<<3);
 		return lrng_drng_write_common((const char __user *)p, size,
@@ -597,8 +566,8 @@ static long lrng_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 		 */
 		if (!capable(CAP_SYS_ADMIN))
 			return -EPERM;
-		/* Force a reseed of all secondary DRNGs */
-		lrng_sdrng_force_reseed();
+		/* Force a reseed of all DRNGs */
+		lrng_drng_force_reseed();
 		return 0;
 	default:
 		return -EINVAL;
@@ -611,29 +580,28 @@ static int lrng_fasync(int fd, struct file *filp, int on)
 }
 
 const struct file_operations random_fops = {
-	.read  = lrng_read_block,
+	.read  = lrng_drng_read_block,
 	.write = lrng_drng_write,
-	.poll  = lrng_trng_poll,
+	.poll  = lrng_random_poll,
 	.unlocked_ioctl = lrng_ioctl,
+	.compat_ioctl = compat_ptr_ioctl,
 	.fasync = lrng_fasync,
 	.llseek = noop_llseek,
 };
 
 const struct file_operations urandom_fops = {
-	.read  = lrng_sdrng_read,
+	.read  = lrng_drng_read,
 	.write = lrng_drng_write,
 	.unlocked_ioctl = lrng_ioctl,
+	.compat_ioctl = compat_ptr_ioctl,
 	.fasync = lrng_fasync,
 	.llseek = noop_llseek,
 };
 
-/* These defines need to go to include/uapi/linux/random.h */
-#define GRND_INSECURE	0x0004
-#define GRND_TRUERANDOM	0x0008
 SYSCALL_DEFINE3(getrandom, char __user *, buf, size_t, count,
 		unsigned int, flags)
 {
-	if (flags & ~(GRND_NONBLOCK|GRND_RANDOM|GRND_INSECURE|GRND_TRUERANDOM))
+	if (flags & ~(GRND_NONBLOCK|GRND_RANDOM|GRND_INSECURE))
 		return -EINVAL;
 
 	/*
@@ -644,22 +612,11 @@ SYSCALL_DEFINE3(getrandom, char __user *, buf, size_t, count,
 	     (GRND_INSECURE|GRND_RANDOM)) == (GRND_INSECURE|GRND_RANDOM))
 		return -EINVAL;
 
-	/* Only allow GRND_TRUERANDOM by itself or with NONBLOCK */
-	if ((flags & GRND_TRUERANDOM) &&
-	    ((flags &~ GRND_TRUERANDOM) != 0) &&
-	    ((flags &~ (GRND_TRUERANDOM | GRND_NONBLOCK)) != 0))
-		return -EINVAL;
-
 	if (count > INT_MAX)
 		count = INT_MAX;
 
-        if (flags & GRND_TRUERANDOM)
-		return lrng_read_common_block(flags & GRND_NONBLOCK, buf,
-					      count, lrng_trng_get);
 	if (flags & GRND_INSECURE)
-		return lrng_sdrng_read(NULL, buf, count, NULL);
+		return lrng_drng_read(NULL, buf, count, NULL);
 
-	return lrng_read_common_block(flags & GRND_NONBLOCK, buf, count,
-				      lrng_sdrng_get_sleep);
-
+	return lrng_read_common_block(flags & GRND_NONBLOCK, buf, count);
 }

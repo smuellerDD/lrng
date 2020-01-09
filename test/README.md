@@ -61,3 +61,24 @@ The following description of the different tests apply
 Please note that the ChaCha20 DRNG implementation can be tested with
 https://github.com/smuellerDD/chacha20_drng which used to be the test
 tool for this implementation and now turned into a stand-alone DRNG.
+
+## Appropriateness of Polynomials
+
+To test whether a polynomial is irreducible and primitive (i.e. the properties
+that are the key for a polynomial to be used in an LFSR), the online version
+of Magma can be used available at:
+
+http://magma.maths.usyd.edu.au/calc/
+
+Use the following code and only replace the polynomials (note, the
+polynomials in the code are always smaller by one due to C arrays starting
+at 0):
+
+F:=GF(2);
+F;
+P<x>:=PolynomialRing(F);
+P;
+P<x>:=x^64 + x^63 + x^61 + x^60 + 1;
+P;
+print "is irreducible: "; IsIrreducible(P);
+print "is primitive: "; IsPrimitive(P);

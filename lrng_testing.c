@@ -2,7 +2,7 @@
 /*
  * Linux Random Number Generator (LRNG) Raw entropy collection tool
  *
- * Copyright (C) 2019, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2019 - 2020, Stephan Mueller <smueller@chronox.de>
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -158,8 +158,10 @@ static int lrng_raw_entropy_reader(u8 *outbuf, u32 outbuflen)
 		}
 
 		/* We copy out word-wise */
-		if (outbuflen < sizeof(u32))
+		if (outbuflen < sizeof(u32)) {
+			spin_unlock_irqrestore(&lrng_raw_lock, flags);
 			goto out;
+		}
 
 		memcpy(outbuf, &lrng_testing_rb[lrng_rb_reader], sizeof(u32));
 		lrng_rb_reader++;
@@ -250,7 +252,7 @@ static ssize_t lrng_raw_read(struct file *file, char __user *to,
 	return ret;
 }
 
-static struct file_operations lrng_raw_name_fops = {
+static const struct file_operations lrng_raw_name_fops = {
 	.owner = THIS_MODULE,
 	.read = lrng_raw_read,
 };

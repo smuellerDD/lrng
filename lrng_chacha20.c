@@ -3,7 +3,7 @@
  * Backend for the LRNG providing the cryptographic primitives using
  * ChaCha20 cipher implementations.
  *
- * Copyright (C) 2016 - 2019, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2016 - 2020, Stephan Mueller <smueller@chronox.de>
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -14,21 +14,10 @@
 #include <linux/random.h>
 #include <linux/slab.h>
 
+#include "lrng_chacha20.h"
 #include "lrng_internal.h"
 
 /******************************* ChaCha20 DRNG *******************************/
-
-/* State according to RFC 7539 section 2.3 */
-struct chacha20_block {
-	u32 constants[4];
-#define CHACHA_KEY_SIZE_WORDS (CHACHA_KEY_SIZE / sizeof(u32))
-	union {
-		u32 u[CHACHA_KEY_SIZE_WORDS];
-		u8  b[CHACHA_KEY_SIZE];
-	} key;
-	u32 counter;
-	u32 nonce[3];
-};
 
 #define CHACHA_BLOCK_WORDS	(CHACHA_BLOCK_SIZE / sizeof(u32))
 
@@ -37,13 +26,11 @@ struct chacha20_state {
 };
 
 /*
- * Have two static memory blocks for two ChaCha20 DRNG instances (the primary
- * and the secondary DRNG) to avoid calling kmalloc too early in the boot cycle.
- * for subsequent allocation requests, such as per-NUMA-node DRNG instances,
- * kmalloc will be used.
+ * Have a static memory blocks for the ChaCha20 DRNG instance to avoid calling
+ * kmalloc too early in the boot cycle. For subsequent allocation requests,
+ * such as per-NUMA-node DRNG instances, kmalloc will be used.
  */
-struct chacha20_state primary_chacha20;
-struct chacha20_state secondary_chacha20;
+struct chacha20_state chacha20;
 
 /**
  * Update of the ChaCha20 state by either using an unused buffer part or by
@@ -209,7 +196,7 @@ void lrng_cc20_init_state(struct chacha20_state *state)
 	unsigned long v;
 	u32 i;
 
-	memcpy(&chacha20->constants[0], "expand 32-byte k", 16);
+	lrng_cc20_init_rfc7539(chacha20);
 
 	for (i = 0; i < CHACHA_KEY_SIZE_WORDS; i++) {
 		chacha20->key.u[i] ^= jiffies;
@@ -260,7 +247,7 @@ static void lrng_cc20_drng_dealloc(void *drng)
 {
 	struct chacha20_state *chacha20_state = (struct chacha20_state *)drng;
 
-	if (drng == &primary_chacha20 || drng == &secondary_chacha20) {
+	if (drng == &chacha20) {
 		memzero_explicit(chacha20_state, sizeof(*chacha20_state));
 		pr_debug("static ChaCha20 core zeroized\n");
 		return;
@@ -295,6 +282,7 @@ static int lrng_cc20_hash_buffer(void *hash, const u8 *inbuf, u32 inbuflen,
 
 	WARN_ON(inbuflen % (SHA_WORKSPACE_WORDS * sizeof(u32)));
 
+	sha_init((u32 *)digest);
 	for (i = 0; i < inbuflen; i += (SHA_WORKSPACE_WORDS * sizeof(u32)))
 		sha_transform((u32 *)digest, (inbuf + i), workspace);
 	memzero_explicit(workspace, sizeof(workspace));
