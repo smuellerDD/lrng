@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-2-Clause
 /*
- * LRNG power-on and on-demand self test
+ * LRNG power-on and on-demand self-test
  *
  * Copyright (C) 2016 - 2020, Stephan Mueller <smueller@chronox.de>
  */
 
 /*
- * In addition to the self tests below, the following LRNG components
- * are covered with self tests during regular operation:
+ * In addition to the self-tests below, the following LRNG components
+ * are covered with self-tests during regular operation:
  *
- * * power-on self test: SP800-90A DRBG provided by the Linux kernel crypto API
- * * power-on self test: PRNG provided by the Linux kernel crypto API
+ * * power-on self-test: SP800-90A DRBG provided by the Linux kernel crypto API
+ * * power-on self-test: PRNG provided by the Linux kernel crypto API
  * * runtime test: Raw noise source data testing including SP800-90B compliant
  *		   tests when enabling CONFIG_LRNG_HEALTH_TESTS
  *
@@ -114,7 +114,7 @@ static unsigned int lrng_pool_lfsr_selftest(void)
 	BUILD_BUG_ON(ARRAY_SIZE(lrng_lfsr_selftest_result) <
 							CONFIG_LRNG_POOL_SIZE);
 
-	lrng_pool = kzalloc(sizeof(struct lrng_pool) + sizeof(LRNG_KCAPI_ALIGN),
+	lrng_pool = kzalloc(sizeof(struct lrng_pool) + LRNG_KCAPI_ALIGN,
 			    GFP_KERNEL);
 	if (!lrng_pool)
 		return LRNG_SEFLTEST_ERROR_LFSR;
@@ -226,7 +226,7 @@ static unsigned int lrng_hash_df_selftest(void)
 	BUILD_BUG_ON(ARRAY_SIZE(lrng_hash_df_selftest_result) <
 							CONFIG_LRNG_POOL_SIZE);
 
-	lrng_pool = kzalloc(sizeof(struct lrng_pool) + sizeof(LRNG_KCAPI_ALIGN),
+	lrng_pool = kzalloc(sizeof(struct lrng_pool) + LRNG_KCAPI_ALIGN,
 			    GFP_KERNEL);
 	if (!lrng_pool)
 		return LRNG_SEFLTEST_ERROR_HASHDF;
@@ -395,7 +395,7 @@ static int lrng_selftest(void)
 }
 
 #ifdef CONFIG_SYSFS
-/* Re-perform self test when any value is written to the sysfs file. */
+/* Re-perform self-test when any value is written to the sysfs file. */
 static int lrng_selftest_sysfs_set(const char *val,
 				   const struct kernel_param *kp)
 {

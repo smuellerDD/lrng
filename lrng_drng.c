@@ -115,7 +115,7 @@ static void lrng_drng_inject(struct lrng_drng *drng,
 	lrng_drng_unlock(drng, &flags);
 }
 
-/**
+/*
  * Perform the seeding of the DRNG with data from noise source
  */
 static inline int _lrng_drng_seed(struct lrng_drng *drng)
@@ -191,7 +191,7 @@ static inline void _lrng_drng_seed_work(struct lrng_drng *drng, u32 node)
 	}
 }
 
-/**
+/*
  * DRNG reseed trigger: Kernel thread handler triggered by the schedule_work()
  */
 void lrng_drng_seed_work(struct work_struct *dummy)
@@ -243,12 +243,15 @@ void lrng_drng_force_reseed(void)
 }
 
 /**
- * Get random data out of the DRNG which is reseeded frequently.
+ * lrng_drng_get() - Get random data out of the DRNG which is reseeded
+ * frequently.
  *
  * @outbuf: buffer for storing random data
  * @outbuflen: length of outbuf
- * @return: < 0 in error case (DRNG generation or update failed)
- *	    >=0 returning the returned number of bytes
+ *
+ * Return:
+ * * < 0 in error case (DRNG generation or update failed)
+ * * >=0 returning the returned number of bytes
  */
 static int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen)
 {

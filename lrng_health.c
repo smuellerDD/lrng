@@ -99,7 +99,7 @@ static inline bool lrng_sp80090b_health_enabled(void)
  * noise source.
  ***************************************************************************/
 
-/**
+/*
  * Perform SP800-90B startup testing
  */
 static inline void lrng_sp80090b_startup(struct lrng_health *health)
@@ -120,7 +120,7 @@ static inline void lrng_sp80090b_startup(struct lrng_health *health)
 	}
 }
 
-/**
+/*
  * Handle failure of SP800-90B startup testing
  */
 static inline void lrng_sp80090b_startup_failure(struct lrng_health *health)
@@ -140,7 +140,7 @@ static inline void lrng_sp80090b_startup_failure(struct lrng_health *health)
 		   LRNG_SP80090B_STARTUP_BLOCKS);
 }
 
-/**
+/*
  * Handle failure of SP800-90B runtime testing
  */
 static inline void lrng_sp80090b_runtime_failure(struct lrng_health *health)
@@ -161,7 +161,7 @@ static inline void lrng_sp80090b_failure(struct lrng_health *health)
 	}
 }
 
-/**
+/*
  * Is the SP800-90B startup testing complete?
  *
  * This function is called by the LRNG to determine whether to unblock
@@ -189,7 +189,7 @@ bool lrng_sp80090b_compliant(void)
  * This test complies with SP800-90B section 4.4.2.
  ***************************************************************************/
 
-/**
+/*
  * Reset the APT counter
  *
  * @health [in] Reference to health state
@@ -214,7 +214,7 @@ static inline void lrng_apt_restart(struct lrng_health *health)
 	atomic_set(&apt->apt_trigger, LRNG_APT_WINDOW_SIZE);
 }
 
-/**
+/*
  * Insert a new entropy event into APT
  *
  * This function does is void as it does not decide about the fate of a time
@@ -273,7 +273,7 @@ static inline void lrng_apt_insert(struct lrng_health *health,
  * is received.
  ***************************************************************************/
 
-/**
+/*
  * Hot code path - Insert data for Repetition Count Test
  *
  * @health: Reference to health information
@@ -339,7 +339,7 @@ static inline u32 lrng_delta(u32 prev, u32 next)
 	return (next - prev);
 }
 
-/**
+/*
  * Hot code path
  *
  * @health: Reference to health information
@@ -367,7 +367,7 @@ static inline int lrng_irq_stuck(struct lrng_stuck_test *stuck, u32 now_time)
  * Health test interfaces
  ***************************************************************************/
 
-/**
+/*
  * Disable all health tests
  */
 void lrng_health_disable(void)
@@ -381,7 +381,7 @@ void lrng_health_disable(void)
 			"NOT SP800-90B compliant\n");
 }
 
-/**
+/*
  * Hot code path - Perform health test on time stamp received from an event
  *
  * @now_time Time stap

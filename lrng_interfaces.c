@@ -57,8 +57,9 @@ void lrng_init_wakeup(void)
 }
 
 /**
- * Ping all kernel internal callers waiting until the DRNG is at least minimally
- * seeded to inform that the DRNG reached that seed level.
+ * lrng_process_ready_list() - Ping all kernel internal callers waiting until
+ * the DRNG is at least minimally seeded to inform that the DRNG reached that
+ * seed level.
  *
  * When the SP800-90B testing is enabled, the ping only happens if the SP800-90B
  * startup health tests are completed. This implies that kernel internal
@@ -105,7 +106,9 @@ void lrng_debug_report_seedlevel(const char *name)
 /************************ LRNG kernel input interfaces ************************/
 
 /**
- * Interface for in-kernel drivers of true hardware RNGs.
+ * add_hwgenerator_randomness() - Interface for in-kernel drivers of true
+ * hardware RNGs.
+ *
  * Those devices may produce endless random bits and will be throttled
  * when our pool is full.
  *
@@ -133,7 +136,8 @@ void add_hwgenerator_randomness(const char *buffer, size_t count,
 EXPORT_SYMBOL_GPL(add_hwgenerator_randomness);
 
 /**
- * Handle random seed passed by bootloader.
+ * add_bootloader_randomness() - Handle random seed passed by bootloader.
+ *
  * If the seed is trustworthy, it would be regarded as hardware RNGs. Otherwise
  * it would be regarded as device data.
  * The decision is controlled by CONFIG_RANDOM_TRUST_BOOTLOADER.
@@ -151,7 +155,7 @@ void add_bootloader_randomness(const void *buf, unsigned int size)
 }
 EXPORT_SYMBOL_GPL(add_bootloader_randomness);
 
-/**
+/*
  * Callback for HID layer -- use the HID event values to stir the entropy pool
  */
 void add_input_randomness(unsigned int type, unsigned int code,
@@ -170,8 +174,8 @@ void add_input_randomness(unsigned int type, unsigned int code,
 EXPORT_SYMBOL_GPL(add_input_randomness);
 
 /**
- * Add device- or boot-specific data to the entropy pool to help
- * initialize it.
+ * add_device_randomness() - Add device- or boot-specific data to the entropy
+ * pool to help initialize it.
  *
  * None of this adds any entropy; it is meant to avoid the problem of
  * the entropy pool having similar initial state across largely
@@ -196,7 +200,8 @@ EXPORT_SYMBOL(add_disk_randomness);
 #endif
 
 /**
- * Delete a previously registered readiness callback function.
+ * del_random_ready_callback() - Delete a previously registered readiness
+ * callback function.
  *
  * @rdy: callback definition that was registered initially
  */
@@ -217,13 +222,15 @@ void del_random_ready_callback(struct random_ready_callback *rdy)
 EXPORT_SYMBOL(del_random_ready_callback);
 
 /**
- * Add a callback function that will be invoked when the DRNG is mimimally
- * seeded.
+ * add_random_ready_callback() - Add a callback function that will be invoked
+ * when the DRNG is mimimally seeded.
  *
  * @rdy: callback definition to be invoked when the LRNG is seeded
- * @return: 0 if callback is successfully added
- *          -EALREADY if pool is already initialised (callback not called)
- *	    -ENOENT if module for callback is not alive
+ *
+ * Return:
+ * * 0 if callback is successfully added
+ * * -EALREADY if pool is already initialised (callback not called)
+ * * -ENOENT if module for callback is not alive
  */
 int add_random_ready_callback(struct random_ready_callback *rdy)
 {
@@ -259,7 +266,9 @@ EXPORT_SYMBOL(add_random_ready_callback);
 /*********************** LRNG kernel output interfaces ************************/
 
 /**
- * Provider of cryptographic strong random numbers for kernel-internal usage.
+ * get_random_bytes() - Provider of cryptographic strong random numbers for
+ * kernel-internal usage.
+ *
  * This function is appropriate for all in-kernel use cases. However,
  * it will always use the ChaCha20 DRNG.
  *
@@ -274,7 +283,9 @@ void get_random_bytes(void *buf, int nbytes)
 EXPORT_SYMBOL(get_random_bytes);
 
 /**
- * Provider of cryptographic strong random numbers for kernel-internal usage.
+ * get_random_bytes_full() - Provider of cryptographic strong random numbers
+ * for kernel-internal usage.
+ *
  * This function is appropriate only for non-atomic use cases as this
  * function may sleep. Though, it provides access to the full functionality
  * of LRNG including the switchable DRNG support, that may support other
@@ -291,14 +302,17 @@ void get_random_bytes_full(void *buf, int nbytes)
 EXPORT_SYMBOL(get_random_bytes_full);
 
 /**
- * Wait for the LRNG to be seeded and thus guaranteed to supply
- * cryptographically secure random numbers. This applies to: the /dev/urandom
- * device, the get_random_bytes function, and the get_random_{u32,u64,int,long}
- * family of functions. Using any of these functions without first calling
- * this function forfeits the guarantee of security.
+ * wait_for_random_bytes() - Wait for the LRNG to be seeded and thus
+ * guaranteed to supply cryptographically secure random numbers.
  *
- * Returns: 0 if the LRNG has been seeded.
- *          -ERESTARTSYS if the function was interrupted by a signal.
+ * This applies to: the /dev/urandom device, the get_random_bytes function,
+ * and the get_random_{u32,u64,int,long} family of functions. Using any of
+ * these functions without first calling this function forfeits the guarantee
+ * of security.
+ *
+ * Return:
+ * * 0 if the LRNG has been seeded.
+ * * -ERESTARTSYS if the function was interrupted by a signal.
  */
 int wait_for_random_bytes(void)
 {
@@ -310,19 +324,20 @@ int wait_for_random_bytes(void)
 EXPORT_SYMBOL(wait_for_random_bytes);
 
 /**
- * This function will use the architecture-specific hardware random
- * number generator if it is available.  The arch-specific hw RNG will
- * almost certainly be faster than what we can do in software, but it
- * is impossible to verify that it is implemented securely (as
- * opposed, to, say, the AES encryption of a sequence number using a
- * key known by the NSA).  So it's useful if we need the speed, but
- * only if we're willing to trust the hardware manufacturer not to
- * have put in a back door.
+ * get_random_bytes_arch() - This function will use the architecture-specific
+ * hardware random number generator if it is available.
+ *
+ * The arch-specific hw RNG will almost certainly be faster than what we can
+ * do in software, but it is impossible to verify that it is implemented
+ * securely (as opposed, to, say, the AES encryption of a sequence number using
+ * a key known by the NSA).  So it's useful if we need the speed, but only if
+ * we're willing to trust the hardware manufacturer not to have put in a back
+ * door.
  *
  * @buf: buffer allocated by caller to store the random data in
  * @nbytes: length of outbuf
  *
- * Return number of bytes filled in.
+ * Return: number of bytes filled in.
  */
 int __must_check get_random_bytes_arch(void *buf, int nbytes)
 {

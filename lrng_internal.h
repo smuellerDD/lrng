@@ -222,7 +222,7 @@ static __always_inline void lrng_drng_lock(struct lrng_drng *drng,
 		 * In case a lock transition happened while we were spinning,
 		 * catch this case and use the new lock type.
 		 */
-		if (unlikely(!lrng_drng_is_atomic(drng))) {
+		if (!lrng_drng_is_atomic(drng)) {
 			spin_unlock_irqrestore(&drng->spin_lock, *flags);
 			mutex_lock(&drng->lock);
 		}

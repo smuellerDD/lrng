@@ -150,7 +150,7 @@ config LRNG_APT_BROKEN
 # Default taken from SP800-90B sec 4.4.1 - significance level 2^-30
 config LRNG_RCT_CUTOFF
 	int
-	default 30 if !LRNG_RCT_BROKEN
+	default 31 if !LRNG_RCT_BROKEN
 	default 1 if LRNG_RCT_BROKEN
 
 # Default taken from SP800-90B sec 4.4.2 - significance level 2^-30
@@ -178,7 +178,7 @@ config LRNG_TESTING
 config LRNG_SELFTEST
 	bool "Enable power-on and on-demand self-tests"
 	help
-	  The power-on self tests are executed during boot time
+	  The power-on self-tests are executed during boot time
 	  covering the ChaCha20 DRNG, the LFSR processing and the
 	  time stamp management of the LRNG.
 

@@ -106,7 +106,7 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 	return 0;
 }
 
-/**
+/*
  * Switch the existing DRNG instances with new using the new crypto callbacks.
  * The caller must hold the lrng_crypto_cb_update lock.
  */
@@ -139,9 +139,13 @@ static int lrng_drngs_switch(const struct lrng_crypto_cb *cb)
  * lrng_set_drng_cb - Register new cryptographic callback functions for DRNG
  * The registering implies that all old DRNG states are replaced with new
  * DRNG states.
+ *
  * @cb: Callback functions to be registered -- if NULL, use the default
  *	callbacks pointing to the ChaCha20 DRNG.
- * @return: 0 on success, < 0 on error
+ *
+ * Return:
+ * * 0 on success
+ * * < 0 on error
  */
 int lrng_set_drng_cb(const struct lrng_crypto_cb *cb)
 {

@@ -231,7 +231,6 @@ const static struct lrng_crypto_cb lrng_drbg_crypto_cb = {
 	.lrng_drng_dealloc		= lrng_drbg_drng_dealloc,
 	.lrng_drng_seed_helper		= lrng_drbg_drng_seed_helper,
 	.lrng_drng_generate_helper	= lrng_drbg_drng_generate_helper,
-	.lrng_drng_generate_helper_full	= lrng_drbg_drng_generate_helper,
 	.lrng_hash_alloc		= lrng_drbg_hash_alloc,
 	.lrng_hash_dealloc		= lrng_drbg_hash_dealloc,
 	.lrng_hash_digestsize		= lrng_drbg_hash_digestsize,

@@ -46,11 +46,13 @@ static int __init lrng_parse_trust_cpu(char *arg)
 early_param("random.trust_cpu", lrng_parse_trust_cpu);
 
 /**
- * Get CPU noise source entropy
+ * lrng_get_arch() - Get CPU noise source entropy
  *
  * @outbuf: buffer to store entropy of size LRNG_DRNG_SECURITY_STRENGTH_BYTES
- * @return: > 0 on success where value provides the added entropy in bits
- *	    0 if no fast source was available
+ *
+ * Return:
+ * * > 0 on success where value provides the added entropy in bits
+ * *   0 if no fast source was available
  */
 u32 lrng_get_arch(u8 *outbuf)
 {

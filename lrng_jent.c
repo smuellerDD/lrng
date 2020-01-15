@@ -25,12 +25,14 @@ MODULE_PARM_DESC(jitterrng, "Entropy in bits of 256 data bits from Jitter "
 			    "RNG noise source");
 
 /**
- * Get Jitter RNG entropy
+ * lrng_get_jent() - Get Jitter RNG entropy
  *
- * @outbuf buffer to store entropy
- * @outbuflen length of buffer
- * @return > 0 on success where value provides the added entropy in bits
- *	   0 if no fast source was available
+ * @outbuf: buffer to store entropy
+ * @outbuflen: length of buffer
+ *
+ * Return:
+ * * > 0 on success where value provides the added entropy in bits
+ * * 0 if no fast source was available
  */
 static struct rand_data *lrng_jent_state;
 

@@ -68,7 +68,7 @@ static void lrng_chacha20_update(struct chacha20_state *chacha20_state,
 	/* Leave counter untouched as it is start value is undefined in RFC */
 }
 
-/**
+/*
  * Seed the ChaCha20 DRNG by injecting the input data into the key part of
  * the ChaCha20 state. If the input data is longer than the ChaCha20 key size,
  * perform a ChaCha20 operation after processing of key size input data.
@@ -96,7 +96,7 @@ static int lrng_cc20_drng_seed_helper(void *drng, const u8 *inbuf, u32 inbuflen)
 	return 0;
 }
 
-/**
+/*
  * Chacha20 DRNG generation of random numbers: the stream output of ChaCha20
  * is the random number. After the completion of the generation of the
  * stream, the entire ChaCha20 state is updated.
@@ -139,57 +139,6 @@ static int lrng_cc20_drng_generate_helper(void *drng, u8 *outbuf, u32 outbuflen)
 	return ret;
 }
 
-/**
- * ChaCha20 DRNG that provides full strength, i.e. the output is capable
- * of transporting 1 bit of entropy per data bit, provided the DRNG was
- * seeded with 256 bits of entropy. This is achieved by folding the ChaCha20
- * block output of 512 bits in half using XOR.
- *
- * Other than the output handling, the implementation is conceptually
- * identical to lrng_drng_generate_helper.
- */
-static int lrng_cc20_drng_generate_helper_full(void *drng, u8 *outbuf,
-					       u32 outbuflen)
-{
-	struct chacha20_state *chacha20_state = (struct chacha20_state *)drng;
-	struct chacha20_block *chacha20 = &chacha20_state->block;
-	u32 aligned_buf[CHACHA_BLOCK_WORDS];
-	u32 ret = outbuflen;
-
-	while (outbuflen >= CHACHA_BLOCK_SIZE) {
-		u32 i;
-
-		chacha20_block(&chacha20->constants[0], outbuf);
-
-		/* fold output in half */
-		for (i = 0; i < (CHACHA_BLOCK_WORDS / 2); i++)
-			outbuf[i] ^= outbuf[i + (CHACHA_BLOCK_WORDS / 2)];
-
-		outbuf += CHACHA_BLOCK_SIZE / 2;
-		outbuflen -= CHACHA_BLOCK_SIZE / 2;
-	}
-
-	while (outbuflen) {
-		u32 i, todo = min_t(u32, CHACHA_BLOCK_SIZE / 2, outbuflen);
-
-		chacha20_block(&chacha20->constants[0], (u8 *)aligned_buf);
-
-		/* fold output in half */
-		for (i = 0; i < (CHACHA_BLOCK_WORDS / 2); i++)
-			aligned_buf[i] ^=
-				aligned_buf[i + (CHACHA_BLOCK_WORDS / 2)];
-
-		memcpy(outbuf, aligned_buf, todo);
-		outbuflen -= todo;
-		outbuf += todo;
-	}
-	memzero_explicit(aligned_buf, sizeof(aligned_buf));
-
-	lrng_chacha20_update(chacha20_state, NULL, CHACHA_BLOCK_WORDS);
-
-	return ret;
-}
-
 void lrng_cc20_init_state(struct chacha20_state *state)
 {
 	struct chacha20_block *chacha20 = &state->block;
@@ -215,7 +164,7 @@ void lrng_cc20_init_state(struct chacha20_state *state)
 	pr_info("ChaCha20 core initialized\n");
 }
 
-/**
+/*
  * Allocation of the DRNG state
  */
 static void *lrng_cc20_drng_alloc(u32 sec_strength)
@@ -309,7 +258,6 @@ const struct lrng_crypto_cb lrng_cc20_crypto_cb = {
 	.lrng_drng_dealloc		= lrng_cc20_drng_dealloc,
 	.lrng_drng_seed_helper		= lrng_cc20_drng_seed_helper,
 	.lrng_drng_generate_helper	= lrng_cc20_drng_generate_helper,
-	.lrng_drng_generate_helper_full	= lrng_cc20_drng_generate_helper_full,
 	.lrng_hash_alloc		= lrng_cc20_hash_alloc,
 	.lrng_hash_dealloc		= lrng_cc20_hash_dealloc,
 	.lrng_hash_digestsize		= lrng_cc20_hash_digestsize,

@@ -17,7 +17,7 @@ static DEFINE_PER_CPU(u32 [LRNG_TIME_ARRAY_SIZE], lrng_time);
 static DEFINE_PER_CPU(u32, lrng_time_ptr) = 0;
 static DEFINE_PER_CPU(u8, lrng_time_irqs) = 0;
 
-/**
+/*
  * Batching up of entropy in per-CPU array before injecting into entropy pool.
  */
 static inline void lrng_time_process(void)
@@ -69,7 +69,7 @@ static inline void lrng_time_process(void)
 	this_cpu_write(lrng_time_irqs, 0);
 }
 
-/**
+/*
  * Hot code path - Callback for interrupt handler
  */
 void add_interrupt_randomness(int irq, int irq_flags)

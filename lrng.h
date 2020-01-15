@@ -24,12 +24,6 @@
  *				return: >= 0 on success, < 0 on error
  * @lrng_drng_generate_helper:	Generate random numbers from the DRNG with
  *				arbitrary length
- * @lrng_drng_generate_helper_full: Generate random numbers from the DRNG with
- *				    arbitrary length where the output is
- *				    capable of providing 1 bit of entropy per
- *				    data bit.
- *				    return: generated number of bytes,
- *					    < 0 on error
  * @lrng_hash_alloc:		Allocate the hash for reading the entropy pool
  *				return: allocated data structure (NULL is
  *					success too) or ERR_PTR on error
@@ -51,8 +45,6 @@ struct lrng_crypto_cb {
 	void (*lrng_drng_dealloc)(void *drng);
 	int (*lrng_drng_seed_helper)(void *drng, const u8 *inbuf, u32 inbuflen);
 	int (*lrng_drng_generate_helper)(void *drng, u8 *outbuf, u32 outbuflen);
-	int (*lrng_drng_generate_helper_full)(void *drng, u8 *outbuf,
-					      u32 outbuflen);
 	void *(*lrng_hash_alloc)(const u8 *key, u32 keylen);
 	void (*lrng_hash_dealloc)(void *hash);
 	u32 (*lrng_hash_digestsize)(void *hash);

@@ -305,7 +305,6 @@ const static struct lrng_crypto_cb lrng_kcapi_crypto_cb = {
 	.lrng_drng_dealloc		= lrng_kcapi_drng_dealloc,
 	.lrng_drng_seed_helper		= lrng_kcapi_drng_seed_helper,
 	.lrng_drng_generate_helper	= lrng_kcapi_drng_generate_helper,
-	.lrng_drng_generate_helper_full	= lrng_kcapi_drng_generate_helper,
 	.lrng_hash_alloc		= lrng_kcapi_hash_alloc,
 	.lrng_hash_dealloc		= lrng_kcapi_hash_dealloc,
 	.lrng_hash_digestsize		= lrng_kcapi_hash_digestsize,

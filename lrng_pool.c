@@ -225,7 +225,7 @@ void lrng_pool_lfsr_nonaligned(const u8 *buf, u32 buflen)
 
 /**************************** Interrupt processing ****************************/
 
-/**
+/*
  * Hot code path - inject data into entropy pool using LFSR
  */
 void lrng_pool_lfsr_u32(u32 value)
@@ -233,7 +233,7 @@ void lrng_pool_lfsr_u32(u32 value)
 	_lrng_pool_lfsr_u32(&lrng_pool, value);
 }
 
-/**
+/*
  * Hot code path - mix data into entropy pool
  */
 void lrng_pool_add_irq(u32 irq_num)
@@ -271,7 +271,7 @@ void lrng_pool_add_entropy(u32 entropy_bits)
 	lrng_pool_add_irq(lrng_entropy_to_data(entropy_bits));
 }
 
-/**
+/*
  * Generate a hashed output of pool using the SP800-90A section 10.3.1 hash_df
  * function
  */
@@ -326,7 +326,7 @@ static inline u32 lrng_pool_hash_df(const struct lrng_crypto_cb *crypto_cb,
 }
 
 /**
- * Read the entropy pool out for use.
+ * lrng_get_pool() - Read the entropy pool out for use.
  *
  * This function handles the translation from the number of received interrupts
  * into an entropy statement. The conversion depends on LRNG_IRQ_ENTROPY_BITS
@@ -344,7 +344,8 @@ static inline u32 lrng_pool_hash_df(const struct lrng_crypto_cb *crypto_cb,
  * @requested_entropy_bits: requested bits of entropy -- the function will
  *			    return at least this amount of entropy if available
  * @entropy_retain: amount of entropy in bits that should be left in the pool
- * @return: estimated entropy from the IRQs that was obtained
+ *
+ * Return: estimated entropy from the IRQs that was obtained
  */
 static u32 lrng_get_pool(const struct lrng_crypto_cb *crypto_cb, void *hash,
 			 u8 *outbuf, u32 requested_entropy_bits,
@@ -509,6 +510,8 @@ wakeup:
 }
 
 /**
+ * lrng_init_ops() - Set seed stages of LRNG
+ *
  * Set the slow noise source reseed trigger threshold. The initial threshold
  * is set to the minimum data size that can be read from the pool: a word. Upon
  * reaching this value, the next seed threshold of 128 bits is set followed
