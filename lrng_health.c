@@ -152,8 +152,7 @@ static inline void lrng_sp80090b_runtime_failure(struct lrng_health *health)
 static inline void lrng_sp80090b_failure(struct lrng_health *health)
 {
 	if (health->sp80090b_startup_done) {
-		pr_err("SP800-90B runtime health test failure - invalidating "
-		       "all existing entropy and initiate SP800-90B startup\n");
+		pr_err("SP800-90B runtime health test failure - invalidating all existing entropy and initiate SP800-90B startup\n");
 		lrng_sp80090b_runtime_failure(health);
 	} else {
 		pr_err("SP800-90B startup test failure - resetting\n");
@@ -377,14 +376,13 @@ void lrng_health_disable(void)
 	health->health_test_enabled = false;
 
 	if (lrng_sp80090b_health_requested())
-		pr_warn("SP800-90B compliance requested but the Linux RNG is "
-			"NOT SP800-90B compliant\n");
+		pr_warn("SP800-90B compliance requested but the Linux RNG is NOT SP800-90B compliant\n");
 }
 
 /*
  * Hot code path - Perform health test on time stamp received from an event
  *
- * @now_time Time stap
+ * @now_time Time stamp
  */
 enum lrng_health_res lrng_health_test(u32 now_time)
 {

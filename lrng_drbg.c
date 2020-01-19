@@ -40,8 +40,7 @@ static unsigned int lrng_drbg_type = 2;
 
 /* The parameter must be r/o in sysfs as otherwise races appear. */
 module_param(lrng_drbg_type, uint, 0444);
-MODULE_PARM_DESC(lrng_drbg_type, "DRBG type used for LRNG (0->CTR_DRBG, "
-				 "1->HMAC_DRBG, 2->Hash_DRBG)");
+MODULE_PARM_DESC(lrng_drbg_type, "DRBG type used for LRNG (0->CTR_DRBG, 1->HMAC_DRBG, 2->Hash_DRBG)");
 
 struct lrng_drbg {
 	const char *hash_name;
@@ -113,16 +112,14 @@ static void *lrng_drbg_drng_alloc(u32 sec_strength)
 		goto err;
 
 	if (sec_strength > drbg_sec_strength(drbg->core->flags)) {
-		pr_err("Security strength of DRBG (%u bits) lower than "
-		       "requested by LRNG (%u bits)\n",
+		pr_err("Security strength of DRBG (%u bits) lower than requested by LRNG (%u bits)\n",
 			drbg_sec_strength(drbg->core->flags) * 8,
 			sec_strength * 8);
 		goto dealloc;
 	}
 
 	if (sec_strength < drbg_sec_strength(drbg->core->flags))
-		pr_warn("Security strength of DRBG (%u bits) higher than "
-			"requested by LRNG (%u bits)\n",
+		pr_warn("Security strength of DRBG (%u bits) higher than requested by LRNG (%u bits)\n",
 			drbg_sec_strength(drbg->core->flags) * 8,
 			sec_strength * 8);
 

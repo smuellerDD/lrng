@@ -24,8 +24,7 @@ static u32 archrandom = LRNG_ARCHRANDOM_TRUST_CPU_STRENGTH;
 static u32 archrandom = LRNG_ARCHRANDOM_DEFAULT_STRENGTH;
 #endif
 module_param(archrandom, uint, 0644);
-MODULE_PARM_DESC(archrandom, "Entropy in bits of 256 data bits from CPU noise "
-			     "source (e.g. RDRAND)");
+MODULE_PARM_DESC(archrandom, "Entropy in bits of 256 data bits from CPU noise source (e.g. RDRAND)");
 
 static int __init lrng_parse_trust_cpu(char *arg)
 {

@@ -21,8 +21,7 @@
  */
 static u32 jitterrng = LRNG_DRNG_SECURITY_STRENGTH_BITS>>4;
 module_param(jitterrng, uint, 0644);
-MODULE_PARM_DESC(jitterrng, "Entropy in bits of 256 data bits from Jitter "
-			    "RNG noise source");
+MODULE_PARM_DESC(jitterrng, "Entropy in bits of 256 data bits from Jitter RNG noise source");
 
 /**
  * lrng_get_jent() - Get Jitter RNG entropy

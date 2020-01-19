@@ -95,8 +95,8 @@ static void lrng_drng_inject(struct lrng_drng *drng,
 		pr_warn("seeding of %s DRNG failed\n", drng_type);
 		atomic_set(&drng->requests, 1);
 	} else {
-		pr_debug("%s DRNG stats since last seeding: %lu secs; "
-			 "generate calls: %d\n", drng_type,
+		pr_debug("%s DRNG stats since last seeding: %lu secs; generate calls: %d\n",
+			 drng_type,
 			 (time_after(jiffies, drng->last_seeded) ?
 			  (jiffies - drng->last_seeded) : 0) / HZ,
 			 (LRNG_DRNG_RESEED_THRESH -
@@ -169,8 +169,8 @@ static void lrng_drng_seed(struct lrng_drng *drng)
 		ret = lrng_drng_get(drng, seedbuf, sizeof(seedbuf));
 
 		if (ret < 0) {
-			pr_warn("Error generating random numbers for atomic "
-				"DRNG: %d\n", ret);
+			pr_warn("Error generating random numbers for atomic DRNG: %d\n",
+				ret);
 		} else {
 			lrng_drng_inject(&lrng_drng_atomic, seedbuf, ret);
 		}
@@ -180,8 +180,8 @@ static void lrng_drng_seed(struct lrng_drng *drng)
 
 static inline void _lrng_drng_seed_work(struct lrng_drng *drng, u32 node)
 {
-	pr_debug("reseed triggered by interrupt noise source for DRNG on NUMA "
-		 "node %d\n", node);
+	pr_debug("reseed triggered by interrupt noise source for DRNG on NUMA node %d\n",
+		 node);
 	lrng_drng_seed(drng);
 	if (drng->fully_seeded) {
 		/* Prevent reseed storm */

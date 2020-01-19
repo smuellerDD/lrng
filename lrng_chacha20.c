@@ -172,14 +172,12 @@ static void *lrng_cc20_drng_alloc(u32 sec_strength)
 	struct chacha20_state *state = NULL;
 
 	if (sec_strength > CHACHA_KEY_SIZE) {
-		pr_err("Security strength of ChaCha20 DRNG (%u bits) lower "
-		       "than requested by LRNG (%u bits)\n",
+		pr_err("Security strength of ChaCha20 DRNG (%u bits) lower than requested by LRNG (%u bits)\n",
 			CHACHA_KEY_SIZE * 8, sec_strength * 8);
 		return ERR_PTR(-EINVAL);
 	}
 	if (sec_strength < CHACHA_KEY_SIZE)
-		pr_warn("Security strength of ChaCha20 DRNG (%u bits) higher "
-			"than requested by LRNG (%u bits)\n",
+		pr_warn("Security strength of ChaCha20 DRNG (%u bits) higher than requested by LRNG (%u bits)\n",
 			CHACHA_KEY_SIZE * 8, sec_strength * 8);
 
 	state = kmalloc(sizeof(struct chacha20_state), GFP_KERNEL);

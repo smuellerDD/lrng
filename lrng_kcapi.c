@@ -187,15 +187,12 @@ static void *lrng_kcapi_drng_alloc(u32 sec_strength)
 	}
 
 	if (!memcmp(drng_name, "drbg", 4)) {
-		pr_err("SP800-90A DRBG cannot be allocated using lrng_kcapi "
-		       "backend, use lrng_drbg backend instead\n");
+		pr_err("SP800-90A DRBG cannot be allocated using lrng_kcapi backend, use lrng_drbg backend instead\n");
 		return ERR_PTR(-EINVAL);
 	}
 
 	if (!memcmp(drng_name, "stdrng", 6)) {
-		pr_err("stdrng cannot be allocated using lrng_kcapi backend, "
-		       "it is too unspecific and potentially may allocate the "
-		       "DRBG\n");
+		pr_err("stdrng cannot be allocated using lrng_kcapi backend, it is too unspecific and potentially may allocate the DRBG\n");
 		return ERR_PTR(-EINVAL);
 	}
 
@@ -214,10 +211,8 @@ static void *lrng_kcapi_drng_alloc(u32 sec_strength)
 	seedsize =  crypto_rng_seedsize(kcapi_rng);
 
 	if (sec_strength > seedsize)
-		pr_info("Seedsize DRNG (%u bits) lower than "
-			"security strength of LRNG noise source (%u bits)\n",
-			crypto_rng_seedsize(kcapi_rng) * 8,
-			sec_strength * 8);
+		pr_info("Seedsize DRNG (%u bits) lower than security strength of LRNG noise source (%u bits)\n",
+			crypto_rng_seedsize(kcapi_rng) * 8, sec_strength * 8);
 
 	if (seedsize) {
 		struct lrng_hash_info *lrng_hash;
@@ -248,8 +243,7 @@ static void *lrng_kcapi_drng_alloc(u32 sec_strength)
 		}
 
 		if (seedsize != _lrng_kcapi_hash_digestsize(lrng_hash)) {
-			pr_err("Seed hash output size not equal to DRNG seed "
-			       "size\n");
+			pr_err("Seed hash output size not equal to DRNG seed size\n");
 			_lrng_kcapi_hash_free(lrng_hash);
 			ret = ERR_PTR(-EINVAL);
 			goto dealloc;

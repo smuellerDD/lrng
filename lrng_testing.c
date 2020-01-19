@@ -42,8 +42,7 @@ static DEFINE_SPINLOCK(lrng_raw_lock);
  */
 static u32 boot_test = 0;
 module_param(boot_test, uint, 0644);
-MODULE_PARM_DESC(boot_test, "Enable gathering boot time entropy of the first"
-			    " entropy events");
+MODULE_PARM_DESC(boot_test, "Enable gathering boot time entropy of the first entropy events");
 
 static inline void lrng_raw_entropy_reset(void)
 {
@@ -96,8 +95,7 @@ bool lrng_raw_entropy_store(u32 value)
 	if (boot_test) {
 		if (lrng_rb_writer > LRNG_TESTING_RINGBUFFER_SIZE) {
 			boot_test = 2;
-			pr_warn_once("Boot time entropy collection test "
-				     "disabled\n");
+			pr_warn_once("Boot time entropy collection test disabled\n");
 			spin_unlock_irqrestore(&lrng_raw_lock, flags);
 			return false;
 		}

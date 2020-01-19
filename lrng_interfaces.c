@@ -95,9 +95,8 @@ void lrng_debug_report_seedlevel(const char *name)
 		return;
 
 	if (!lrng_state_min_seeded())
-		pr_notice("%pS %s called without reaching mimimally seeded "
-			  "level (available entropy %u)\n", caller, name,
-			  lrng_avail_entropy());
+		pr_notice("%pS %s called without reaching mimimally seeded level (available entropy %u)\n",
+			  caller, name, lrng_avail_entropy());
 
 	WRITE_ONCE(previous, caller);
 #endif
@@ -510,12 +509,11 @@ static ssize_t lrng_drng_read(struct file *file, char __user *buf,
 			      size_t nbytes, loff_t *ppos)
 {
 	if (!lrng_state_min_seeded())
-		pr_notice_ratelimited("%s - use of insufficiently seeded DRNG "
-				      "(%zu bytes read)\n", current->comm,
-				      nbytes);
+		pr_notice_ratelimited("%s - use of insufficiently seeded DRNG (%zu bytes read)\n",
+				      current->comm, nbytes);
 	else if (!lrng_state_operational())
-		pr_debug_ratelimited("%s - use of not fully seeded DRNG (%zu "
-				     "bytes read)\n", current->comm, nbytes);
+		pr_debug_ratelimited("%s - use of not fully seeded DRNG (%zu bytes read)\n",
+				     current->comm, nbytes);
 
 	return lrng_read_common(buf, nbytes);
 }

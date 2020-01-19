@@ -187,8 +187,7 @@ static int __init lrng_init_time_source(void)
 		lrng_health_disable();
 		lrng_pool_configure(false, LRNG_IRQ_ENTROPY_BITS *
 					   LRNG_IRQ_OVERSAMPLING_FACTOR);
-		pr_warn("operating without high-resolution timer and applying "
-			"IRQ oversampling factor %u\n",
+		pr_warn("operating without high-resolution timer and applying IRQ oversampling factor %u\n",
 			LRNG_IRQ_OVERSAMPLING_FACTOR);
 	}
 
@@ -453,8 +452,7 @@ out:
 	spin_unlock_irqrestore(&pool->lock, flags);
 
 	/* Obtain entropy statement in bits from the used entropy */
-	pr_debug("obtained %u bits of entropy from %u newly collected "
-		 "interrupts - not using %u interrupts\n",
+	pr_debug("obtained %u bits of entropy from %u newly collected interrupts - not using %u interrupts\n",
 		 requested_entropy_bits, irq_num_events_used,
 		 irq_num_events);
 
@@ -549,8 +547,8 @@ void lrng_init_ops(u32 seed_bits)
 		if (seed_bits >= LRNG_MIN_SEED_ENTROPY_BITS) {
 			invalidate_batched_entropy();
 			state->lrng_min_seeded = true;
-			pr_info("LRNG minimally seeded with %u bits of "
-				"entropy\n", seed_bits);
+			pr_info("LRNG minimally seeded with %u bits of entropy\n",
+				seed_bits);
 			lrng_set_entropy_thresh(
 				lrng_slow_noise_req_entropy(
 					LRNG_FULL_SEED_ENTROPY_BITS +
@@ -560,8 +558,8 @@ void lrng_init_ops(u32 seed_bits)
 
 		/* DRNG is seeded with at least LRNG_INIT_ENTROPY_BITS bits */
 		} else if (seed_bits >= LRNG_INIT_ENTROPY_BITS) {
-			pr_info("LRNG initial entropy level %u bits of "
-				"entropy\n", seed_bits);
+			pr_info("LRNG initial entropy level %u bits of entropy\n",
+				seed_bits);
 			lrng_set_entropy_thresh(
 				lrng_slow_noise_req_entropy(
 					LRNG_MIN_SEED_ENTROPY_BITS +

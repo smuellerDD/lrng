@@ -51,18 +51,18 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 
 	if (ret < 0) {
 		reset_drng = true;
-		pr_warn("getting random data from DRNG failed for NUMA node %d "
-			"(%d)\n", node, ret);
+		pr_warn("getting random data from DRNG failed for NUMA node %d (%d)\n",
+			node, ret);
 	} else {
 		/* seed new DRNG with data */
 		ret = cb->lrng_drng_seed_helper(new_drng, seed, ret);
 		if (ret < 0) {
 			reset_drng = true;
-			pr_warn("seeding of new DRNG failed for NUMA node %d "
-				"(%d)\n", node, ret);
+			pr_warn("seeding of new DRNG failed for NUMA node %d (%d)\n",
+				node, ret);
 		} else {
-			pr_debug("seeded new DRNG of NUMA node %d instance "
-				 "from old DRNG instance\n", node);
+			pr_debug("seeded new DRNG of NUMA node %d instance from old DRNG instance\n",
+				 node);
 		}
 	}
 
@@ -168,8 +168,7 @@ int lrng_set_drng_cb(const struct lrng_crypto_cb *cb)
 	 */
 	if ((cb != &lrng_cc20_crypto_cb) &&
 	    (lrng_drng_init->crypto_cb != &lrng_cc20_crypto_cb)) {
-		pr_warn("disallow setting new cipher callbacks, unload the old "
-			"callbacks first!\n");
+		pr_warn("disallow setting new cipher callbacks, unload the old callbacks first!\n");
 		ret = -EINVAL;
 		goto out;
 	}
