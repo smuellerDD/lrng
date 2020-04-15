@@ -26,13 +26,25 @@
  * gcc -DTEST -Wall -pedantic -Wextra -o syscall_test syscall_test.c
  */
 
+/*
+ * Shall the GLIBC getrandom stub be used (requires GLIBC >= 2.25)
+ */
+#define USE_GLIBC_GETRANDOM
+
+#ifdef USE_GLIBC_GETRANDOM
+#include <sys/random.h>
+#else
+#define _GNU_SOURCE
+#include <unistd.h>
+#include <sys/syscall.h>
+#endif
+
 #include <errno.h>
 #include <limits.h>
 #include <linux/random.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/ioctl.h>
-#include <sys/random.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -51,7 +63,11 @@ static inline ssize_t __getrandom(uint8_t *buffer, size_t bufferlen,
 		return -EINVAL;
 
 	do {
+#ifdef USE_GLIBC_GETRANDOM
 		ret = getrandom(buffer, bufferlen, flags);
+#else
+		ret = syscall(__NR_getrandom, buffer, bufferlen, flags);
+#endif
 		if (ret > 0) {
 			bufferlen -= ret;
 			buffer += ret;

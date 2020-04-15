@@ -22,10 +22,22 @@
  * gcc -Wall -pedantic -Wextra -o speedtest speedtest.c
  */
 
+/*
+ * Shall the GLIBC getrandom stub be used (requires GLIBC >= 2.25)
+ */
+#define USE_GLIBC_GETRANDOM
+
+#ifdef USE_GLIBC_GETRANDOM
+#include <sys/random.h>
+#else
+#define _GNU_SOURCE
+#include <unistd.h>
+#include <sys/syscall.h>
+#endif
+
 #include <errno.h>
 #include <getopt.h>
 #include <limits.h>
-#include <sys/random.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -136,7 +148,11 @@ static int speedtest(struct opts *opts)
 		struct timespec end;
 
 		start_time(&start);
+#ifdef USE_GLIBC_GETRANDOM
 		ret = getrandom(buffer, opts->buflen, 0);
+#else
+		ret = syscall(__NR_getrandom, buffer, opts->buflen, 0);
+#endif
 		end_time(&end);
 		if (ret < 0) {
 			ret = -errno;

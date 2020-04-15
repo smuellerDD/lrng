@@ -42,7 +42,7 @@
 #include <stdlib.h>
 
 /* Set the configuration value */
-#define CONFIG_LRNG_POOL_SIZE	2
+#define CONFIG_LRNG_POOL_SIZE	8
 
 enum { false, true };
 typedef _Bool bool;
@@ -148,8 +148,10 @@ static inline uint32_t _bswap32(uint32_t x)
 /* Endian dependent byte swap operations.  */
 /* Endian dependent byte swap operations.  */
 #if __BYTE_ORDER__ ==  __ORDER_BIG_ENDIAN__
+# define le_bswap32(x) _swap32(x)
 # define be_bswap32(x) ((uint32_t)(x))
 #elif __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+# define le_bswap32(x) ((uint32_t)(x))
 # define be_bswap32(x) _swap32(x)
 #else
 # error "Endianess not defined"
@@ -273,7 +275,8 @@ int main(int argc, char *argv[])
 {
 	struct lrng_pool lrng_pool;
 	struct hash_ctx ctx;
-	uint8_t hash_df[45];
+	uint8_t hash_df[44];
+	uint32_t *hash_df_ptr32;
 	uint8_t *hash_df_ptr = hash_df;
 	unsigned int hash_df_len = sizeof(hash_df), digestsize, i;
 	int ret = 0;
@@ -310,6 +313,12 @@ int main(int argc, char *argv[])
 		hash_df_len -= todo;
 		hash_df_ptr += todo;
 		lrng_pool.counter++;
+	}
+
+	hash_df_ptr32 = (uint32_t *)hash_df;
+	for (i = 0; i < sizeof(hash_df) / sizeof(uint32_t); i++) {
+		*hash_df_ptr32 = le_bswap32(*hash_df_ptr32);
+		hash_df_ptr32++;
 	}
 
 	printf("static u8 const expected[] = {\n\t");

@@ -361,6 +361,18 @@ int __must_check get_random_bytes_arch(void *buf, int nbytes)
 }
 EXPORT_SYMBOL(get_random_bytes_arch);
 
+/*
+ * Returns whether or not the LRNG has been seeded.
+ *
+ * Returns: true if the urandom pool has been seeded.
+ *          false if the urandom pool has not been seeded.
+ */
+bool rng_is_initialized(void)
+{
+	return lrng_state_operational();
+}
+EXPORT_SYMBOL(rng_is_initialized);
+
 /************************ LRNG user output interfaces *************************/
 
 static ssize_t lrng_read_common(char __user *buf, size_t nbytes)

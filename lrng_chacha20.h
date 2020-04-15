@@ -21,5 +21,9 @@ struct chacha20_block {
 
 static inline void lrng_cc20_init_rfc7539(struct chacha20_block *chacha20)
 {
-	memcpy(&chacha20->constants[0], "expand 32-byte k", 16);
+	/* String "expand 32-byte k" */
+	chacha20->constants[0] = 0x61707865;
+	chacha20->constants[1] = 0x3320646e;
+	chacha20->constants[2] = 0x79622d32;
+	chacha20->constants[3] = 0x6b206574;
 }

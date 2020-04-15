@@ -51,11 +51,11 @@ static void lrng_chacha20_update(struct chacha20_state *chacha20_state,
 	if (used_words > CHACHA_KEY_SIZE_WORDS) {
 		chacha20_block(&chacha20->constants[0], (u8 *)tmp);
 		for (i = 0; i < CHACHA_KEY_SIZE_WORDS; i++)
-			chacha20->key.u[i] ^= tmp[i];
+			chacha20->key.u[i] ^= le32_to_cpu(tmp[i]);
 		memzero_explicit(tmp, sizeof(tmp));
 	} else {
 		for (i = 0; i < CHACHA_KEY_SIZE_WORDS; i++)
-			chacha20->key.u[i] ^= buf[i + used_words];
+			chacha20->key.u[i] ^= le32_to_cpu(buf[i + used_words]);
 	}
 
 	/* Deterministic increment of nonce as required in RFC 7539 chapter 4 */
