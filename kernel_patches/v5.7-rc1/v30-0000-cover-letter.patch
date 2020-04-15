@@ -117,8 +117,6 @@ Changes (compared to the previous patch set):
 * Fix endianess bug that caused the self test to fail on big endian
   systems
 
-* Remove static from self test reference data
-
 * Add rng_is_initialized function
 
 * Perform entropy and stress testing on ARM 32 bit, ARM 64 bit,
