@@ -77,6 +77,36 @@ void lrng_drng_reset(struct lrng_drng *drng)
 	pr_debug("reset DRNG\n");
 }
 
+/* Initialize the default DRNG during boot */
+static void lrng_drngs_init_cc20(void)
+{
+	unsigned long flags = 0;
+
+	if (lrng_get_available())
+		return;
+
+	lrng_drng_lock(&lrng_drng_init, &flags);
+	if (lrng_get_available()) {
+		lrng_drng_unlock(&lrng_drng_init, &flags);
+		return;
+	}
+
+	lrng_drng_reset(&lrng_drng_init);
+	lrng_cc20_init_state(&chacha20);
+	lrng_state_init_seed_work();
+	lrng_drng_unlock(&lrng_drng_init, &flags);
+
+	lrng_drng_lock(&lrng_drng_atomic, &flags);
+	lrng_drng_reset(&lrng_drng_atomic);
+	/*
+	 * We do not initialize the state of the atomic DRNG as it is identical
+	 * to the DRNG at this point.
+	 */
+	lrng_drng_unlock(&lrng_drng_atomic, &flags);
+
+	lrng_set_available();
+}
+
 /************************* Random Number Generation ***************************/
 
 /* Inject a data buffer into the DRNG */
@@ -317,36 +347,6 @@ int lrng_drng_get_sleep(u8 *outbuf, u32 outbuflen)
 	return lrng_drng_get(drng, outbuf, outbuflen);
 }
 
-/* Initialize the default DRNG during boot */
-void lrng_drngs_init_cc20(void)
-{
-	unsigned long flags = 0;
-
-	if (lrng_get_available())
-		return;
-
-	lrng_drng_lock(&lrng_drng_init, &flags);
-	if (lrng_get_available()) {
-		lrng_drng_unlock(&lrng_drng_init, &flags);
-		return;
-	}
-
-	lrng_drng_reset(&lrng_drng_init);
-	lrng_cc20_init_state(&chacha20);
-	lrng_state_init_seed_work();
-	lrng_drng_unlock(&lrng_drng_init, &flags);
-
-	lrng_drng_lock(&lrng_drng_atomic, &flags);
-	lrng_drng_reset(&lrng_drng_atomic);
-	/*
-	 * We do not initialize the state of the atomic DRNG as it is identical
-	 * to the DRNG at this point.
-	 */
-	lrng_drng_unlock(&lrng_drng_atomic, &flags);
-
-	lrng_set_available();
-}
-
 /* Reset LRNG such that all existing entropy is gone */
 static void _lrng_reset(struct work_struct *work)
 {
@@ -384,6 +384,15 @@ void lrng_reset(void)
 }
 
 /***************************** Initialize LRNG *******************************/
+
+void __init lrng_drng_init_early(void)
+{
+	unsigned long flags = 0;
+
+	lrng_drng_lock(&lrng_drng_init, &flags);
+	lrng_cc20_init_state_boot(&chacha20);
+	lrng_drng_unlock(&lrng_drng_init, &flags);
+}
 
 static int __init lrng_init(void)
 {

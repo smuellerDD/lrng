@@ -24,8 +24,8 @@ struct batched_entropy {
 
 /*
  * Get a random word for internal kernel use only. The quality of the random
- * number is either as good as RDRAND or as good as /dev/urandom, with the
- * goal of being quite fast and not depleting entropy.
+ * number is as good as /dev/urandom, but there is no backtrack protection,
+ * with the goal of being quite fast and not depleting entropy.
  */
 static DEFINE_PER_CPU(struct batched_entropy, batched_entropy_u64) = {
 	.batch_lock	= __SPIN_LOCK_UNLOCKED(batched_entropy_u64.lock),
@@ -36,15 +36,6 @@ u64 get_random_u64(void)
 	u64 ret;
 	unsigned long flags;
 	struct batched_entropy *batch;
-
-#if BITS_PER_LONG == 64
-	if (arch_get_random_long((unsigned long *)&ret))
-		return ret;
-#else
-	if (arch_get_random_long((unsigned long *)&ret) &&
-	    arch_get_random_long((unsigned long *)&ret + 1))
-		return ret;
-#endif
 
 	lrng_debug_report_seedlevel("get_random_u64");
 
@@ -70,9 +61,6 @@ u32 get_random_u32(void)
 	u32 ret;
 	unsigned long flags;
 	struct batched_entropy *batch;
-
-	if (arch_get_random_int(&ret))
-		return ret;
 
 	lrng_debug_report_seedlevel("get_random_u32");
 

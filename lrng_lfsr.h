@@ -41,7 +41,7 @@ struct lrng_pool {
 			__be32 requested_bits;
 
 			/* Pool */
-			atomic_t pool[LRNG_POOL_SIZE];
+			atomic_t pool[LRNG_POOL_SIZE] __latent_entropy;
 			/* Ptr into pool for next IRQ word injection */
 			atomic_t pool_ptr;
 			/* rotate for LFSR */

@@ -9,7 +9,7 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <crypto/chacha.h>
-#include <linux/cryptohash.h>
+#include <crypto/sha.h>
 #include <linux/lrng.h>
 #include <linux/random.h>
 #include <linux/slab.h>
@@ -161,7 +161,29 @@ void lrng_cc20_init_state(struct chacha20_state *state)
 			chacha20->nonce[i] ^= v;
 	}
 
+	lrng_chacha20_update(state, NULL, CHACHA_BLOCK_WORDS);
 	pr_info("ChaCha20 core initialized\n");
+}
+
+void __init lrng_cc20_init_state_boot(struct chacha20_state *state)
+{
+	struct chacha20_block *chacha20 = &state->block;
+	unsigned long v;
+	u32 i;
+
+	for (i = 0; i < CHACHA_KEY_SIZE_WORDS; i++) {
+		if (arch_get_random_seed_long_early(&v) ||
+		    arch_get_random_long_early(&v))
+			chacha20->key.u[i] ^= v;
+	}
+
+	for (i = 0; i < 3; i++) {
+		if (arch_get_random_seed_long_early(&v) ||
+		    arch_get_random_long_early(&v))
+			chacha20->nonce[i] ^= v;
+	}
+
+	lrng_chacha20_update(state, NULL, CHACHA_BLOCK_WORDS);
 }
 
 /*
@@ -218,20 +240,20 @@ static void lrng_cc20_hash_dealloc(void *hash)
 
 static u32 lrng_cc20_hash_digestsize(void *hash)
 {
-	return (SHA_DIGEST_WORDS * sizeof(u32));
+	return (SHA1_DIGEST_WORDS * sizeof(u32));
 }
 
 static int lrng_cc20_hash_buffer(void *hash, const u8 *inbuf, u32 inbuflen,
 				 u8 *digest)
 {
 	u32 i;
-	u32 workspace[SHA_WORKSPACE_WORDS];
+	u32 workspace[SHA1_WORKSPACE_WORDS];
 
-	WARN_ON(inbuflen % (SHA_WORKSPACE_WORDS * sizeof(u32)));
+	WARN_ON(inbuflen % (SHA1_WORKSPACE_WORDS * sizeof(u32)));
 
-	sha_init((u32 *)digest);
-	for (i = 0; i < inbuflen; i += (SHA_WORKSPACE_WORDS * sizeof(u32)))
-		sha_transform((u32 *)digest, (inbuf + i), workspace);
+	sha1_init((u32 *)digest);
+	for (i = 0; i < inbuflen; i += (SHA1_WORKSPACE_WORDS * sizeof(u32)))
+		sha1_transform((u32 *)digest, (inbuf + i), workspace);
 	memzero_explicit(workspace, sizeof(workspace));
 
 	return 0;

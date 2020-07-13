@@ -162,9 +162,19 @@ config LRNG_APT_CUTOFF
 	default 325 if !LRNG_APT_BROKEN
 	default 32 if LRNG_APT_BROKEN
 
-config LRNG_TESTING
-	bool "Enable entropy test interface to LRNG noise source"
+menuconfig LRNG_TESTING_MENU
+	bool "LRNG testing interfaces"
 	depends on DEBUG_FS
+	help
+	  Enable one or more of the following test interfaces.
+
+	  If unsure, say N.
+
+if LRNG_TESTING_MENU
+
+config LRNG_RAW_ENTROPY
+	bool "Enable entropy test interface to LRNG noise source"
+	default y
 	help
 	  The test interface allows a privileged process to capture
 	  the raw unconditioned noise that is collected by the LRNG
@@ -176,7 +186,40 @@ config LRNG_TESTING
 	  the raw noise of the first 1000 entropy events since boot
 	  can be sampled.
 
-	  If unsure, say N.
+config LRNG_RAW_ARRAY
+	bool "Enable test interface to LRNG raw entropy storage array"
+	help
+	  The test interface allows a privileged process to capture
+	  the raw noise data that is collected by the LRNG
+	  in the per-CPU array for statistical analysis. The purpose
+	  of this interface is to verify that the array handling code
+	  truly only concatenates data and provides the same entropy
+	  rate as the raw unconditioned noise source when assessing
+	  the collected data byte-wise.
+
+	  The data can be obtained using the lrng_raw_array debugfs
+	  file. Using the option lrng_testing.boot_raw_array=1
+	  the raw noise of the first 1000 entropy events since boot
+	  can be sampled.
+
+config LRNG_IRQ_PERF
+	bool "Enable LRNG interrupt performance monitor"
+	help
+	  With this option, the performance monitor of the LRNG
+	  interrupt handling code is enabled. The file provides
+	  the execution time of the interrupt handler in
+	  cycles.
+
+	  The interrupt performance data can be obtained using
+	  the lrng_irq_perf debugfs file. Using the option
+	  lrng_testing.boot_irq_perf=1 the performance data of
+	  the first 1000 entropy events since boot can be sampled.
+
+config LRNG_TESTING
+	bool
+	default y if (LRNG_RAW_ENTROPY || LRNG_RAW_ARRAY || LRNG_IRQ_PERF)
+
+endif #LRNG_TESTING_MENU
 
 config LRNG_SELFTEST
 	bool "Enable power-on and on-demand self-tests"

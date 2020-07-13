@@ -140,6 +140,8 @@ static void lrng_drbg_drng_dealloc(void *drng)
 {
 	struct drbg_state *drbg = (struct drbg_state *)drng;
 
+	if (drbg && drbg->d_ops)
+		drbg->d_ops->crypto_fini(drbg);
 	drbg_dealloc_state(drbg);
 	kzfree(drbg);
 	pr_info("DRBG deallocated\n");

@@ -571,14 +571,17 @@ void lrng_init_ops(u32 seed_bits)
 int __init rand_initialize(void)
 {
 	ktime_t now_time = ktime_get_real();
-	unsigned int i, rand;
+	unsigned long rand;
+	unsigned int i;
+
+	lrng_drng_init_early();
 
 	lrng_pool_lfsr_u32(now_time);
 	for (i = 0; i < LRNG_POOL_SIZE; i++) {
-		if (!arch_get_random_seed_int(&rand) &&
-		    !arch_get_random_int(&rand))
+		if (!arch_get_random_seed_long_early(&rand) &&
+		    !arch_get_random_long_early(&rand))
 			rand = random_get_entropy();
-		lrng_pool_lfsr_u32(rand);
+		lrng_pool_lfsr((u8 *)&rand, sizeof(rand));
 	}
 	lrng_pool_lfsr_nonaligned((u8 *)utsname(), sizeof(*(utsname())));
 

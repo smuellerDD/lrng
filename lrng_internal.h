@@ -113,6 +113,7 @@
 extern struct chacha20_state chacha20;
 extern const struct lrng_crypto_cb lrng_cc20_crypto_cb;
 void lrng_cc20_init_state(struct chacha20_state *state);
+void lrng_cc20_init_state_boot(struct chacha20_state *state);
 
 /********************************** /proc *************************************/
 
@@ -241,9 +242,9 @@ static __always_inline void lrng_drng_unlock(struct lrng_drng *drng,
 		mutex_unlock(&drng->lock);
 }
 
+void lrng_drng_init_early(void);
 bool lrng_get_available(void);
 void lrng_set_available(void);
-void lrng_drngs_init_cc20(void);
 void lrng_drng_reset(struct lrng_drng *drng);
 int lrng_drng_get_atomic(u8 *outbuf, u32 outbuflen);
 int lrng_drng_get_sleep(u8 *outbuf, u32 outbuflen);
@@ -296,10 +297,22 @@ void invalidate_batched_entropy(void);
 
 /***************************** Testing code ***********************************/
 
-#ifdef CONFIG_LRNG_TESTING
+#ifdef CONFIG_LRNG_RAW_ENTROPY
 bool lrng_raw_entropy_store(u32 value);
-#else	/* CONFIG_LRNG_TESTING */
+#else	/* CONFIG_LRNG_RAW_ENTROPY */
 static inline bool lrng_raw_entropy_store(u32 value) { return false; }
-#endif	/* CONFIG_LRNG_TESTING */
+#endif	/* CONFIG_LRNG_RAW_ENTROPY */
+
+#ifdef CONFIG_LRNG_RAW_ARRAY
+bool lrng_raw_array_entropy_store(u32 value);
+#else	/* CONFIG_LRNG_RAW_ARRAY */
+static inline bool lrng_raw_array_entropy_store(u32 value) { return false; }
+#endif	/* CONFIG_LRNG_RAW_ARRAY */
+
+#ifdef CONFIG_LRNG_IRQ_PERF
+bool lrng_perf_time(u32 start);
+#else /* CONFIG_LRNG_IRQ_PERF */
+static inline bool lrng_perf_time(u32 start) { return false; }
+#endif /*CONFIG_LRNG_IRQ_PERF */
 
 #endif /* _LRNG_INTERNAL_H */

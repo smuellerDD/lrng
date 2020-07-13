@@ -17,7 +17,7 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 	const struct lrng_crypto_cb *old_cb;
 	unsigned long flags = 0;
 	int ret;
-	u8 seed[LRNG_DRNG_SECURITY_STRENGTH_BYTES];
+	u8 seed[LRNG_DRNG_SECURITY_STRENGTH_BYTES] __latent_entropy;
 	void *new_drng = cb->lrng_drng_alloc(LRNG_DRNG_SECURITY_STRENGTH_BYTES);
 	void *old_drng, *new_hash, *old_hash;
 	bool sl = false, reset_drng = !lrng_get_available();
@@ -28,6 +28,13 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 		return PTR_ERR(new_drng);
 	}
 
+	/*
+	 * The seed potentially used as MAC key is undefined to add some
+	 * variation. Yet, the security of the MAC does not rely on the key
+	 * being secret. The key is only there to turn a MAC into a hash.
+	 * The intention is to allow the specification of CMAC(AES) as "hash"
+	 * to limit the dependency to AES when using the CTR DRBG.
+	 */
 	new_hash = cb->lrng_hash_alloc(seed, sizeof(seed));
 	if (IS_ERR(new_hash)) {
 		pr_warn("could not allocate new LRNG pool hash (%ld)\n",

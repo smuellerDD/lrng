@@ -14,7 +14,7 @@
 /* Store multiple integers in one u32 */
 #define LRNG_TIME_SLOTSIZE_BITS		(8)
 #define LRNG_TIME_SLOTSIZE_MASK		((1 << LRNG_TIME_SLOTSIZE_BITS) - 1)
-#define LRNG_TIME_ARRAY_MEMBER_BITS	(4 << 3)
+#define LRNG_TIME_ARRAY_MEMBER_BITS	(4 << 3) /* ((sizeof(u32)) << 3) */
 #define LRNG_TIME_SLOTS_PER_UINT	(LRNG_TIME_ARRAY_MEMBER_BITS / \
 					 LRNG_TIME_SLOTSIZE_BITS)
 
