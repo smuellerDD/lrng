@@ -59,7 +59,7 @@ static inline void lrng_time_process(u32 random32_data)
 
 	/* Seed random32 PRNG with data not used by LRNG. */
 	this_cpu_add(net_rand_state.s1,
-		     (now_time &~ LRNG_TIME_SLOTSIZE_MASK) ^ random32_data);
+		     (now_time & ~LRNG_TIME_SLOTSIZE_MASK) ^ random32_data);
 
 	health_test = lrng_health_test(now_time_masked);
 	if (health_test > lrng_health_fail_use)

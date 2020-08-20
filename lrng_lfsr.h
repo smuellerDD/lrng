@@ -116,7 +116,7 @@ static inline void _lrng_pool_lfsr_u32(struct lrng_pool *pool, u32 value)
 	 * spread the input bits across the pool evenly.
 	 *
 	 * Note, there is a race between getting ptr and calculating
-	 * input_rotate when ptr is is obtained on two or more CPUs at the
+	 * input_rotate when ptr is obtained on two or more CPUs at the
 	 * same time. This race is irrelevant as it may only come into effect
 	 * if 3 or more CPUs race at the same time which is very unlikely. If
 	 * the race happens, it applies to one event only. As this rolling
