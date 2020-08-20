@@ -297,11 +297,35 @@ void invalidate_batched_entropy(void);
 
 /***************************** Testing code ***********************************/
 
-#ifdef CONFIG_LRNG_RAW_ENTROPY
-bool lrng_raw_entropy_store(u32 value);
-#else	/* CONFIG_LRNG_RAW_ENTROPY */
-static inline bool lrng_raw_entropy_store(u32 value) { return false; }
-#endif	/* CONFIG_LRNG_RAW_ENTROPY */
+#ifdef CONFIG_LRNG_RAW_HIRES_ENTROPY
+bool lrng_raw_hires_entropy_store(u32 value);
+#else	/* CONFIG_LRNG_RAW_HIRES_ENTROPY */
+static inline bool lrng_raw_hires_entropy_store(u32 value) { return false; }
+#endif	/* CONFIG_LRNG_RAW_HIRES_ENTROPY */
+
+#ifdef CONFIG_LRNG_RAW_JIFFIES_ENTROPY
+bool lrng_raw_jiffies_entropy_store(u32 value);
+#else	/* CONFIG_LRNG_RAW_JIFFIES_ENTROPY */
+static inline bool lrng_raw_jiffies_entropy_store(u32 value) { return false; }
+#endif	/* CONFIG_LRNG_RAW_JIFFIES_ENTROPY */
+
+#ifdef CONFIG_LRNG_RAW_IRQ_ENTROPY
+bool lrng_raw_irq_entropy_store(u32 value);
+#else	/* CONFIG_LRNG_RAW_IRQ_ENTROPY */
+static inline bool lrng_raw_irq_entropy_store(u32 value) { return false; }
+#endif	/* CONFIG_LRNG_RAW_IRQ_ENTROPY */
+
+#ifdef CONFIG_LRNG_RAW_IRQFLAGS_ENTROPY
+bool lrng_raw_irqflags_entropy_store(u32 value);
+#else	/* CONFIG_LRNG_RAW_IRQFLAGS_ENTROPY */
+static inline bool lrng_raw_irqflags_entropy_store(u32 value) { return false; }
+#endif	/* CONFIG_LRNG_RAW_IRQFLAGS_ENTROPY */
+
+#ifdef CONFIG_LRNG_RAW_RETIP_ENTROPY
+bool lrng_raw_retip_entropy_store(u32 value);
+#else	/* CONFIG_LRNG_RAW_RETIP_ENTROPY */
+static inline bool lrng_raw_retip_entropy_store(u32 value) { return false; }
+#endif	/* CONFIG_LRNG_RAW_RETIP_ENTROPY */
 
 #ifdef CONFIG_LRNG_RAW_ARRAY
 bool lrng_raw_array_entropy_store(u32 value);

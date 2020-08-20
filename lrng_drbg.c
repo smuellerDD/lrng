@@ -49,7 +49,7 @@ struct lrng_drbg {
 
 static const struct lrng_drbg lrng_drbg_types[] = {
 	{	/* CTR_DRBG with AES-256 using derivation function */
-		.hash_name = "cmac(aes)",
+		.hash_name = "sha512",
 		.drbg_core = "drbg_nopr_ctr_aes256",
 	}, {	/* HMAC_DRBG with SHA-512 */
 		.hash_name = "sha512",

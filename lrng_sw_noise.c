@@ -19,8 +19,10 @@ static DEFINE_PER_CPU(u8, lrng_time_irqs) = 0;
 
 /*
  * Batching up of entropy in per-CPU array before injecting into entropy pool.
+ *
+ * The random32_data is solely to be used for the external random32 PRNG.
  */
-static inline void lrng_time_process(void)
+static inline void lrng_time_process(u32 random32_data)
 {
 	u32 i, ptr, now_time = random_get_entropy();
 	u32 now_time_masked = now_time & LRNG_TIME_SLOTSIZE_MASK;
@@ -34,7 +36,11 @@ static inline void lrng_time_process(void)
 
 	/* During boot time, we mix the full time stamp directly into LFSR */
 	if (unlikely(!lrng_state_fully_seeded())) {
-		if (lrng_raw_entropy_store(now_time))
+
+		/* Seed random32 PRNG with data not used by LRNG. */
+		this_cpu_add(net_rand_state.s1, random32_data);
+
+		if (lrng_raw_hires_entropy_store(now_time))
 			goto out;
 
 		health_test = lrng_health_test(now_time);
@@ -48,8 +54,12 @@ static inline void lrng_time_process(void)
 	}
 
 	/* Runtime operation */
-	if (lrng_raw_entropy_store(now_time_masked))
+	if (lrng_raw_hires_entropy_store(now_time_masked))
 		goto out;
+
+	/* Seed random32 PRNG with data not used by LRNG. */
+	this_cpu_add(net_rand_state.s1,
+		     (now_time &~ LRNG_TIME_SLOTSIZE_MASK) ^ random32_data);
 
 	health_test = lrng_health_test(now_time_masked);
 	if (health_test > lrng_health_fail_use)
@@ -97,16 +107,17 @@ out:
  */
 void add_interrupt_randomness(int irq, int irq_flags)
 {
-	lrng_time_process();
-
-	if (!lrng_pool_highres_timer()) {
+	if (lrng_pool_highres_timer()) {
+		lrng_time_process(
+			(lrng_raw_irq_entropy_store(irq) ? 0 : irq) ^
+			(lrng_raw_irqflags_entropy_store(irq_flags) ? 0 :
+								irq_flags) ^
+			(lrng_raw_retip_entropy_store(_RET_IP_) ? 0 :
+								  _RET_IP_));
+	} else {
 		struct pt_regs *regs = get_irq_regs();
 		static atomic_t reg_idx = ATOMIC_INIT(0);
 		u64 ip;
-
-		lrng_pool_lfsr_u32(jiffies);
-		lrng_pool_lfsr_u32(irq);
-		lrng_pool_lfsr_u32(irq_flags);
 
 		if (regs) {
 			u32 *ptr = (u32 *)regs;
@@ -115,11 +126,30 @@ void add_interrupt_randomness(int irq, int irq_flags)
 
 			ip = instruction_pointer(regs);
 			lrng_pool_lfsr_u32(*(ptr + (reg_ptr % n)));
-		} else
+
+			lrng_time_process(
+				lrng_raw_retip_entropy_store(_RET_IP_) ? 0 :
+								_RET_IP_);
+		} else {
 			ip = _RET_IP_;
 
-		lrng_pool_lfsr_u32(ip >> 32);
-		lrng_pool_lfsr_u32(ip);
+			lrng_time_process(0);
+		}
+
+		/*
+		 * The XOR operation combining the different values is not
+		 * considered to destroy entropy since the entirety of all
+		 * processed values delivers the entropy (and not each
+		 * value separately of the other values).
+		 */
+		lrng_pool_lfsr_u32(
+			(lrng_raw_jiffies_entropy_store(jiffies) ? 0 :
+								   jiffies) ^
+			(lrng_raw_irq_entropy_store(irq) ? 0 : irq) ^
+			(lrng_raw_irqflags_entropy_store(irq_flags) ? 0 :
+								irq_flags) ^
+			(ip >> 32) ^
+			(lrng_raw_retip_entropy_store(ip) ? 0 : ip));
 	}
 }
 EXPORT_SYMBOL(add_interrupt_randomness);

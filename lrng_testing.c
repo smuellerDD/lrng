@@ -242,44 +242,207 @@ static int lrng_testing_extract_user(struct file *file, char __user *buf,
 	return ret;
 }
 
-/************************* Raw Entropy Data Handling **************************/
+/************** Raw High-Resolution Timer Entropy Data Handling ***************/
 
-#ifdef CONFIG_LRNG_RAW_ENTROPY
+#ifdef CONFIG_LRNG_RAW_HIRES_ENTROPY
 
-static u32 boot_test = 0;
-module_param(boot_test, uint, 0644);
-MODULE_PARM_DESC(boot_test, "Enable gathering boot time entropy of the first entropy events");
+static u32 boot_raw_hires_test = 0;
+module_param(boot_raw_hires_test, uint, 0644);
+MODULE_PARM_DESC(boot_raw_hires_test, "Enable gathering boot time high resolution timer entropy of the first entropy events");
 
-static struct lrng_testing lrng_raw = {
+static struct lrng_testing lrng_raw_hires = {
 	.rb_reader = 0,
 	.rb_reader = 0,
-	.lock      = __SPIN_LOCK_UNLOCKED(lrng_raw.lock),
-	.read_wait = __WAIT_QUEUE_HEAD_INITIALIZER(lrng_raw.read_wait)
+	.lock      = __SPIN_LOCK_UNLOCKED(lrng_raw_hires.lock),
+	.read_wait = __WAIT_QUEUE_HEAD_INITIALIZER(lrng_raw_hires.read_wait)
 };
 
-bool lrng_raw_entropy_store(u32 value)
+bool lrng_raw_hires_entropy_store(u32 value)
 {
-	return lrng_testing_store(&lrng_raw, value, &boot_test);
+	return lrng_testing_store(&lrng_raw_hires, value, &boot_raw_hires_test);
 }
 
-static int lrng_raw_entropy_reader(u8 *outbuf, u32 outbuflen)
+static int lrng_raw_hires_entropy_reader(u8 *outbuf, u32 outbuflen)
 {
-	return lrng_testing_reader(&lrng_raw, &boot_test, outbuf, outbuflen);
+	return lrng_testing_reader(&lrng_raw_hires, &boot_raw_hires_test,
+				   outbuf, outbuflen);
 }
 
-static ssize_t lrng_raw_read(struct file *file, char __user *to,
-			     size_t count, loff_t *ppos)
+static ssize_t lrng_raw_hires_read(struct file *file, char __user *to,
+				   size_t count, loff_t *ppos)
 {
 	return lrng_testing_extract_user(file, to, count, ppos,
-					 lrng_raw_entropy_reader);
+					 lrng_raw_hires_entropy_reader);
 }
 
-static const struct file_operations lrng_raw_fops = {
+static const struct file_operations lrng_raw_hires_fops = {
 	.owner = THIS_MODULE,
-	.read = lrng_raw_read,
+	.read = lrng_raw_hires_read,
 };
 
-#endif /* CONFIG_LRNG_RAW_ENTROPY */
+#endif /* CONFIG_LRNG_RAW_HIRES_ENTROPY */
+
+/********************* Raw Jiffies Entropy Data Handling **********************/
+
+#ifdef CONFIG_LRNG_RAW_JIFFIES_ENTROPY
+
+static u32 boot_raw_jiffies_test = 0;
+module_param(boot_raw_jiffies_test, uint, 0644);
+MODULE_PARM_DESC(boot_raw_jiffies_test, "Enable gathering boot time high resolution timer entropy of the first entropy events");
+
+static struct lrng_testing lrng_raw_jiffies = {
+	.rb_reader = 0,
+	.rb_reader = 0,
+	.lock      = __SPIN_LOCK_UNLOCKED(lrng_raw_jiffies.lock),
+	.read_wait = __WAIT_QUEUE_HEAD_INITIALIZER(lrng_raw_jiffies.read_wait)
+};
+
+bool lrng_raw_jiffies_entropy_store(u32 value)
+{
+	return lrng_testing_store(&lrng_raw_jiffies, value,
+				  &boot_raw_jiffies_test);
+}
+
+static int lrng_raw_jiffies_entropy_reader(u8 *outbuf, u32 outbuflen)
+{
+	return lrng_testing_reader(&lrng_raw_jiffies, &boot_raw_jiffies_test,
+				   outbuf, outbuflen);
+}
+
+static ssize_t lrng_raw_jiffies_read(struct file *file, char __user *to,
+				   size_t count, loff_t *ppos)
+{
+	return lrng_testing_extract_user(file, to, count, ppos,
+					 lrng_raw_jiffies_entropy_reader);
+}
+
+static const struct file_operations lrng_raw_jiffies_fops = {
+	.owner = THIS_MODULE,
+	.read = lrng_raw_jiffies_read,
+};
+
+#endif /* CONFIG_LRNG_RAW_JIFFIES_ENTROPY */
+
+/************************** Raw IRQ Data Handling ****************************/
+
+#ifdef CONFIG_LRNG_RAW_IRQ_ENTROPY
+
+static u32 boot_raw_irq_test = 0;
+module_param(boot_raw_irq_test, uint, 0644);
+MODULE_PARM_DESC(boot_raw_irq_test, "Enable gathering boot time entropy of the first IRQ entropy events");
+
+static struct lrng_testing lrng_raw_irq = {
+	.rb_reader = 0,
+	.rb_reader = 0,
+	.lock      = __SPIN_LOCK_UNLOCKED(lrng_raw_irq.lock),
+	.read_wait = __WAIT_QUEUE_HEAD_INITIALIZER(lrng_raw_irq.read_wait)
+};
+
+bool lrng_raw_irq_entropy_store(u32 value)
+{
+	return lrng_testing_store(&lrng_raw_irq, value, &boot_raw_irq_test);
+}
+
+static int lrng_raw_irq_entropy_reader(u8 *outbuf, u32 outbuflen)
+{
+	return lrng_testing_reader(&lrng_raw_irq, &boot_raw_irq_test, outbuf,
+				   outbuflen);
+}
+
+static ssize_t lrng_raw_irq_read(struct file *file, char __user *to,
+				 size_t count, loff_t *ppos)
+{
+	return lrng_testing_extract_user(file, to, count, ppos,
+					 lrng_raw_irq_entropy_reader);
+}
+
+static const struct file_operations lrng_raw_irq_fops = {
+	.owner = THIS_MODULE,
+	.read = lrng_raw_irq_read,
+};
+
+#endif /* CONFIG_LRNG_RAW_IRQ_ENTROPY */
+
+/************************ Raw IRQFLAGS Data Handling **************************/
+
+#ifdef CONFIG_LRNG_RAW_IRQFLAGS_ENTROPY
+
+static u32 boot_raw_irqflags_test = 0;
+module_param(boot_raw_irqflags_test, uint, 0644);
+MODULE_PARM_DESC(boot_raw_irqflags_test, "Enable gathering boot time entropy of the first IRQ flags entropy events");
+
+static struct lrng_testing lrng_raw_irqflags = {
+	.rb_reader = 0,
+	.rb_reader = 0,
+	.lock      = __SPIN_LOCK_UNLOCKED(lrng_raw_irqflags.lock),
+	.read_wait = __WAIT_QUEUE_HEAD_INITIALIZER(lrng_raw_irqflags.read_wait)
+};
+
+bool lrng_raw_irqflags_entropy_store(u32 value)
+{
+	return lrng_testing_store(&lrng_raw_irqflags, value,
+				  &boot_raw_irqflags_test);
+}
+
+static int lrng_raw_irqflags_entropy_reader(u8 *outbuf, u32 outbuflen)
+{
+	return lrng_testing_reader(&lrng_raw_irqflags, &boot_raw_irqflags_test,
+				   outbuf, outbuflen);
+}
+
+static ssize_t lrng_raw_irqflags_read(struct file *file, char __user *to,
+				      size_t count, loff_t *ppos)
+{
+	return lrng_testing_extract_user(file, to, count, ppos,
+					 lrng_raw_irqflags_entropy_reader);
+}
+
+static const struct file_operations lrng_raw_irqflags_fops = {
+	.owner = THIS_MODULE,
+	.read = lrng_raw_irqflags_read,
+};
+
+#endif /* CONFIG_LRNG_RAW_IRQFLAGS_ENTROPY */
+
+/************************ Raw _RET_IP_ Data Handling **************************/
+
+#ifdef CONFIG_LRNG_RAW_RETIP_ENTROPY
+
+static u32 boot_raw_retip_test = 0;
+module_param(boot_raw_retip_test, uint, 0644);
+MODULE_PARM_DESC(boot_raw_retip_test, "Enable gathering boot time entropy of the first return instruction pointer entropy events");
+
+static struct lrng_testing lrng_raw_retip = {
+	.rb_reader = 0,
+	.rb_reader = 0,
+	.lock      = __SPIN_LOCK_UNLOCKED(lrng_raw_retip.lock),
+	.read_wait = __WAIT_QUEUE_HEAD_INITIALIZER(lrng_raw_retip.read_wait)
+};
+
+bool lrng_raw_retip_entropy_store(u32 value)
+{
+	return lrng_testing_store(&lrng_raw_retip, value, &boot_raw_retip_test);
+}
+
+static int lrng_raw_retip_entropy_reader(u8 *outbuf, u32 outbuflen)
+{
+	return lrng_testing_reader(&lrng_raw_retip, &boot_raw_retip_test,
+				   outbuf, outbuflen);
+}
+
+static ssize_t lrng_raw_retip_read(struct file *file, char __user *to,
+				   size_t count, loff_t *ppos)
+{
+	return lrng_testing_extract_user(file, to, count, ppos,
+					 lrng_raw_retip_entropy_reader);
+}
+
+static const struct file_operations lrng_raw_retip_fops = {
+	.owner = THIS_MODULE,
+	.read = lrng_raw_retip_read,
+};
+
+#endif /* CONFIG_LRNG_RAW_RETIP_ENTROPY */
 
 /********************** Raw Entropy Array Data Handling ***********************/
 
@@ -370,12 +533,31 @@ static int __init lrng_raw_init(void)
 {
 	struct dentry *lrng_raw_debugfs_root;
 
-
 	lrng_raw_debugfs_root = debugfs_create_dir(KBUILD_MODNAME, NULL);
 
-#ifdef CONFIG_LRNG_RAW_ENTROPY
-	debugfs_create_file_unsafe("lrng_raw", 0400, lrng_raw_debugfs_root,
-				   NULL, &lrng_raw_fops);
+#ifdef CONFIG_LRNG_RAW_HIRES_ENTROPY
+	debugfs_create_file_unsafe("lrng_raw_hires", 0400,
+				   lrng_raw_debugfs_root, NULL,
+				   &lrng_raw_hires_fops);
+#endif
+#ifdef CONFIG_LRNG_RAW_JIFFIES_ENTROPY
+	debugfs_create_file_unsafe("lrng_raw_jiffies", 0400,
+				   lrng_raw_debugfs_root, NULL,
+				   &lrng_raw_jiffies_fops);
+#endif
+#ifdef CONFIG_LRNG_RAW_IRQ_ENTROPY
+	debugfs_create_file_unsafe("lrng_raw_irq", 0400, lrng_raw_debugfs_root,
+				   NULL, &lrng_raw_irq_fops);
+#endif
+#ifdef CONFIG_LRNG_RAW_IRQFLAGS_ENTROPY
+	debugfs_create_file_unsafe("lrng_raw_irqflags", 0400,
+				   lrng_raw_debugfs_root, NULL,
+				   &lrng_raw_irqflags_fops);
+#endif
+#ifdef CONFIG_LRNG_RAW_RETIP_ENTROPY
+	debugfs_create_file_unsafe("lrng_raw_retip", 0400,
+				   lrng_raw_debugfs_root, NULL,
+				   &lrng_raw_retip_fops);
 #endif
 #ifdef CONFIG_LRNG_RAW_ARRAY
 	debugfs_create_file_unsafe("lrng_raw_array", 0400,

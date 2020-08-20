@@ -228,16 +228,39 @@ static void lrng_cc20_drng_dealloc(void *drng)
 
 /******************************* Hash Operation *******************************/
 
-static void *lrng_cc20_hash_alloc(const u8 *key, u32 keylen)
+#ifdef CONFIG_CRYPTO_LIB_SHA256
+
+static u32 lrng_cc20_hash_digestsize(void *hash)
 {
-	pr_info("Hash SHA-1 allocated\n");
-	return NULL;
+	return SHA256_DIGEST_SIZE;
 }
 
-static void lrng_cc20_hash_dealloc(void *hash)
+static int lrng_cc20_hash_buffer(void *hash, const u8 *inbuf, u32 inbuflen,
+				 u8 *digest)
 {
+	struct sha256_state sctx;
+
+	sha256_init(&sctx);
+	sha256_update(&sctx, inbuf, inbuflen);
+	sha256_final(&sctx, digest);
+
+	/* Zeroization of sctx is performed by sha256_final */
+
+	return 0;
 }
 
+static const char *lrng_cc20_hash_name(void)
+{
+	const char *cc20_hash_name = "SHA-256";
+	return cc20_hash_name;
+}
+
+#else /* CONFIG_CRYPTO_LIB_SHA256 */
+
+/*
+ * If the SHA-256 support is not compiled, we fall back to SHA-1 that is always
+ * compiled and present in the kernel.
+ */
 static u32 lrng_cc20_hash_digestsize(void *hash)
 {
 	return (SHA1_DIGEST_WORDS * sizeof(u32));
@@ -259,16 +282,28 @@ static int lrng_cc20_hash_buffer(void *hash, const u8 *inbuf, u32 inbuflen,
 	return 0;
 }
 
-static const char *lrng_cc20_drng_name(void)
-{
-	const char *cc20_drng_name = "ChaCha20 DRNG";
-	return cc20_drng_name;
-}
-
 static const char *lrng_cc20_hash_name(void)
 {
 	const char *cc20_hash_name = "SHA-1";
 	return cc20_hash_name;
+}
+
+#endif /* CONFIG_CRYPTO_LIB_SHA256 */
+
+static void *lrng_cc20_hash_alloc(const u8 *key, u32 keylen)
+{
+	pr_info("Hash %s allocated\n", lrng_cc20_hash_name());
+	return NULL;
+}
+
+static void lrng_cc20_hash_dealloc(void *hash)
+{
+}
+
+static const char *lrng_cc20_drng_name(void)
+{
+	const char *cc20_drng_name = "ChaCha20 DRNG";
+	return cc20_drng_name;
 }
 
 const struct lrng_crypto_cb lrng_cc20_crypto_cb = {

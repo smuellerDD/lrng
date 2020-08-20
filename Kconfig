@@ -5,6 +5,7 @@
 
 menuconfig LRNG
 	bool "Linux Random Number Generator"
+	select CRYPTO_LIB_SHA256 if CRYPTO
 	help
 	  The Linux Random Number Generator (LRNG) is the replacement
 	  of the existing /dev/random provided with drivers/char/random.c.
@@ -76,7 +77,7 @@ config LRNG_DRBG
 	tristate "SP800-90A support for the LRNG"
 	depends on CRYPTO
 	select CRYPTO_DRBG_MENU
-	select CRYPTO_CMAC if CRYPTO_DRBG_CTR
+	select CRYPTO_SHA512
 	help
 	  Enable the SP800-90A DRBG support for the LRNG. Once the
 	  module is loaded, output from /dev/random, /dev/urandom,
@@ -172,17 +173,82 @@ menuconfig LRNG_TESTING_MENU
 
 if LRNG_TESTING_MENU
 
-config LRNG_RAW_ENTROPY
-	bool "Enable entropy test interface to LRNG noise source"
+config LRNG_RAW_HIRES_ENTROPY
+	bool "Enable entropy test interface to hires timer noise source"
 	default y
 	help
 	  The test interface allows a privileged process to capture
-	  the raw unconditioned noise that is collected by the LRNG
-	  for statistical analysis. Extracted noise data is not used
-	  to seed the LRNG.
+	  the raw unconditioned high resolution time stamp noise that
+	  is collected by the LRNG for statistical analysis. Extracted
+	  noise data is not used to seed the LRNG.
 
-	  The raw noise data can be obtained using the lrng_raw
-	  debugfs file. Using the option lrng_testing.boot_test=1
+	  The raw noise data can be obtained using the lrng_raw_hires
+	  debugfs file. Using the option lrng_testing.boot_raw_hires_test=1
+	  the raw noise of the first 1000 entropy events since boot
+	  can be sampled.
+
+config LRNG_RAW_JIFFIES_ENTROPY
+	bool "Enable entropy test interface to Jiffies noise source"
+	help
+	  The test interface allows a privileged process to capture
+	  the raw unconditioned Jiffies that is collected by
+	  the LRNG for statistical analysis. This data is used for
+	  seeding the LRNG if a high-resolution time stamp is not
+	  available. If a high-resolution time stamp is detected,
+	  the Jiffies value is not collected by the LRNG and no
+	  data is provided via the test interface. Extracted noise
+	  data is not used to seed the random number generator.
+
+	  The raw noise data can be obtained using the lrng_raw_jiffies
+	  debugfs file. Using the option lrng_testing.boot_raw_jiffies_test=1
+	  the raw noise of the first 1000 entropy events since boot
+	  can be sampled.
+
+config LRNG_RAW_IRQ_ENTROPY
+	bool "Enable entropy test interface to IRQ number noise source"
+	help
+	  The test interface allows a privileged process to capture
+	  the raw unconditioned interrupt number that is collected by
+	  the LRNG for statistical analysis. This data is used for
+	  seeding the random32 PRNG external to the LRNG if a
+	  high-resolution time stamp is available or it will be used to
+	  seed the LRNG otherwise. Extracted noise data is not used to
+	  seed the random number generator.
+
+	  The raw noise data can be obtained using the lrng_raw_irq
+	  debugfs file. Using the option lrng_testing.boot_raw_irq_test=1
+	  the raw noise of the first 1000 entropy events since boot
+	  can be sampled.
+
+config LRNG_RAW_IRQFLAGS_ENTROPY
+	bool "Enable entropy test interface to IRQ flags noise source"
+	help
+	  The test interface allows a privileged process to capture
+	  the raw unconditioned interrupt flags that is collected by
+	  the LRNG for statistical analysis. This data is used for
+	  seeding the random32 PRNG external to the LRNG if a
+	  high-resolution time stamp is available or it will be used to
+	  seed the LRNG otherwise. Extracted noise data is not used to
+	  seed the random number generator.
+
+	  The raw noise data can be obtained using the lrng_raw_irqflags
+	  debugfs file. Using the option lrng_testing.boot_raw_irqflags_test=1
+	  the raw noise of the first 1000 entropy events since boot
+	  can be sampled.
+
+config LRNG_RAW_RETIP_ENTROPY
+	bool "Enable entropy test interface to RETIP value noise source"
+	help
+	  The test interface allows a privileged process to capture
+	  the raw unconditioned return instruction pointer value
+	  that is collected by the LRNG for statistical analysis.
+	  This data is used for seeding the random32 PRNG external
+	  to the LRNG if a high-resolution time stamp is available or
+	  it will be used to seed the LRNG otherwise. Extracted noise
+	  data is not used to seed the random number generator.
+
+	  The raw noise data can be obtained using the lrng_raw_retip
+	  debugfs file. Using the option lrng_testing.boot_raw_retip_test=1
 	  the raw noise of the first 1000 entropy events since boot
 	  can be sampled.
 
