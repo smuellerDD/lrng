@@ -35,7 +35,7 @@
 #include <unistd.h>
 
 #define RAWENTROPY_SAMPLES	1000
-#define DEBUGFS_INTERFACE	"/sys/kernel/debug/lrng_testing/lrng_raw"
+#define DEBUGFS_INTERFACE	"/sys/kernel/debug/lrng_testing/lrng_raw_hires"
 
 struct opts {
 	size_t samples;

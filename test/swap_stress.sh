@@ -93,7 +93,13 @@ DRNG_INSTANCES=$(($NUMA_NODES+1))
 i=1
 while [ $i -lt 5000 ]
 do
-	sudo modprobe lrng_drbg; sudo rmmod lrng_drbg
+	# Alternate between lrng_drbg and lrng_kcapi
+	if [ $((i%2)) -eq 1 ]
+	then
+		sudo modprobe lrng_drbg; sudo rmmod lrng_drbg
+	else
+		sudo modprobe lrng_kcapi drng_name="fips_ansi_cprng" pool_hash="sha512" seed_hash="sha384"; sudo rmmod lrng_kcapi
+	fi
 	if [ $(dmesg | grep "lrng_base: reset" | wc -l) -gt $DRNG_INSTANCES ]
 	then
 		echo "Reset failure"

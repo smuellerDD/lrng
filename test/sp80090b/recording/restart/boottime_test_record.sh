@@ -7,7 +7,7 @@
 #
 # Test execution:
 #	1. Enable CONFIG_LRNG_TESTING and compile kernel and ensure that the
-#	   Linux kernel command line contains lrng_testing.boot_test=1
+#	   Linux kernel command line contains lrng_testing.boot_raw_hires_test=1
 #	2. Compile getrawentropy.c and install into /usr/local/sbin
 #	3. Copy this file to /usr/local/sbin and make it executable and do not
 #	   forget restorecon if applicable
@@ -24,6 +24,7 @@
 #	boot with kernel command line option of boottime_test_stop
 #
 OUTFILE="/root/lrng_raw_noise_restart"
+STATE="/root/lrng_state"
 TESTS=1000
 
 DIR=$(dirname $OUTFILE)
@@ -32,7 +33,17 @@ then
 	mkdir -p $DIR
 fi
 
-testruns=$(ls $OUTFILE* | wc -l | cut -d" " -f1)
+#testruns=$(ls $OUTFILE* | wc -l | cut -d" " -f1)
+testruns=$(cat $STATE)
+echo $((testruns+1)) > $STATE
+
+#add leading zeros
+# If leading zeros are missing, execute:
+# for i in lrng_raw_noise_restart.?.data; do mv $i $(echo $i | cut -d. -f1).0000$(echo $i | cut -d. -f2).$(echo $i | cut -d. -f3) ; done
+# for i in lrng_raw_noise_restart.??.data; do mv $i $(echo $i | cut -d. -f1).000$(echo $i | cut -d. -f2).$(echo $i | cut -d. -f3) ; done
+# for i in lrng_raw_noise_restart.???.data; do mv $i $(echo $i | cut -d. -f1).00$(echo $i | cut -d. -f2).$(echo $i | cut -d. -f3) ; done
+# for i in lrng_raw_noise_restart.????.data; do mv $i $(echo $i | cut -d. -f1).0$(echo $i | cut -d. -f2).$(echo $i | cut -d. -f3) ; done
+printf -v testruns "%05d" $testruns
 
 /usr/local/sbin/getrawentropy > $OUTFILE.$testruns.data
 
@@ -46,7 +57,7 @@ if [ $testruns -ge $TESTS ]; then
 	cat /proc/cpuinfo >> /root/platform.txt &&
 	echo "" >> /root/platform.txt &&
 	echo "lspci" >> /root/platform.txt &&
-	lspci >> /root/platform.txt
+	lspci -vvv >> /root/platform.txt
 
 	exit 0
 fi
