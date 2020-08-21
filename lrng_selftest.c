@@ -163,7 +163,7 @@ static unsigned int lrng_hash_df_selftest(void)
 	 * of a hash block generated.
 	 */
 	static const u8 lrng_hash_df_selftest_result[][44] = {
-#if CONFIG_CRYPTO_LIB_SHA256
+#ifdef CONFIG_CRYPTO_LIB_SHA256
 		{
 			0x71, 0xd6, 0xcb, 0xad, 0xdd, 0xdd, 0xe5, 0xec,
 			0xe7, 0x31, 0x12, 0x3e, 0x29, 0x17, 0x6a, 0x43,

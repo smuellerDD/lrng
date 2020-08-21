@@ -292,7 +292,7 @@ static const char *lrng_kcapi_pool_hash(void)
 	return pool_hash;
 }
 
-const static struct lrng_crypto_cb lrng_kcapi_crypto_cb = {
+static const struct lrng_crypto_cb lrng_kcapi_crypto_cb = {
 	.lrng_drng_name			= lrng_kcapi_drng_name,
 	.lrng_hash_name			= lrng_kcapi_pool_hash,
 	.lrng_drng_alloc		= lrng_kcapi_drng_alloc,

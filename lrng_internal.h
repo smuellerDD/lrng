@@ -133,6 +133,9 @@ void lrng_init_wakeup(void);
 void lrng_debug_report_seedlevel(const char *name);
 void lrng_process_ready_list(void);
 
+/* External interface to use of the switchable DRBG inside the kernel */
+void get_random_bytes_full(void *buf, int nbytes);
+
 /************************** Entropy pool management ***************************/
 
 enum lrng_external_noise_source {

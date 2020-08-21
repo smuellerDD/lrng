@@ -10,6 +10,7 @@
 #include <linux/freezer.h>
 #include <linux/fs.h>
 #include <linux/genhd.h>
+#include <linux/hw_random.h>
 #include <linux/kthread.h>
 #include <linux/poll.h>
 #include <linux/preempt.h>

@@ -223,7 +223,7 @@ static const char *lrng_hash_name(void)
 	return lrng_drbg_types[lrng_drbg_type].hash_name;
 }
 
-const static struct lrng_crypto_cb lrng_drbg_crypto_cb = {
+static const struct lrng_crypto_cb lrng_drbg_crypto_cb = {
 	.lrng_drng_name			= lrng_drbg_name,
 	.lrng_hash_name			= lrng_hash_name,
 	.lrng_drng_alloc		= lrng_drbg_drng_alloc,

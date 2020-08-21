@@ -252,7 +252,7 @@ MODULE_PARM_DESC(boot_raw_hires_test, "Enable gathering boot time high resolutio
 
 static struct lrng_testing lrng_raw_hires = {
 	.rb_reader = 0,
-	.rb_reader = 0,
+	.rb_writer = 0,
 	.lock      = __SPIN_LOCK_UNLOCKED(lrng_raw_hires.lock),
 	.read_wait = __WAIT_QUEUE_HEAD_INITIALIZER(lrng_raw_hires.read_wait)
 };
@@ -292,7 +292,7 @@ MODULE_PARM_DESC(boot_raw_jiffies_test, "Enable gathering boot time high resolut
 
 static struct lrng_testing lrng_raw_jiffies = {
 	.rb_reader = 0,
-	.rb_reader = 0,
+	.rb_writer = 0,
 	.lock      = __SPIN_LOCK_UNLOCKED(lrng_raw_jiffies.lock),
 	.read_wait = __WAIT_QUEUE_HEAD_INITIALIZER(lrng_raw_jiffies.read_wait)
 };
@@ -333,7 +333,7 @@ MODULE_PARM_DESC(boot_raw_irq_test, "Enable gathering boot time entropy of the f
 
 static struct lrng_testing lrng_raw_irq = {
 	.rb_reader = 0,
-	.rb_reader = 0,
+	.rb_writer = 0,
 	.lock      = __SPIN_LOCK_UNLOCKED(lrng_raw_irq.lock),
 	.read_wait = __WAIT_QUEUE_HEAD_INITIALIZER(lrng_raw_irq.read_wait)
 };
@@ -373,7 +373,7 @@ MODULE_PARM_DESC(boot_raw_irqflags_test, "Enable gathering boot time entropy of 
 
 static struct lrng_testing lrng_raw_irqflags = {
 	.rb_reader = 0,
-	.rb_reader = 0,
+	.rb_writer = 0,
 	.lock      = __SPIN_LOCK_UNLOCKED(lrng_raw_irqflags.lock),
 	.read_wait = __WAIT_QUEUE_HEAD_INITIALIZER(lrng_raw_irqflags.read_wait)
 };
@@ -414,7 +414,7 @@ MODULE_PARM_DESC(boot_raw_retip_test, "Enable gathering boot time entropy of the
 
 static struct lrng_testing lrng_raw_retip = {
 	.rb_reader = 0,
-	.rb_reader = 0,
+	.rb_writer = 0,
 	.lock      = __SPIN_LOCK_UNLOCKED(lrng_raw_retip.lock),
 	.read_wait = __WAIT_QUEUE_HEAD_INITIALIZER(lrng_raw_retip.read_wait)
 };
@@ -454,7 +454,7 @@ MODULE_PARM_DESC(boot_raw_array, "Enable gathering boot time raw noise array dat
 
 static struct lrng_testing lrng_raw_array = {
 	.rb_reader = 0,
-	.rb_reader = 0,
+	.rb_writer = 0,
 	.lock      = __SPIN_LOCK_UNLOCKED(lrng_raw_array.lock),
 	.read_wait = __WAIT_QUEUE_HEAD_INITIALIZER(lrng_raw_array.read_wait)
 };
@@ -494,7 +494,7 @@ MODULE_PARM_DESC(boot_irq_perf, "Enable gathering boot time interrupt performanc
 
 static struct lrng_testing lrng_irq_perf = {
 	.rb_reader = 0,
-	.rb_reader = 0,
+	.rb_writer = 0,
 	.lock      = __SPIN_LOCK_UNLOCKED(lrng_irq_perf.lock),
 	.read_wait = __WAIT_QUEUE_HEAD_INITIALIZER(lrng_irq_perf.read_wait)
 };
