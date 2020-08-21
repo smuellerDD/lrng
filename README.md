@@ -39,6 +39,13 @@ deterministic random number generator component.
 Implementation verification as well as performance tests are provided in the
 `test` directory.
 
+## LRNG Backports
+
+Backports to older kernels are provided with the patch sets in `backports`.
+Note, the core idea of these backports is to use the unmodified LRNG patch
+series and add patches to be applied before and after applying the LRNG
+patches.
+
 ## ChaCha20 DRNG
 
 The ChaCha20 DRNG used by the LRNG is implemented following standard pseudo-
