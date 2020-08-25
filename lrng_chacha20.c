@@ -40,10 +40,11 @@ struct chacha20_state chacha20;
  * the key is injected.
  */
 static void lrng_chacha20_update(struct chacha20_state *chacha20_state,
-				 u32 *buf, u32 used_words)
+				 __le32 *buf, u32 used_words)
 {
 	struct chacha20_block *chacha20 = &chacha20_state->block;
-	u32 i, tmp[CHACHA_BLOCK_WORDS];
+	u32 i;
+	__le32 tmp[CHACHA_BLOCK_WORDS];
 
 	BUILD_BUG_ON(sizeof(struct chacha20_block) != CHACHA_BLOCK_SIZE);
 	BUILD_BUG_ON(CHACHA_BLOCK_SIZE != 2 * CHACHA_KEY_SIZE);
@@ -113,8 +114,8 @@ static int lrng_cc20_drng_generate_helper(void *drng, u8 *outbuf, u32 outbuflen)
 {
 	struct chacha20_state *chacha20_state = (struct chacha20_state *)drng;
 	struct chacha20_block *chacha20 = &chacha20_state->block;
-	u32 aligned_buf[CHACHA_BLOCK_WORDS], ret = outbuflen,
-	    used = CHACHA_BLOCK_WORDS;
+	__le32 aligned_buf[CHACHA_BLOCK_WORDS];
+	u32 ret = outbuflen, used = CHACHA_BLOCK_WORDS;
 	int zeroize_buf = 0;
 
 	while (outbuflen >= CHACHA_BLOCK_SIZE) {

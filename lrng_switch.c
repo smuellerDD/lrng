@@ -83,6 +83,8 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 	if (lrng_drng_is_atomic(drng_store)) {
 		spin_lock_irqsave(&drng_store->spin_lock, flags);
 		sl = true;
+	} else {
+		__acquire(&drng_store->spin_lock);
 	}
 
 	if (reset_drng)
@@ -100,6 +102,8 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 
 	if (sl)
 		spin_unlock_irqrestore(&drng_store->spin_lock, flags);
+	else
+		__release(&drng_store->spin_lock);
 	mutex_unlock(&drng_store->lock);
 
 	/* ChaCha20 serves as atomic instance left untouched. */

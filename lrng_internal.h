@@ -217,6 +217,7 @@ static __always_inline bool lrng_drng_is_atomic(struct lrng_drng *drng)
 /* Lock the DRNG */
 static __always_inline void lrng_drng_lock(struct lrng_drng *drng,
 					   unsigned long *flags)
+	__acquires(&drng->spin_lock)
 {
 	/* Use spin lock in case the atomic DRNG context is used */
 	if (lrng_drng_is_atomic(drng)) {
@@ -228,9 +229,11 @@ static __always_inline void lrng_drng_lock(struct lrng_drng *drng,
 		 */
 		if (!lrng_drng_is_atomic(drng)) {
 			spin_unlock_irqrestore(&drng->spin_lock, *flags);
+			__acquire(&drng->spin_lock);
 			mutex_lock(&drng->lock);
 		}
 	} else {
+		__acquire(&drng->spin_lock);
 		mutex_lock(&drng->lock);
 	}
 }
@@ -238,11 +241,14 @@ static __always_inline void lrng_drng_lock(struct lrng_drng *drng,
 /* Unlock the DRNG */
 static __always_inline void lrng_drng_unlock(struct lrng_drng *drng,
 					     unsigned long *flags)
+	__releases(&drng->spin_lock)
 {
-	if (lrng_drng_is_atomic(drng))
+	if (lrng_drng_is_atomic(drng)) {
 		spin_unlock_irqrestore(&drng->spin_lock, *flags);
-	else
+	} else {
 		mutex_unlock(&drng->lock);
+		__release(&drng->spin_lock);
+	}
 }
 
 void lrng_drng_init_early(void);

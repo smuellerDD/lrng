@@ -19,6 +19,9 @@
 #include <linux/syscalls.h>
 #include <linux/timex.h>
 
+#define CREATE_TRACE_POINTS
+#include <trace/events/random.h>
+
 #include "lrng_internal.h"
 
 /*
@@ -466,7 +469,7 @@ static ssize_t lrng_drng_read_block(struct file *file, char __user *buf,
 	return lrng_read_common_block(file->f_flags & O_NONBLOCK, buf, nbytes);
 }
 
-static unsigned int lrng_random_poll(struct file *file, poll_table *wait)
+static __poll_t lrng_random_poll(struct file *file, poll_table *wait)
 {
 	__poll_t mask;
 

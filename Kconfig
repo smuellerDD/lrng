@@ -81,11 +81,12 @@ config LRNG_DRBG
 	help
 	  Enable the SP800-90A DRBG support for the LRNG. Once the
 	  module is loaded, output from /dev/random, /dev/urandom,
-	  getrandom(2), or get_random_bytes is provided by a DRBG.
+	  getrandom(2), or get_random_bytes_full is provided by a DRBG.
 
 config LRNG_KCAPI
 	tristate "Kernel Crypto API support for the LRNG"
 	depends on CRYPTO
+	depends on !LRNG_DRBG
 	select CRYPTO_RNG
 	help
 	  Enable the support for generic pseudo-random number
@@ -283,7 +284,7 @@ config LRNG_IRQ_PERF
 
 config LRNG_TESTING
 	bool
-	default y if (LRNG_RAW_ENTROPY || LRNG_RAW_ARRAY || LRNG_IRQ_PERF)
+	default y if (LRNG_RAW_HIRES_ENTROPY || LRNG_RAW_JIFFIES_ENTROPY ||LRNG_RAW_IRQ_ENTROPY || LRNG_RAW_IRQFLAGS_ENTROPY || LRNG_RAW_RETIP_ENTROPY || LRNG_RAW_ARRAY || LRNG_IRQ_PERF)
 
 endif #LRNG_TESTING_MENU
 

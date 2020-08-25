@@ -50,7 +50,9 @@ static inline void lrng_selftest_bswap32(u32 *ptr, u32 words)
 
 	/* Byte-swap data which is an LE representation */
 	for (i = 0; i < words; i++) {
-		*ptr = cpu_to_le32(*ptr);
+		__le32 *p = (__le32 *)ptr;
+
+		*p = cpu_to_le32(*ptr);
 		ptr++;
 	}
 }
