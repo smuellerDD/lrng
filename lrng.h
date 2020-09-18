@@ -6,6 +6,7 @@
 #ifndef _LRNG_H
 #define _LRNG_H
 
+#include <crypto/hash.h>
 #include <linux/errno.h>
 #include <linux/types.h>
 
@@ -33,10 +34,23 @@
  *				hash: is pointer to data structure allocated
  *				      with lrng_hash_alloc
  *				return: size of digest of hash in bytes
- * @lrng_hash_buffer:		Generate hash
+ * @lrng_hash_init:		Initialize hash
  *				hash: is pointer to data structure allocated
  *				      with lrng_hash_alloc
  *				return: 0 on success, < 0 on error
+ * @lrng_hash_update:		Update hash operation
+ *				hash: is pointer to data structure allocated
+ *				      with lrng_hash_alloc
+ *				return: 0 on success, < 0 on error
+ * @lrng_hash_final		Final hash operation
+ *				hash: is pointer to data structure allocated
+ *				      with lrng_hash_alloc
+ *				return: 0 on success, < 0 on error
+ *
+ * Assumptions:
+ *
+ * 1. Hash operation will not sleep
+ * 2. The hash' volatile state information is provided with *shash by caller.
  */
 struct lrng_crypto_cb {
 	const char *(*lrng_drng_name)(void);
@@ -45,11 +59,13 @@ struct lrng_crypto_cb {
 	void (*lrng_drng_dealloc)(void *drng);
 	int (*lrng_drng_seed_helper)(void *drng, const u8 *inbuf, u32 inbuflen);
 	int (*lrng_drng_generate_helper)(void *drng, u8 *outbuf, u32 outbuflen);
-	void *(*lrng_hash_alloc)(const u8 *key, u32 keylen);
+	void *(*lrng_hash_alloc)(void);
 	void (*lrng_hash_dealloc)(void *hash);
 	u32 (*lrng_hash_digestsize)(void *hash);
-	int (*lrng_hash_buffer)(void *hash, const u8 *inbuf, u32 inbuflen,
-				u8 *digest);
+	int (*lrng_hash_init)(struct shash_desc *shash, void *hash);
+	int (*lrng_hash_update)(struct shash_desc *shash, const u8 *inbuf,
+				u32 inbuflen);
+	int (*lrng_hash_final)(struct shash_desc *shash, u8 *digest);
 };
 
 /* Register cryptographic backend */

@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# # Copyright (C) 2017, Stephan Mueller <smueller@chronox.de>
+# Copyright (C) 2017 - 2020, Stephan Mueller <smueller@chronox.de>
 #
 # License: see LICENSE file in root directory
 #
@@ -19,6 +19,13 @@
 #
 # Stress test for swapping DRNG implementations to verify swapping and locking
 # is correct
+#
+# To conduct testing, the kernel must be compiled with the following options:
+#
+# CONFIG_LRNG_DRNG_SWITCH=y
+# CONFIG_LRNG_DRBG=m
+# CONFIG_LRNG_KCAPI=m
+# CONFIG_CRYPTO_ANSI_CPRNG=m
 #
 
 # Count the available NUMA nodes
@@ -64,11 +71,12 @@ do
 	urandom=$(($urandom+1))
 done
 
-# Enable for full testing, but it slows testing down considerably
-#echo "spawn write load on /dev/urandom"
-#( dd if=/dev/urandom of=/dev/urandom bs=33 > /dev/null 2>&1 ) &
-#eval dd_urandom_$urandom=$!
-#urandom=$(($urandom+1))
+# Enable the following for full testing, but it slows testing down considerably
+# Write data into interfaces for triggering reseed and write into aux pool:
+echo "spawn write load on /dev/urandom"
+( dd if=/dev/urandom of=/dev/urandom bs=33 > /dev/null 2>&1 ) &
+eval dd_urandom_$urandom=$!
+urandom=$(($urandom+1))
 
 # Start reading from /dev/random - ensure that the pdrng is in used and locks
 # are taken
@@ -90,6 +98,13 @@ DRNG_INSTANCES=$(($NUMA_NODES+1))
 
 # Load and unload new DRNG implementations while the aforementioned
 # operations are ongoing.
+modprobe ansi_cprng > /dev/null 2>&1
+ANSI_CPRNG="ansi_cprng"
+if (cat /proc/sys/crypto/fips_enabled | grep -q 1)
+then
+	ANSI_CPRNG="fips_ansi_cprng"
+fi
+
 i=1
 while [ $i -lt 5000 ]
 do
@@ -98,7 +113,7 @@ do
 		sudo modprobe lrng_drbg lrng_drbg_type=$((i%4)); rng_name=$(cat /proc/lrng_type  | grep "DRNG name" | cut -d ":" -f2); sudo rmmod lrng_drbg
 		rng_name="DRBG LRNG:$rng_name"
 	else
-		sudo modprobe lrng_kcapi drng_name="fips_ansi_cprng" pool_hash="sha512" seed_hash="sha384"; rng_name=$(cat /proc/lrng_type  | grep "DRNG name" | cut -d ":" -f2); sudo rmmod lrng_kcapi
+		sudo modprobe lrng_kcapi drng_name="$ANSI_CPRNG" pool_hash="sha512" seed_hash="sha384"; rng_name=$(cat /proc/lrng_type  | grep "DRNG name" | cut -d ":" -f2); sudo rmmod lrng_kcapi
 		rng_name="KCAPI LRNG:$rng_name"
 	fi
 	if [ $(dmesg | grep "lrng_base: reset" | wc -l) -gt $DRNG_INSTANCES ]

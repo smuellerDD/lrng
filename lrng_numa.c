@@ -16,7 +16,7 @@ static struct lrng_drng **lrng_drng __read_mostly = NULL;
 
 struct lrng_drng **lrng_drng_instances(void)
 {
-	return lrng_drng;
+	return smp_load_acquire(&lrng_drng);
 }
 
 /* Allocate the data structures for the per-NUMA node DRNGs */
@@ -55,8 +55,16 @@ static void _lrng_drngs_numa_alloc(struct work_struct *work)
 			goto err;
 		}
 
+		drng->hash = drng->crypto_cb->lrng_hash_alloc();
+		if (IS_ERR(drng->hash)) {
+			drng->crypto_cb->lrng_drng_dealloc(drng->drng);
+			kfree(drng);
+			goto err;
+		}
+
 		mutex_init(&drng->lock);
 		spin_lock_init(&drng->spin_lock);
+		rwlock_init(&drng->hash_lock);
 
 		/*
 		 * No reseeding of NUMA DRNGs from previous DRNGs as this
@@ -66,13 +74,12 @@ static void _lrng_drngs_numa_alloc(struct work_struct *work)
 		drngs[node] = drng;
 
 		lrng_pool_inc_numa_node();
-		pr_info("DRNG for NUMA node %d allocated\n", node);
+		pr_info("DRNG and entropy pool read hash for NUMA node %d allocated\n",
+			node);
 	}
 
-	/* Ensure that all NUMA nodes receive changed memory here. */
-	mb();
-
-	if (!cmpxchg(&lrng_drng, NULL, drngs))
+	/* counterpart to smp_load_acquire in lrng_drng_instances */
+	if (!cmpxchg_release(&lrng_drng, NULL, drngs))
 		goto unlock;
 
 err:

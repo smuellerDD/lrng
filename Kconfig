@@ -15,55 +15,59 @@ menuconfig LRNG
 if LRNG
 
 choice
-	prompt "LRNG Entropy Pool Size"
-	default LRNG_POOL_SIZE_4096
+	prompt "LRNG Entropy Collection Pool Size"
+	default LRNG_COLLECTION_SIZE_64
 	help
-	  Select the size of the LRNG entropy pool. The size of the
-	  entropy pool is relevant for the amount of entropy that
-	  the LRNG can maintain as a maximum. The larger the size
-	  of the entropy pool is the more entropy can be maintained
-	  but the less often older entropic values are overwritten
-	  with new entropy.
+	  Select the size of the LRNG entropy collection pool
+	  storing data without performing a compression operation.
+	  The larger the collection size is, the faster the
+	  average interrupt handling will be. However, on the
+	  other hand the time until the LRNG received full entropy
+	  during boot time is longer because entropy is only awarded
+	  to events once they are compressed. The collection
+	  size represents the number of bytes of the per-CPU
+	  memory used to batch up entropy event data.
 
-	config LRNG_POOL_SIZE_512
-		bool "512 bits"
+	  The default value is good for regular operations. Choose
+	  larger sizes for servers whose boot time is of less
+	  interest. Runtime memory is precious, choose a smaller
+	  size.
 
-	config LRNG_POOL_SIZE_1024
-		bool "1024 bits"
+	  The collection size is unrelated to the entropy rate
+	  or the amount of entropy the LRNG can process.
 
-	config LRNG_POOL_SIZE_2048
-		bool "2048 bits"
+	config LRNG_COLLECTION_SIZE_16
+		bool "16 interrupt events"
 
-	config LRNG_POOL_SIZE_4096
-		bool "4096 bits (default)"
+	config LRNG_COLLECTION_SIZE_32
+		bool "32 interrupt events"
 
-	config LRNG_POOL_SIZE_8192
-		bool "8192 bits"
+	config LRNG_COLLECTION_SIZE_64
+		bool "64 interrupt events (default)"
 
-	config LRNG_POOL_SIZE_16384
-		bool "16384 bits"
+	config LRNG_COLLECTION_SIZE_128
+		bool "128 interrupt events"
 
-	config LRNG_POOL_SIZE_32768
-		bool "32768 bits"
+	config LRNG_COLLECTION_SIZE_256
+		bool "256 interrupt events"
 
-	config LRNG_POOL_SIZE_65536
-		bool "65536 bits"
+	config LRNG_COLLECTION_SIZE_512
+		bool "512 interrupt events"
 
-	config LRNG_POOL_SIZE_131072
-		bool "131072 bits"
+	config LRNG_COLLECTION_SIZE_1024
+		bool "1024 interrupt events"
+
 endchoice
 
-config LRNG_POOL_SIZE
+config LRNG_COLLECTION_SIZE
 	int
-	default 0 if LRNG_POOL_SIZE_512
-	default 1 if LRNG_POOL_SIZE_1024
-	default 2 if LRNG_POOL_SIZE_2048
-	default 3 if LRNG_POOL_SIZE_4096
-	default 4 if LRNG_POOL_SIZE_8192
-	default 5 if LRNG_POOL_SIZE_16384
-	default 6 if LRNG_POOL_SIZE_32768
-	default 7 if LRNG_POOL_SIZE_65536
-	default 8 if LRNG_POOL_SIZE_131072
+	default 16 if LRNG_COLLECTION_SIZE_16
+	default 32 if LRNG_COLLECTION_SIZE_32
+	default 64 if LRNG_COLLECTION_SIZE_64
+	default 128 if LRNG_COLLECTION_SIZE_128
+	default 256 if LRNG_COLLECTION_SIZE_256
+	default 512 if LRNG_COLLECTION_SIZE_512
+	default 1024 if LRNG_COLLECTION_SIZE_1024
 
 menuconfig LRNG_DRNG_SWITCH
 	bool "Support DRNG runtime switching"
@@ -73,11 +77,16 @@ menuconfig LRNG_DRNG_SWITCH
 	  option other DRNGs can be selected and loaded at runtime.
 
 if LRNG_DRNG_SWITCH
+
+config LRNG_KCAPI_HASH
+	bool
+
 config LRNG_DRBG
 	tristate "SP800-90A support for the LRNG"
 	depends on CRYPTO
 	select CRYPTO_DRBG_MENU
 	select CRYPTO_SHA512
+	select LRNG_KCAPI_HASH
 	help
 	  Enable the SP800-90A DRBG support for the LRNG. Once the
 	  module is loaded, output from /dev/random, /dev/urandom,
@@ -88,6 +97,7 @@ config LRNG_KCAPI
 	depends on CRYPTO
 	depends on !LRNG_DRBG
 	select CRYPTO_RNG
+	select LRNG_KCAPI_HASH
 	help
 	  Enable the support for generic pseudo-random number
 	  generators offered by the kernel crypto API with the
@@ -144,7 +154,7 @@ config LRNG_APT_BROKEN
 	help
 	  This option enables a dangerously low SP800-90B adaptive
 	  proportion test (APT) cutoff value which makes it very
-	  likely that the RCT is triggered to raise a self test
+	  likely that the APT is triggered to raise a self test
 	  failure.
 
 	  This option is ONLY intended for developers wanting to
@@ -253,6 +263,19 @@ config LRNG_RAW_RETIP_ENTROPY
 	  the raw noise of the first 1000 entropy events since boot
 	  can be sampled.
 
+config LRNG_RAW_REGS_ENTROPY
+	bool "Enable entropy test interface to IRQ register value noise source"
+	help
+	  The test interface allows a privileged process to capture
+	  the raw unconditioned interrupt register value that is
+	  collected by the LRNG for statistical analysis. Extracted noise
+	  data is not used to seed the random number generator.
+
+	  The raw noise data can be obtained using the lrng_raw_regs
+	  debugfs file. Using the option lrng_testing.boot_raw_regs_test=1
+	  the raw noise of the first 1000 entropy events since boot
+	  can be sampled.
+
 config LRNG_RAW_ARRAY
 	bool "Enable test interface to LRNG raw entropy storage array"
 	help
@@ -282,9 +305,22 @@ config LRNG_IRQ_PERF
 	  lrng_testing.boot_irq_perf=1 the performance data of
 	  the first 1000 entropy events since boot can be sampled.
 
+config LRNG_ACVT_HASH
+	bool "Enable LRNG ACVT Hash interface"
+	help
+	  With this option, the LRNG built-in hash function used for
+	  auxiliary pool management and prior to switching the
+	  cryptographic backends is made available for ACVT. The
+	  interface allows writing of the data to be hashed
+	  into the interface. The read operation triggers the hash
+	  operation to generate message digest.
+
+	  The ACVT interface is available with the lrng_acvt_hash
+	  debugfs file.
+
 config LRNG_TESTING
 	bool
-	default y if (LRNG_RAW_HIRES_ENTROPY || LRNG_RAW_JIFFIES_ENTROPY ||LRNG_RAW_IRQ_ENTROPY || LRNG_RAW_IRQFLAGS_ENTROPY || LRNG_RAW_RETIP_ENTROPY || LRNG_RAW_ARRAY || LRNG_IRQ_PERF)
+	default y if (LRNG_RAW_HIRES_ENTROPY || LRNG_RAW_JIFFIES_ENTROPY ||LRNG_RAW_IRQ_ENTROPY || LRNG_RAW_IRQFLAGS_ENTROPY || LRNG_RAW_RETIP_ENTROPY || LRNG_RAW_REGS_ENTROPY || LRNG_RAW_ARRAY || LRNG_IRQ_PERF || LRNG_ACVT_HASH)
 
 endif #LRNG_TESTING_MENU
 
@@ -292,8 +328,9 @@ config LRNG_SELFTEST
 	bool "Enable power-on and on-demand self-tests"
 	help
 	  The power-on self-tests are executed during boot time
-	  covering the ChaCha20 DRNG, the LFSR processing and the
-	  time stamp management of the LRNG.
+	  covering the ChaCha20 DRNG, the hash operation used for
+	  processing the entropy pools and the auxiliary pool, and
+	  the time stamp management of the LRNG.
 
 	  The on-demand self-tests are triggered by writing any
 	  value into the SysFS file selftest_status. At the same

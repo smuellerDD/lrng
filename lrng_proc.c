@@ -12,6 +12,7 @@
 #include <linux/uuid.h>
 
 #include "lrng_internal.h"
+#include "lrng_sw_noise.h"
 
 /*
  * This function is used to return both the bootid UUID, and random
@@ -63,19 +64,31 @@ static int lrng_proc_do_entropy(struct ctl_table *table, int write,
 	return proc_dointvec(&fake_table, write, buffer, lenp, ppos);
 }
 
-static int lrng_sysctl_poolsize = LRNG_POOL_SIZE_BITS;
+static int lrng_proc_do_poolsize(struct ctl_table *table, int write,
+				 void *buffer, size_t *lenp, loff_t *ppos)
+{
+	struct ctl_table fake_table;
+	int entropy_count;
+
+	entropy_count = lrng_max_entropy();
+
+	fake_table.data = &entropy_count;
+	fake_table.maxlen = sizeof(entropy_count);
+
+	return proc_dointvec(&fake_table, write, buffer, lenp, ppos);
+}
+
 static int lrng_min_write_thresh;
-static int lrng_max_write_thresh = LRNG_POOL_SIZE_BITS;
+static int lrng_max_write_thresh = LRNG_MAX_DIGESTSIZE;
 static char lrng_sysctl_bootid[16];
 static int lrng_drng_reseed_max_min;
 
 struct ctl_table random_table[] = {
 	{
 		.procname	= "poolsize",
-		.data		= &lrng_sysctl_poolsize,
 		.maxlen		= sizeof(int),
 		.mode		= 0444,
-		.proc_handler	= proc_dointvec,
+		.proc_handler	= lrng_proc_do_poolsize,
 	},
 	{
 		.procname	= "entropy_avail",
@@ -128,13 +141,15 @@ static int lrng_proc_type_show(struct seq_file *m, void *v)
 {
 	struct lrng_drng *lrng_drng_init = lrng_drng_init_instance();
 	unsigned long flags = 0;
-	unsigned char buf[300];
+	unsigned char buf[350];
 
 	lrng_drng_lock(lrng_drng_init, &flags);
 	snprintf(buf, sizeof(buf),
 		 "DRNG name: %s\n"
 		 "Hash for reading entropy pool: %s\n"
-		 "DRNG security strength: %d bits\n"
+		 "Hash for operating aux entropy pool: %s\n"
+		 "LRNG security strength in bits: %d\n"
+		 "per-CPU interrupt collection size: %u\n"
 		 "number of DRNG instances: %u\n"
 		 "SP800-90B compliance: %s\n"
 		 "High-resolution timer: %s\n"
@@ -142,7 +157,10 @@ static int lrng_proc_type_show(struct seq_file *m, void *v)
 		 "LRNG fully seeded: %s\n",
 		 lrng_drng_init->crypto_cb->lrng_drng_name(),
 		 lrng_drng_init->crypto_cb->lrng_hash_name(),
-		 LRNG_DRNG_SECURITY_STRENGTH_BITS, numa_drngs,
+		 lrng_drng_init->crypto_cb->lrng_hash_name(),
+		 lrng_security_strength(),
+		 LRNG_DATA_NUM_VALUES,
+		 numa_drngs,
 		 lrng_sp80090b_compliant() ? "true" : "false",
 		 lrng_pool_highres_timer() ? "true" : "false",
 		 lrng_state_min_seeded() ? "true" : "false",

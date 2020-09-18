@@ -10,6 +10,7 @@
 #include <linux/atomic.h>
 #include <linux/bug.h>
 #include <linux/debugfs.h>
+#include <linux/lrng.h>
 #include <linux/module.h>
 #include <linux/sched.h>
 #include <linux/sched/signal.h>
@@ -185,7 +186,6 @@ static int lrng_testing_extract_user(struct file *file, char __user *buf,
 				     size_t nbytes, loff_t *ppos,
 				     int (*reader)(u8 *outbuf, u32 outbuflen))
 {
-	loff_t pos = *ppos;
 	u8 *tmp, *tmp_aligned;
 	int ret = 0, large_request = (nbytes > 256);
 
@@ -234,10 +234,10 @@ static int lrng_testing_extract_user(struct file *file, char __user *buf,
 		ret += i;
 	}
 
-	kzfree(tmp);
+	kfree_sensitive(tmp);
 
-	nbytes -= ret;
-	*ppos = pos + nbytes;
+	if (ret > 0)
+		*ppos += ret;
 
 	return ret;
 }
@@ -444,6 +444,46 @@ static const struct file_operations lrng_raw_retip_fops = {
 
 #endif /* CONFIG_LRNG_RAW_RETIP_ENTROPY */
 
+/********************** Raw IRQ register Data Handling ************************/
+
+#ifdef CONFIG_LRNG_RAW_REGS_ENTROPY
+
+static u32 boot_raw_regs_test = 0;
+module_param(boot_raw_regs_test, uint, 0644);
+MODULE_PARM_DESC(boot_raw_regs_test, "Enable gathering boot time entropy of the first interrupt register entropy events");
+
+static struct lrng_testing lrng_raw_regs = {
+	.rb_reader = 0,
+	.rb_writer = 0,
+	.lock      = __SPIN_LOCK_UNLOCKED(lrng_raw_regs.lock),
+	.read_wait = __WAIT_QUEUE_HEAD_INITIALIZER(lrng_raw_regs.read_wait)
+};
+
+bool lrng_raw_regs_entropy_store(u32 value)
+{
+	return lrng_testing_store(&lrng_raw_regs, value, &boot_raw_regs_test);
+}
+
+static int lrng_raw_regs_entropy_reader(u8 *outbuf, u32 outbuflen)
+{
+	return lrng_testing_reader(&lrng_raw_regs, &boot_raw_regs_test,
+				   outbuf, outbuflen);
+}
+
+static ssize_t lrng_raw_regs_read(struct file *file, char __user *to,
+				  size_t count, loff_t *ppos)
+{
+	return lrng_testing_extract_user(file, to, count, ppos,
+					 lrng_raw_regs_entropy_reader);
+}
+
+static const struct file_operations lrng_raw_regs_fops = {
+	.owner = THIS_MODULE,
+	.read = lrng_raw_regs_read,
+};
+
+#endif /* CONFIG_LRNG_RAW_REGS_ENTROPY */
+
 /********************** Raw Entropy Array Data Handling ***********************/
 
 #ifdef CONFIG_LRNG_RAW_ARRAY
@@ -525,6 +565,68 @@ static const struct file_operations lrng_irq_perf_fops = {
 
 #endif /* CONFIG_LRNG_IRQ_PERF */
 
+/*********************************** ACVT ************************************/
+
+#ifdef CONFIG_LRNG_ACVT_HASH
+
+/* maximum amount of data to be hashed as defined by ACVP */
+#define LRNG_ACVT_MAX_SHA_MSG	(65536 >> 3)
+
+/*
+ * As we use static variables to store the data, it is clear that the
+ * test interface is only able to handle single threaded testing. This is
+ * considered to be sufficient for testing. If multi-threaded use of the
+ * ACVT test interface would be performed, the caller would get garbage
+ * but the kernel operation is unaffected by this.
+ */
+static u8 lrng_acvt_hash_data[LRNG_ACVT_MAX_SHA_MSG]
+						__aligned(LRNG_KCAPI_ALIGN);
+static atomic_t lrng_acvt_hash_data_size = ATOMIC_INIT(0);
+static u8 lrng_acvt_hash_digest[LRNG_ATOMIC_DIGEST_SIZE];
+
+static ssize_t lrng_acvt_hash_write(struct file *file, const char __user *buf,
+				    size_t nbytes, loff_t *ppos)
+{
+	if (nbytes > LRNG_ACVT_MAX_SHA_MSG)
+		return -EINVAL;
+
+	atomic_set(&lrng_acvt_hash_data_size, (int)nbytes);
+
+	return simple_write_to_buffer(lrng_acvt_hash_data,
+				      LRNG_ACVT_MAX_SHA_MSG, ppos, buf, nbytes);
+}
+
+static ssize_t lrng_acvt_hash_read(struct file *file, char __user *to,
+				   size_t count, loff_t *ppos)
+{
+	SHASH_DESC_ON_STACK(shash, NULL);
+	const struct lrng_crypto_cb *crypto_cb = &lrng_cc20_crypto_cb;
+	ssize_t ret;
+
+	if (count > LRNG_ATOMIC_DIGEST_SIZE)
+		return -EINVAL;
+
+	ret = crypto_cb->lrng_hash_init(shash, NULL) ?:
+	      crypto_cb->lrng_hash_update(shash, lrng_acvt_hash_data,
+				atomic_read_u32(&lrng_acvt_hash_data_size)) ?:
+	      crypto_cb->lrng_hash_final(shash, lrng_acvt_hash_digest);
+	if (ret)
+		return ret;
+
+	return simple_read_from_buffer(to, count, ppos, lrng_acvt_hash_digest,
+				       sizeof(lrng_acvt_hash_digest));
+}
+
+static const struct file_operations lrng_acvt_hash_fops = {
+	.owner = THIS_MODULE,
+	.open = simple_open,
+	.llseek = default_llseek,
+	.read = lrng_acvt_hash_read,
+	.write = lrng_acvt_hash_write,
+};
+
+#endif /* CONFIG_LRNG_ACVT_DRNG */
+
 /**************************************************************************
  * Debugfs interface
  **************************************************************************/
@@ -559,6 +661,11 @@ static int __init lrng_raw_init(void)
 				   lrng_raw_debugfs_root, NULL,
 				   &lrng_raw_retip_fops);
 #endif
+#ifdef CONFIG_LRNG_RAW_REGS_ENTROPY
+	debugfs_create_file_unsafe("lrng_raw_regs", 0400,
+				   lrng_raw_debugfs_root, NULL,
+				   &lrng_raw_regs_fops);
+#endif
 #ifdef CONFIG_LRNG_RAW_ARRAY
 	debugfs_create_file_unsafe("lrng_raw_array", 0400,
 				   lrng_raw_debugfs_root, NULL,
@@ -567,6 +674,11 @@ static int __init lrng_raw_init(void)
 #ifdef CONFIG_LRNG_IRQ_PERF
 	debugfs_create_file_unsafe("lrng_irq_perf", 0400, lrng_raw_debugfs_root,
 				   NULL, &lrng_irq_perf_fops);
+#endif
+#ifdef CONFIG_LRNG_ACVT_HASH
+	debugfs_create_file_unsafe("lrng_acvt_hash", 0600,
+				   lrng_raw_debugfs_root, NULL,
+				   &lrng_acvt_hash_fops);
 #endif
 
 	return 0;

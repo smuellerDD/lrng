@@ -19,11 +19,6 @@ The following description of the different tests apply
   with the kernel command line option of `lrng_testing.boot_test=1`, this tool
   would obtain the raw entropy data from the first 1,000 interrupt events.
 
-* `lfsr_demonstration.c`: This application provides the output of the LFSR to
-  demonstrate that it generates white noise from a monotonic counter. To start
-  the test, please follow the instructions in the initial comments of
-  `lfsr_demonstration.c`.
-
 * `lrng_get_speed.sh`: This script summarizes the performance of either the
   legacy Linux-RNG or the LRNG. Simply invoke on a kernel with either the
   legacy Linux-RNG or the LRNG compiled and analyze the human-readable output
@@ -54,9 +49,16 @@ The following description of the different tests apply
   and invoke the script with the generate data. Beware, this test may run for
   a long time (one or two hours).
 
-* `time_storage.c`: Test demonstration verifying the correctness of the
-  storage of the truncated time stamp into a buffer as used by the interrupt
-  handling code.
+* `data_storage.c`: Test demonstration verifying the correctness of the
+  storage of the truncated time stamp into a data array as used by the
+  interrupt handling code.
+
+* `get_mean.r` is an R-project script to calculate the mean value
+  from the output of the interrupt performance data. The calculated
+  value provides the average amount of time the LRNG interrupt handler
+  code takes. Supportive to this script is `draw_graph_performance.r`
+  which allows to draw the diagram given in the LRNG documentation
+  section 4.2.
 
 Please note that the ChaCha20 DRNG implementation can be tested with
 https://github.com/smuellerDD/chacha20_drng which used to be the test

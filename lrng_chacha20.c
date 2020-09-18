@@ -30,7 +30,7 @@ struct chacha20_state {
  * kmalloc too early in the boot cycle. For subsequent allocation requests,
  * such as per-NUMA-node DRNG instances, kmalloc will be used.
  */
-struct chacha20_state chacha20;
+struct chacha20_state chacha20 __latent_entropy;
 
 /**
  * Update of the ChaCha20 state by either using an unused buffer part or by
@@ -224,7 +224,7 @@ static void lrng_cc20_drng_dealloc(void *drng)
 	}
 
 	pr_debug("ChaCha20 core zeroized and freed\n");
-	kzfree(chacha20_state);
+	kfree_sensitive(chacha20_state);
 }
 
 /******************************* Hash Operation *******************************/
@@ -236,17 +236,26 @@ static u32 lrng_cc20_hash_digestsize(void *hash)
 	return SHA256_DIGEST_SIZE;
 }
 
-static int lrng_cc20_hash_buffer(void *hash, const u8 *inbuf, u32 inbuflen,
-				 u8 *digest)
+static int lrng_cc20_hash_init(struct shash_desc *shash, void *hash)
 {
-	struct sha256_state sctx;
+	/*
+	 * We do not need a TFM - we only need sufficient space for
+	 * struct sha1_state on the stack.
+	 */
+	sha256_init(shash_desc_ctx(shash));
+	return 0;
+}
 
-	sha256_init(&sctx);
-	sha256_update(&sctx, inbuf, inbuflen);
-	sha256_final(&sctx, digest);
+static int lrng_cc20_hash_update(struct shash_desc *shash,
+				 const u8 *inbuf, u32 inbuflen)
+{
+	sha256_update(shash_desc_ctx(shash), inbuf, inbuflen);
+	return 0;
+}
 
-	/* Zeroization of sctx is performed by sha256_final */
-
+static int lrng_cc20_hash_final(struct shash_desc *shash, u8 *digest)
+{
+	sha256_final(shash_desc_ctx(shash), digest);
 	return 0;
 }
 
@@ -258,29 +267,49 @@ static const char *lrng_cc20_hash_name(void)
 
 #else /* CONFIG_CRYPTO_LIB_SHA256 */
 
+#include <crypto/sha1_base.h>
+
 /*
  * If the SHA-256 support is not compiled, we fall back to SHA-1 that is always
  * compiled and present in the kernel.
  */
 static u32 lrng_cc20_hash_digestsize(void *hash)
 {
-	return (SHA1_DIGEST_WORDS * sizeof(u32));
+	return SHA1_DIGEST_SIZE;
 }
 
-static int lrng_cc20_hash_buffer(void *hash, const u8 *inbuf, u32 inbuflen,
-				 u8 *digest)
+static void lrng_sha1_block_fn(struct sha1_state *sctx, const u8 *src,
+			       int blocks)
 {
-	u32 i;
-	u32 workspace[SHA1_WORKSPACE_WORDS];
+	u32 temp[SHA1_WORKSPACE_WORDS];
 
-	WARN_ON(inbuflen % (SHA1_WORKSPACE_WORDS * sizeof(u32)));
+	while (blocks--) {
+		sha1_transform(sctx->state, src, temp);
+		src += SHA1_BLOCK_SIZE;
+	}
+	memzero_explicit(temp, sizeof(temp));
+}
 
-	sha1_init((u32 *)digest);
-	for (i = 0; i < inbuflen; i += (SHA1_WORKSPACE_WORDS * sizeof(u32)))
-		sha1_transform((u32 *)digest, (inbuf + i), workspace);
-	memzero_explicit(workspace, sizeof(workspace));
-
+static int lrng_cc20_hash_init(struct shash_desc *shash, void *hash)
+{
+	/*
+	 * We do not need a TFM - we only need sufficient space for
+	 * struct sha1_state on the stack.
+	 */
+	sha1_base_init(shash);
 	return 0;
+}
+
+static int lrng_cc20_hash_update(struct shash_desc *shash,
+				 const u8 *inbuf, u32 inbuflen)
+{
+	return sha1_base_do_update(shash, inbuf, inbuflen, lrng_sha1_block_fn);
+}
+
+static int lrng_cc20_hash_final(struct shash_desc *shash, u8 *digest)
+{
+	return sha1_base_do_finalize(shash, lrng_sha1_block_fn) ?:
+	       sha1_base_finish(shash, digest);
 }
 
 static const char *lrng_cc20_hash_name(void)
@@ -291,7 +320,7 @@ static const char *lrng_cc20_hash_name(void)
 
 #endif /* CONFIG_CRYPTO_LIB_SHA256 */
 
-static void *lrng_cc20_hash_alloc(const u8 *key, u32 keylen)
+static void *lrng_cc20_hash_alloc(void)
 {
 	pr_info("Hash %s allocated\n", lrng_cc20_hash_name());
 	return NULL;
@@ -317,5 +346,7 @@ const struct lrng_crypto_cb lrng_cc20_crypto_cb = {
 	.lrng_hash_alloc		= lrng_cc20_hash_alloc,
 	.lrng_hash_dealloc		= lrng_cc20_hash_dealloc,
 	.lrng_hash_digestsize		= lrng_cc20_hash_digestsize,
-	.lrng_hash_buffer		= lrng_cc20_hash_buffer,
+	.lrng_hash_init			= lrng_cc20_hash_init,
+	.lrng_hash_update		= lrng_cc20_hash_update,
+	.lrng_hash_final		= lrng_cc20_hash_final,
 };

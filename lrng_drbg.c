@@ -13,6 +13,8 @@
 #include <linux/module.h>
 #include <linux/lrng.h>
 
+#include "lrng_kcapi_hash.h"
+
 /*
  * Define a DRBG plus a hash / MAC used to extract data from the entropy pool.
  * For LRNG_HASH_NAME you can use a hash or a MAC (HMAC or CMAC) of your choice
@@ -58,11 +60,6 @@ static const struct lrng_drbg lrng_drbg_types[] = {
 		.hash_name = "sha512",
 		.drbg_core = "drbg_nopr_sha512"
 	}
-};
-
-struct lrng_hash_info {
-	struct shash_desc shash;
-	char ctx[];
 };
 
 static int lrng_drbg_drng_seed_helper(void *drng, const u8 *inbuf, u32 inbuflen)
@@ -143,74 +140,13 @@ static void lrng_drbg_drng_dealloc(void *drng)
 	if (drbg && drbg->d_ops)
 		drbg->d_ops->crypto_fini(drbg);
 	drbg_dealloc_state(drbg);
-	kzfree(drbg);
+	kfree_sensitive(drbg);
 	pr_info("DRBG deallocated\n");
 }
 
-static void *lrng_drbg_hash_alloc(const u8 *key, u32 keylen)
+static void *lrng_drbg_hash_alloc(void)
 {
-	struct lrng_hash_info *lrng_hash;
-	struct crypto_shash *tfm;
-	int size, ret;
-
-	tfm = crypto_alloc_shash(lrng_drbg_types[lrng_drbg_type].hash_name,
-				 0, 0);
-	if (IS_ERR(tfm)) {
-		pr_err("could not allocate hash %s\n",
-		       lrng_drbg_types[lrng_drbg_type].hash_name);
-		return ERR_CAST(tfm);
-	}
-
-	size = sizeof(struct lrng_hash_info) + crypto_shash_descsize(tfm);
-	lrng_hash = kmalloc(size, GFP_KERNEL);
-	if (!lrng_hash) {
-		crypto_free_shash(tfm);
-		return ERR_PTR(-ENOMEM);
-	}
-
-	lrng_hash->shash.tfm = tfm;
-
-	/* If the used hash is no MAC, ignore the ENOSYS return code */
-	ret = crypto_shash_setkey(tfm, key, keylen);
-	if (ret && ret != -ENOSYS) {
-		pr_err("could not set the key for MAC\n");
-		crypto_free_shash(tfm);
-		kfree(lrng_hash);
-		return ERR_PTR(ret);
-	}
-
-	pr_info("Hash %s allocated\n",
-		lrng_drbg_types[lrng_drbg_type].hash_name);
-
-	return lrng_hash;
-}
-
-static void lrng_drbg_hash_dealloc(void *hash)
-{
-	struct lrng_hash_info *lrng_hash = (struct lrng_hash_info *)hash;
-	struct shash_desc *shash = &lrng_hash->shash;
-	struct crypto_shash *tfm = shash->tfm;
-
-	crypto_free_shash(tfm);
-	kfree(lrng_hash);
-	pr_info("Hash deallocated\n");
-}
-
-static u32 lrng_drbg_hash_digestsize(void *hash)
-{
-	struct lrng_hash_info *lrng_hash = (struct lrng_hash_info *)hash;
-	struct shash_desc *shash = &lrng_hash->shash;
-
-	return crypto_shash_digestsize(shash->tfm);
-}
-
-static int lrng_drbg_hash_buffer(void *hash, const u8 *inbuf, u32 inbuflen,
-				 u8 *digest)
-{
-	struct lrng_hash_info *lrng_hash = (struct lrng_hash_info *)hash;
-	struct shash_desc *shash = &lrng_hash->shash;
-
-	return crypto_shash_digest(shash, inbuf, inbuflen, digest);
+	return lrng_kcapi_hash_alloc(lrng_drbg_types[lrng_drbg_type].hash_name);
 }
 
 static const char *lrng_drbg_name(void)
@@ -231,9 +167,11 @@ static const struct lrng_crypto_cb lrng_drbg_crypto_cb = {
 	.lrng_drng_seed_helper		= lrng_drbg_drng_seed_helper,
 	.lrng_drng_generate_helper	= lrng_drbg_drng_generate_helper,
 	.lrng_hash_alloc		= lrng_drbg_hash_alloc,
-	.lrng_hash_dealloc		= lrng_drbg_hash_dealloc,
-	.lrng_hash_digestsize		= lrng_drbg_hash_digestsize,
-	.lrng_hash_buffer		= lrng_drbg_hash_buffer,
+	.lrng_hash_dealloc		= lrng_kcapi_hash_dealloc,
+	.lrng_hash_digestsize		= lrng_kcapi_hash_digestsize,
+	.lrng_hash_init			= lrng_kcapi_hash_init,
+	.lrng_hash_update		= lrng_kcapi_hash_update,
+	.lrng_hash_final		= lrng_kcapi_hash_final,
 };
 
 static int __init lrng_drbg_init(void)

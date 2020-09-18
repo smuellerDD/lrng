@@ -43,7 +43,7 @@ static struct fasync_struct *fasync;
 /* Is the DRNG seed level too low? */
 static inline bool lrng_need_entropy(void)
 {
-	return (lrng_avail_entropy() < lrng_write_wakeup_bits);
+	return (lrng_avail_aux_entropy() < lrng_write_wakeup_bits);
 }
 
 void lrng_writer_wakeup(void)
@@ -133,8 +133,7 @@ void add_hwgenerator_randomness(const char *buffer, size_t count,
 				lrng_state_exseed_allow(lrng_noise_source_hw) ||
 				kthread_should_stop());
 	lrng_state_exseed_set(lrng_noise_source_hw, false);
-	lrng_pool_lfsr_nonaligned(buffer, count);
-	lrng_pool_add_entropy(entropy_bits);
+	lrng_pool_insert_aux(buffer, count, entropy_bits);
 }
 EXPORT_SYMBOL_GPL(add_hwgenerator_randomness);
 
@@ -172,7 +171,7 @@ void add_input_randomness(unsigned int type, unsigned int code,
 
 	last_value = value;
 
-	lrng_pool_lfsr_u32((type << 4) ^ code ^ (code >> 4) ^ value);
+	lrng_pcpu_array_add_u32((type << 4) ^ code ^ (code >> 4) ^ value);
 }
 EXPORT_SYMBOL_GPL(add_input_randomness);
 
@@ -190,9 +189,7 @@ EXPORT_SYMBOL_GPL(add_input_randomness);
  */
 void add_device_randomness(const void *buf, unsigned int size)
 {
-	lrng_pool_lfsr_nonaligned((u8 *)buf, size);
-	lrng_pool_lfsr_u32(random_get_entropy());
-	lrng_pool_lfsr_u32(jiffies);
+	lrng_pool_insert_aux((u8 *)buf, size, 0);
 }
 EXPORT_SYMBOL(add_device_randomness);
 
@@ -435,7 +432,7 @@ static ssize_t lrng_read_common(char __user *buf, size_t nbytes)
 
 	/* Wipe data just returned from memory */
 	if (tmp_large)
-		kzfree(tmp_large);
+		kfree_sensitive(tmp_large);
 	else
 		memzero_explicit(tmpbuf, sizeof(tmpbuf));
 
@@ -503,8 +500,7 @@ static ssize_t lrng_drng_write_common(const char __user *buffer, size_t count,
 		if (copy_from_user(&buf, p, bytes))
 			return -EFAULT;
 		/* Inject data into entropy pool */
-		lrng_pool_lfsr(buf, bytes);
-		lrng_pool_add_entropy(ent);
+		lrng_pool_insert_aux(buf, bytes, ent);
 
 		count -= bytes;
 		p += bytes;
@@ -542,6 +538,7 @@ static ssize_t lrng_drng_write(struct file *file, const char __user *buffer,
 
 static long lrng_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 {
+	u32 digestsize_bits;
 	int size, ent_count_bits;
 	int __user *p = (int __user *)arg;
 
@@ -559,8 +556,9 @@ static long lrng_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 		ent_count_bits = (int)lrng_avail_entropy() + ent_count_bits;
 		if (ent_count_bits < 0)
 			ent_count_bits = 0;
-		if (ent_count_bits > LRNG_POOL_SIZE_BITS)
-			ent_count_bits = LRNG_POOL_SIZE_BITS;
+		digestsize_bits = lrng_get_digestsize();
+		if (ent_count_bits > digestsize_bits)
+			ent_count_bits = digestsize_bits;
 		lrng_pool_set_entropy(ent_count_bits);
 		return 0;
 	case RNDADDENTROPY:

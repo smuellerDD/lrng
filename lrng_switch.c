@@ -15,11 +15,12 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 			    const struct lrng_crypto_cb *cb, int node)
 {
 	const struct lrng_crypto_cb *old_cb;
-	unsigned long flags = 0;
+	unsigned long flags = 0, flags2 = 0;
 	int ret;
-	u8 seed[LRNG_DRNG_SECURITY_STRENGTH_BYTES] __latent_entropy;
+	u8 seed[LRNG_DRNG_SECURITY_STRENGTH_BYTES];
 	void *new_drng = cb->lrng_drng_alloc(LRNG_DRNG_SECURITY_STRENGTH_BYTES);
 	void *old_drng, *new_hash, *old_hash;
+	u32 current_security_strength;
 	bool sl = false, reset_drng = !lrng_get_available();
 
 	if (IS_ERR(new_drng)) {
@@ -28,14 +29,7 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 		return PTR_ERR(new_drng);
 	}
 
-	/*
-	 * The seed potentially used as MAC key is undefined to add some
-	 * variation. Yet, the security of the MAC does not rely on the key
-	 * being secret. The key is only there to turn a MAC into a hash.
-	 * The intention is to allow the specification of CMAC(AES) as "hash"
-	 * to limit the dependency to AES when using the CTR DRBG.
-	 */
-	new_hash = cb->lrng_hash_alloc(seed, sizeof(seed));
+	new_hash = cb->lrng_hash_alloc();
 	if (IS_ERR(new_hash)) {
 		pr_warn("could not allocate new LRNG pool hash (%ld)\n",
 			PTR_ERR(new_hash));
@@ -43,6 +37,14 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 		return PTR_ERR(new_hash);
 	}
 
+	if (cb->lrng_hash_digestsize(new_hash) > LRNG_MAX_DIGESTSIZE) {
+		pr_warn("digest size of newly requested hash too large\n");
+		cb->lrng_hash_dealloc(new_hash);
+		cb->lrng_drng_dealloc(new_drng);
+		return -EINVAL;
+	}
+
+	current_security_strength = lrng_security_strength();
 	lrng_drng_lock(drng_store, &flags);
 
 	/*
@@ -74,6 +76,7 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 	}
 
 	mutex_lock(&drng_store->lock);
+	write_lock_irqsave(&drng_store->hash_lock, flags2);
 	/*
 	 * If we switch the DRNG from the initial ChaCha20 DRNG to something
 	 * else, there is a lock transition from spin lock to mutex (see
@@ -100,10 +103,17 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 	pr_info("Entropy pool read-hash allocated for DRNG for NUMA node %d\n",
 		node);
 
+	lrng_set_digestsize(cb->lrng_hash_digestsize(new_hash));
+
+	/* Reseed if previous LRNG security strength was insufficient */
+	if (current_security_strength < lrng_security_strength())
+		drng_store->force_reseed = true;
+
 	if (sl)
 		spin_unlock_irqrestore(&drng_store->spin_lock, flags);
 	else
 		__release(&drng_store->spin_lock);
+	write_unlock_irqrestore(&drng_store->hash_lock, flags2);
 	mutex_unlock(&drng_store->lock);
 
 	/* ChaCha20 serves as atomic instance left untouched. */
