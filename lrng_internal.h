@@ -277,7 +277,6 @@ struct lrng_pool {
 u32 lrng_entropy_to_data(u32 entropy_bits);
 u32 lrng_data_to_entropy(u32 irqnum);
 u32 lrng_avail_aux_entropy(void);
-u32 lrng_max_entropy(void);
 void lrng_set_digestsize(u32 digestsize);
 u32 lrng_get_digestsize(void);
 
