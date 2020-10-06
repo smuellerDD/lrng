@@ -96,7 +96,9 @@ u32 lrng_data_to_entropy(u32 irqnum)
 /* Entropy in bits present in aux pool */
 u32 lrng_avail_aux_entropy(void)
 {
-	return atomic_read_u32(&lrng_pool.aux_entropy_bits);
+	/* Cap available entropy with max entropy */
+	return min_t(u32, atomic_read_u32(&lrng_pool.digestsize) << 3,
+		     atomic_read_u32(&lrng_pool.aux_entropy_bits));
 }
 
 /* Maximum amount of entropy the LRNG can ever hold in bits */
@@ -105,21 +107,6 @@ u32 lrng_max_entropy(void)
 	/* LRNG can at most retain entropy in per-CPU pools and aux pool */
 	return (atomic_read_u32(&lrng_pool.digestsize) *
 				(num_online_cpus() + 1)) << 3;
-}
-
-/* Entropy available in LRNG covering aux pool and per-CPU pools */
-u32 lrng_avail_entropy(void)
-{
-	u32 digestsize_bits = atomic_read_u32(&lrng_pool.digestsize) << 3;
-	/* Maximum of entropy pools */
-	u32 pcpu = digestsize_bits * num_online_cpus();
-	u32 aux = digestsize_bits;
-
-	/* Cap available entropy with max entropy */
-	pcpu = min_t(u32, lrng_pcpu_avail_entropy(), pcpu);
-	aux = min_t(u32, lrng_avail_aux_entropy(), aux);
-
-	return pcpu + aux;
 }
 
 /* Set the digest size of the used hash in bytes */

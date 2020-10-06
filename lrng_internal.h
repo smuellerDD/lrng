@@ -278,7 +278,6 @@ u32 lrng_entropy_to_data(u32 entropy_bits);
 u32 lrng_data_to_entropy(u32 irqnum);
 u32 lrng_avail_aux_entropy(void);
 u32 lrng_max_entropy(void);
-u32 lrng_avail_entropy(void);
 void lrng_set_digestsize(u32 digestsize);
 u32 lrng_get_digestsize(void);
 
@@ -306,6 +305,11 @@ u32 lrng_pcpu_avail_irqs(void);
 static inline u32 lrng_pcpu_avail_entropy(void)
 {
 	return lrng_data_to_entropy(lrng_pcpu_avail_irqs());
+}
+
+static inline u32 lrng_avail_entropy(void)
+{
+	return lrng_pcpu_avail_entropy() + lrng_avail_aux_entropy();
 }
 
 u32 lrng_pcpu_pool_hash(struct lrng_drng *drng, struct lrng_pool *pool,
