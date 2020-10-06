@@ -71,13 +71,16 @@ static inline void lrng_testing_init(struct lrng_testing *data, u32 boot)
 	pr_warn("Enabling data collection\n");
 }
 
-static inline void lrng_testing_fini(struct lrng_testing *data)
+static inline void lrng_testing_fini(struct lrng_testing *data, u32 boot)
 {
+	/* If we have boot data, we do not reset yet to allow data to be read */
+	if (boot)
+		return;
+
 	atomic_set(&data->lrng_testing_enabled, 0);
 	lrng_testing_reset(data);
 	pr_warn("Disabling data collection\n");
 }
-
 
 static inline bool lrng_testing_store(struct lrng_testing *data, u32 value,
 				      u32 *boot)
@@ -177,8 +180,7 @@ static inline int lrng_testing_reader(struct lrng_testing *data, u32 *boot,
 	}
 
 out:
-	if (!lrng_testing_have_data(data))
-		lrng_testing_fini(data);
+	lrng_testing_fini(data, *boot);
 	return collected_data;
 }
 
