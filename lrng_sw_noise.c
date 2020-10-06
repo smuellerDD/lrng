@@ -52,13 +52,18 @@ void lrng_pcpu_reset(void)
 /* Return number of unused IRQs present in all per-CPU pools. */
 u32 lrng_pcpu_avail_irqs(void)
 {
-	u32 irq = 0;
+	u32 digestsize_irqs, irq = 0;
 	int cpu;
+
+	/* Obtain the cap of maximum numbers of IRQs we count */
+	digestsize_irqs = lrng_entropy_to_data(lrng_get_digestsize());
 
 	for_each_online_cpu(cpu) {
 		if (!lrng_pcpu_pool_online(cpu))
 			continue;
-		irq += atomic_read_u32(per_cpu_ptr(&lrng_pcpu_array_irqs, cpu));
+		irq += min_t(u32, digestsize_irqs,
+			     atomic_read_u32(per_cpu_ptr(&lrng_pcpu_array_irqs,
+							 cpu)));
 	}
 
 	return irq;
