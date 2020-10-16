@@ -1,0 +1,15 @@
+--- linux-5.4/crypto/jitterentropy.c.orig	2020-08-20 13:12:23.668777356 +0200
++++ linux-5.4/crypto/jitterentropy.c	2020-08-20 13:12:47.004057426 +0200
+@@ -655,12 +655,6 @@ struct rand_data *jent_lrng_entropy_coll
+ 		.memblocks	= JENT_MEMORY_BLOCKSIZE,
+ 		.memblocksize	= JENT_MEMORY_BLOCKS,
+ 		.memaccessloops	= JENT_MEMORY_ACCESSLOOPS,
+-		.rct_count	= 0,
+-		.apt_observations = 0,
+-		.apt_count	= 0,
+-		.apt_base	= 0,
+-		.apt_base_set	= 0,
+-		.health_failure = 0
+ 	};
+ 
+ 	if (jent_entropy_init())

@@ -1,0 +1,22 @@
+--- linux-5.4/drivers/char/lrng/lrng_sw_noise.c.orig	2020-08-20 13:20:57.608945476 +0200
++++ linux-5.4/drivers/char/lrng/lrng_sw_noise.c	2020-08-20 13:21:37.410423145 +0200
+@@ -38,7 +38,7 @@ static inline void lrng_time_process(u32
+ 	if (unlikely(!lrng_state_fully_seeded())) {
+ 
+ 		/* Seed random32 PRNG with data not used by LRNG. */
+-		this_cpu_add(net_rand_state.s1, random32_data);
++		//this_cpu_add(net_rand_state.s1, random32_data);
+ 
+ 		if (lrng_raw_hires_entropy_store(now_time))
+ 			goto out;
+@@ -58,8 +58,8 @@ static inline void lrng_time_process(u32
+ 		goto out;
+ 
+ 	/* Seed random32 PRNG with data not used by LRNG. */
+-	this_cpu_add(net_rand_state.s1,
+-		     (now_time & ~LRNG_TIME_SLOTSIZE_MASK) ^ random32_data);
++	//this_cpu_add(net_rand_state.s1,
++	//	     (now_time & ~LRNG_TIME_SLOTSIZE_MASK) ^ random32_data);
+ 
+ 	health_test = lrng_health_test(now_time_masked);
+ 	if (health_test > lrng_health_fail_use)

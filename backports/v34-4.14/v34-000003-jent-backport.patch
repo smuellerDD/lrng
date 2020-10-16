@@ -1,0 +1,67 @@
+diff -urNp linux-4.19.orig/crypto/jitterentropy.c linux-4.19/crypto/jitterentropy.c
+--- linux-4.19.orig/crypto/jitterentropy.c	2020-08-20 12:33:37.584860610 +0200
++++ linux-4.19/crypto/jitterentropy.c	2020-08-20 12:44:34.654746533 +0200
+@@ -110,13 +110,7 @@ struct rand_data {
+  * Helper functions
+  ***************************************************************************/
+ 
+-void jent_get_nstime(__u64 *out);
+-__u64 jent_rol64(__u64 word, unsigned int shift);
+-void *jent_zalloc(unsigned int len);
+-void jent_zfree(void *ptr);
+-int jent_fips_enabled(void);
+-void jent_panic(char *s);
+-void jent_memcpy(void *dest, const void *src, unsigned int n);
++#include "jitterentropy.h"
+ 
+ /**
+  * Update of the loop count used for the next round of
+@@ -418,6 +412,7 @@ static __u64 jent_unbiased_bit(struct ra
+  * Input:
+  * @entropy_collector Reference to entropy collector
+  */
++__u64 jent_rol64(__u64 word, unsigned int shift);
+ static void jent_stir_pool(struct rand_data *entropy_collector)
+ {
+ 	/*
+diff -urNp linux-4.19.orig/crypto/jitterentropy.h linux-4.19/crypto/jitterentropy.h
+--- linux-4.19.orig/crypto/jitterentropy.h	1970-01-01 01:00:00.000000000 +0100
++++ linux-4.19/crypto/jitterentropy.h	2020-08-20 12:44:34.654746533 +0200
+@@ -0,0 +1,19 @@
++// SPDX-License-Identifier: GPL-2.0-or-later
++
++typedef unsigned long long      __u64;
++
++extern void *jent_zalloc(unsigned int len);
++extern void jent_zfree(void *ptr);
++extern int jent_fips_enabled(void);
++extern void jent_panic(char *s);
++extern void jent_memcpy(void *dest, const void *src, unsigned int n);
++extern void jent_get_nstime(__u64 *out);
++
++struct rand_data;
++extern int jent_entropy_init(void);
++extern int jent_read_entropy(struct rand_data *ec, unsigned char *data,
++			     unsigned int len);
++
++extern struct rand_data *jent_entropy_collector_alloc(unsigned int osr,
++						      unsigned int flags);
++extern void jent_entropy_collector_free(struct rand_data *entropy_collector);
+diff -urNp linux-4.19.orig/crypto/jitterentropy-kcapi.c linux-4.19/crypto/jitterentropy-kcapi.c
+--- linux-4.19.orig/crypto/jitterentropy-kcapi.c	2020-08-20 12:33:37.583860598 +0200
++++ linux-4.19/crypto/jitterentropy-kcapi.c	2020-08-20 12:44:34.653746522 +0200
+@@ -44,13 +44,7 @@
+ #include <linux/crypto.h>
+ #include <crypto/internal/rng.h>
+ 
+-struct rand_data;
+-int jent_read_entropy(struct rand_data *ec, unsigned char *data,
+-		      unsigned int len);
+-int jent_entropy_init(void);
+-struct rand_data *jent_entropy_collector_alloc(unsigned int osr,
+-					       unsigned int flags);
+-void jent_entropy_collector_free(struct rand_data *entropy_collector);
++#include "jitterentropy.h"
+ 
+ /***************************************************************************
+  * Helper function
