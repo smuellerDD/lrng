@@ -59,6 +59,8 @@ To add the LFSR power-on self test, do:
 2. Add invocation of `lrng_pool_lfsr_selftest` to function `lrng_selftest`
    to ensure it is invoked during startup time or during run time.
 
+3. Disable use of `lrng_hash_selftest`.
+
 # Test Tools
 
 The following test tools are available in the `tests` directory:
