@@ -377,10 +377,8 @@ static inline void lrng_pcpu_array_add_slot(u32 data)
 
 /*
  * Batching up of entropy in per-CPU array before injecting into entropy pool.
- *
- * The random32_data is solely to be used for the external random32 PRNG.
  */
-static inline void lrng_time_process(u32 random32_data)
+static inline void lrng_time_process(void)
 {
 	u32 now_time = random_get_entropy();
 	u32 now_time_masked = now_time & LRNG_DATA_SLOTSIZE_MASK;
@@ -388,10 +386,6 @@ static inline void lrng_time_process(u32 random32_data)
 
 	/* During boot time, we process the full time stamp */
 	if (unlikely(!lrng_state_fully_seeded())) {
-
-		/* Seed random32 PRNG with data not used by LRNG. */
-		this_cpu_add(net_rand_state.s1, random32_data);
-
 		if (lrng_raw_hires_entropy_store(now_time))
 			goto out;
 
@@ -407,10 +401,6 @@ static inline void lrng_time_process(u32 random32_data)
 		/* Runtime operation */
 		if (lrng_raw_hires_entropy_store(now_time_masked))
 			goto out;
-
-		/* Seed random32 PRNG with data not used by LRNG. */
-		this_cpu_add(net_rand_state.s1,
-			(now_time & ~LRNG_DATA_SLOTSIZE_MASK) ^ random32_data);
 
 		health_test = lrng_health_test(now_time_masked);
 		if (health_test > lrng_health_fail_use)
@@ -430,17 +420,13 @@ out:
 /* Hot code path - Callback for interrupt handler */
 void add_interrupt_randomness(int irq, int irq_flg)
 {
-	u32 tmp;
-
 	if (lrng_pool_highres_timer()) {
-		tmp = lrng_raw_irq_entropy_store(irq) ? 0 : irq;
-		tmp ^= lrng_raw_irqflags_entropy_store(irq_flg) ? 0 : irq_flg;
-		tmp ^= lrng_raw_retip_entropy_store(_RET_IP_) ? 0 : _RET_IP_;
-		lrng_time_process(tmp);
+		lrng_time_process();
 	} else {
 		struct pt_regs *regs = get_irq_regs();
 		static atomic_t reg_idx = ATOMIC_INIT(0);
 		u64 ip;
+		u32 tmp;
 
 		if (regs) {
 			u32 *ptr = (u32 *)regs;
@@ -455,7 +441,7 @@ void add_interrupt_randomness(int irq, int irq_flg)
 			ip = _RET_IP_;
 		}
 
-		lrng_time_process(lrng_raw_retip_entropy_store(ip) ? 0 : ip);
+		lrng_time_process();
 
 		/*
 		 * The XOR operation combining the different values is not
@@ -463,11 +449,11 @@ void add_interrupt_randomness(int irq, int irq_flg)
 		 * processed values delivers the entropy (and not each
 		 * value separately of the other values).
 		 */
-		ip >>= 32;
 		tmp = lrng_raw_jiffies_entropy_store(jiffies) ? 0 : jiffies;
 		tmp ^= lrng_raw_irq_entropy_store(irq) ? 0 : irq;
 		tmp ^= lrng_raw_irqflags_entropy_store(irq_flg) ? 0 : irq_flg;
 		tmp ^= lrng_raw_retip_entropy_store(ip) ? 0 : ip;
+		tmp ^= ip >> 32;
 		_lrng_pcpu_array_add_u32(tmp);
 	}
 }
