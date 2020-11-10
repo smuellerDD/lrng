@@ -269,8 +269,16 @@ static inline void lrng_pcpu_array_to_hash(u32 ptr)
 {
 	u32 *array = this_cpu_ptr(lrng_pcpu_array);
 
-	if (ptr < LRNG_DATA_WORD_MASK)
+	/*
+	 * During boot time the hash operation is triggered more often than
+	 * during regular operation.
+	 */
+	if (unlikely(!lrng_state_fully_seeded())) {
+		if ((ptr & 31) && (ptr < LRNG_DATA_WORD_MASK))
+			return;
+	} else if (ptr < LRNG_DATA_WORD_MASK) {
 		return;
+	}
 
 	if (lrng_raw_array_entropy_store(*array)) {
 		u32 i;

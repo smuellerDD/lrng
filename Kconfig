@@ -16,7 +16,7 @@ if LRNG
 
 choice
 	prompt "LRNG Entropy Collection Pool Size"
-	default LRNG_COLLECTION_SIZE_64
+	default LRNG_COLLECTION_SIZE_1024
 	help
 	  Select the size of the LRNG entropy collection pool
 	  storing data without performing a compression operation.
