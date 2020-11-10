@@ -90,24 +90,36 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 		__acquire(&drng_store->spin_lock);
 	}
 
-	if (reset_drng)
-		lrng_drng_reset(drng_store);
+	/* Trigger the switch of the per-CPU entropy pools for current node. */
+	ret = lrng_pcpu_switch_hash(node, cb, new_hash, drng_store->crypto_cb);
+	if (!ret) {
+		if (reset_drng)
+			lrng_drng_reset(drng_store);
 
-	old_drng = drng_store->drng;
-	old_cb = drng_store->crypto_cb;
-	drng_store->drng = new_drng;
-	drng_store->crypto_cb = cb;
+		old_drng = drng_store->drng;
+		old_cb = drng_store->crypto_cb;
+		drng_store->drng = new_drng;
+		drng_store->crypto_cb = cb;
 
-	old_hash = drng_store->hash;
-	drng_store->hash = new_hash;
-	pr_info("Entropy pool read-hash allocated for DRNG for NUMA node %d\n",
-		node);
+		old_hash = drng_store->hash;
+		drng_store->hash = new_hash;
+		pr_info("Entropy pool read-hash allocated for DRNG for NUMA node %d\n",
+			node);
 
-	lrng_set_digestsize(cb->lrng_hash_digestsize(new_hash));
+		lrng_set_digestsize(cb->lrng_hash_digestsize(new_hash));
 
-	/* Reseed if previous LRNG security strength was insufficient */
-	if (current_security_strength < lrng_security_strength())
-		drng_store->force_reseed = true;
+		/* Reseed if previous LRNG security strength was insufficient */
+		if (current_security_strength < lrng_security_strength())
+			drng_store->force_reseed = true;
+
+		/* ChaCha20 serves as atomic instance left untouched. */
+		if (old_drng != &chacha20) {
+			old_cb->lrng_drng_dealloc(old_drng);
+			old_cb->lrng_hash_dealloc(old_hash);
+		}
+
+		pr_info("DRNG of NUMA node %d switched\n", node);
+	}
 
 	if (sl)
 		spin_unlock_irqrestore(&drng_store->spin_lock, flags);
@@ -116,15 +128,7 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 	write_unlock_irqrestore(&drng_store->hash_lock, flags2);
 	mutex_unlock(&drng_store->lock);
 
-	/* ChaCha20 serves as atomic instance left untouched. */
-	if (old_drng != &chacha20) {
-		old_cb->lrng_drng_dealloc(old_drng);
-		old_cb->lrng_hash_dealloc(old_hash);
-	}
-
-	pr_info("DRNG of NUMA node %d switched\n", node);
-
-	return 0;
+	return ret;
 }
 
 /*

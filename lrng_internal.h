@@ -162,7 +162,7 @@ struct lrng_drng {
 	/* Lock write operations on DRNG state, DRNG replacement of crypto_cb */
 	struct mutex lock;
 	spinlock_t spin_lock;
-	/* Lock hash replacement of crypto_cb */
+	/* Lock *hash replacement - always take before DRNG lock */
 	rwlock_t hash_lock;
 };
 
@@ -311,7 +311,10 @@ static inline u32 lrng_avail_entropy(void)
 	return lrng_pcpu_avail_entropy() + lrng_avail_aux_entropy();
 }
 
-u32 lrng_pcpu_pool_hash(struct lrng_drng *drng, struct lrng_pool *pool,
+int lrng_pcpu_switch_hash(int node,
+			  const struct lrng_crypto_cb *new_cb, void *new_hash,
+			  const struct lrng_crypto_cb *old_cb);
+u32 lrng_pcpu_pool_hash(struct lrng_pool *pool,
 			u8 *outbuf, u32 requested_bits, bool fully_seeded);
 void lrng_pcpu_array_add_u32(u32 data);
 
@@ -337,8 +340,7 @@ struct entropy_buf {
 	u32 now;
 };
 
-int lrng_fill_seed_buffer(struct lrng_drng *drng,
-			  struct entropy_buf *entropy_buf);
+int lrng_fill_seed_buffer(struct entropy_buf *entropy_buf);
 void lrng_init_ops(u32 seed_bits);
 
 /************************** Health Test linking code **************************/

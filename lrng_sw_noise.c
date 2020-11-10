@@ -22,9 +22,21 @@ static DEFINE_PER_CPU(u32 [LRNG_DATA_ARRAY_SIZE], lrng_pcpu_array)
 static DEFINE_PER_CPU(u32, lrng_pcpu_array_ptr) = 0;
 static DEFINE_PER_CPU(atomic_t, lrng_pcpu_array_irqs) = ATOMIC_INIT(0);
 
-/* Per-CPU entropy pool with compressed entropy events */
-static DEFINE_PER_CPU(u8 [LRNG_MAX_DIGESTSIZE], lrng_pcpu_pool)
-						__aligned(LRNG_KCAPI_ALIGN);
+/*
+ * Per-CPU entropy pool with compressed entropy event
+ *
+ * The per-CPU entropy pool is defined as the hash state. New data is simply
+ * inserted into the entropy pool by performing a hash update operation.
+ * To read the entropy pool, a hash final must be invoked. However, before
+ * the entropy pool is released again after a hash final, the hash init must
+ * be performed.
+ *
+ * This definition must provide a buffer that is equal to SHASH_DESC_ON_STACK
+ * as it will be casted into a struct shash_desc.
+ */
+#define LRNG_PCPU_POOL_SIZE	(sizeof(struct shash_desc) + HASH_MAX_DESCSIZE)
+static DEFINE_PER_CPU(u8 [LRNG_PCPU_POOL_SIZE], lrng_pcpu_pool)
+							CRYPTO_MINALIGN_ATTR;
 /*
  * Lock to allow other CPUs to read the pool - as this is only done during
  * reseed which is infrequent, this lock is hardly contended.
@@ -70,6 +82,131 @@ u32 lrng_pcpu_avail_irqs(void)
 }
 
 /**
+ * Trigger a switch of the hash implementation for the per-CPU pool.
+ *
+ * For each per-CPU pool, obtain the message digest with the old hash
+ * implementation, initialize the per-CPU pool again with the new hash
+ * implementation and inject the message digest into the new state.
+ *
+ * Assumption: the caller must guarantee that the new_cb is available during the
+ * entire operation (e.g. it must hold the lock against pointer updating).
+ */
+int lrng_pcpu_switch_hash(int node,
+			  const struct lrng_crypto_cb *new_cb, void *new_hash,
+			  const struct lrng_crypto_cb *old_cb)
+{
+	u8 digest[LRNG_MAX_DIGESTSIZE];
+	int ret, cpu;
+
+	for_each_online_cpu(cpu) {
+		struct shash_desc *pcpu_shash;
+		unsigned long flags;
+		spinlock_t *lock;
+
+		/*
+		 * Only switch the per-CPU pools for the current node because
+		 * the crypto_cb only applies NUMA-node-wide.
+		 */
+		if (cpu_to_node(cpu) != node || !lrng_pcpu_pool_online(cpu))
+			continue;
+
+		pcpu_shash = (struct shash_desc *)per_cpu_ptr(lrng_pcpu_pool,
+							      cpu);
+		if (pcpu_shash->tfm == new_hash)
+			continue;
+
+		lock = per_cpu_ptr(&lrng_pcpu_lock, cpu);
+
+		spin_lock_irqsave(lock, flags);
+		/* Get the per-CPU pool hash with old digest ... */
+		ret = old_cb->lrng_hash_final(pcpu_shash, digest) ?:
+		      /* ... re-initialize the hash with the new digest ... */
+		      new_cb->lrng_hash_init(pcpu_shash, new_hash) ?:
+		      /*
+		       * ... feed the old hash into the new state. We may feed
+		       * uninitialized memory into the new state, but this is
+		       * considered no issue and even good as we have some more
+		       * uncertainty here.
+		       */
+		      new_cb->lrng_hash_update(pcpu_shash, digest,
+					       sizeof(digest));
+		spin_unlock_irqrestore(lock, flags);
+		if (ret)
+			goto out;
+
+		pr_debug("Re-initialize per-CPU entropy pool for CPU %d on NUMA node %d with hash %s\n",
+			 cpu, node, new_cb->lrng_hash_name());
+	}
+
+out:
+	memzero_explicit(digest, sizeof(digest));
+	return ret;
+}
+
+/*
+ * When reading the per-CPU message digest, make sure we use the crypto
+ * callbacks defined for the NUMA node the per-CPU pool is defined for because
+ * the LRNG crypto switch support is only atomic per NUMA node.
+ */
+static inline u32
+lrng_pcpu_pool_hash_one(struct lrng_drng *drng, int cpu, u8 *digest)
+{
+	const struct lrng_crypto_cb *pcpu_crypto_cb;
+	struct shash_desc *pcpu_shash =
+		(struct shash_desc *)per_cpu_ptr(lrng_pcpu_pool, cpu);
+	struct lrng_drng **lrng_drng = lrng_drng_instances();
+	struct lrng_drng *pcpu_drng = drng;
+	spinlock_t *lock = per_cpu_ptr(&lrng_pcpu_lock, cpu);
+	unsigned long flags, flags2;
+	u32 digestsize, digestsize_irqs, found_irqs;
+	int node = cpu_to_node(cpu);
+	void *pcpu_hash;
+
+	/* Get the DRNG definition used for the per-CPU hash */
+	if (lrng_drng && lrng_drng[node])
+		pcpu_drng = lrng_drng[node];
+
+	/*
+	 * Lock guarding replacement of per-CPU hash - lock for hash
+	 * implementation referenced by drng is already taken.
+	 */
+	if (pcpu_drng != drng)
+		read_lock_irqsave(&pcpu_drng->hash_lock, flags);
+	else
+		__acquire(&pcpu_drng->hash_lock);
+
+	/* Lock guarding against reading / writing to per-CPU pool */
+	spin_lock_irqsave(lock, flags2);
+
+	pcpu_crypto_cb = pcpu_drng->crypto_cb;
+	pcpu_hash = pcpu_drng->hash;
+	digestsize = pcpu_crypto_cb->lrng_hash_digestsize(pcpu_hash);
+	digestsize_irqs = lrng_entropy_to_data(digestsize << 3);
+
+	/* Obtain entropy statement like for the aux pool */
+	found_irqs = atomic_xchg_relaxed(
+				per_cpu_ptr(&lrng_pcpu_array_irqs, cpu), 0);
+		/* Cap to maximum amount of data we can hold */
+	found_irqs = min_t(u32, found_irqs, digestsize_irqs);
+
+	/* Get the per-CPU pool digest, ... */
+	if (pcpu_crypto_cb->lrng_hash_final(pcpu_shash, digest) ?:
+	    /* ... re-initialize the hash, ... */
+	    pcpu_crypto_cb->lrng_hash_init(pcpu_shash, pcpu_hash) ?:
+	    /* ... feed the old hash into the new state. */
+	    pcpu_crypto_cb->lrng_hash_update(pcpu_shash, digest, digestsize))
+		found_irqs = 0;
+
+	spin_unlock_irqrestore(lock, flags2);
+	if (pcpu_drng != drng)
+		read_unlock_irqrestore(&pcpu_drng->hash_lock, flags);
+	else
+		__release(&pcpu_drng->hash_lock);
+
+	return found_irqs;
+}
+
+/**
  * Hash all per-CPU pools and the auxiliary pool to form a new auxiliary pool
  * state. The message digest is at the same time the new state of the aux pool
  * to ensure backtracking resistance and the seed data used for seeding a DRNG.
@@ -88,8 +225,6 @@ u32 lrng_pcpu_avail_irqs(void)
  * bits as we assume the entropy of interrupts is measured in bits. When data is
  * processed, the entropy value is in bytes as the data is measured in bytes.
  *
- * lrng_pool->lock must be held by caller as we update a non-atomic pool part.
- *
  * @drng: DRNG state providing the crypto callbacks to use
  * @pool: global entropy pool holding the aux pool
  * @outbuf: buffer to store data in with size LRNG_DRNG_SECURITY_STRENGTH_BYTES
@@ -97,24 +232,27 @@ u32 lrng_pcpu_avail_irqs(void)
  * @fully_seeded: indicator whether LRNG is fully seeded
  * @return: amount of collected entropy in bits.
  */
-u32 lrng_pcpu_pool_hash(struct lrng_drng *drng, struct lrng_pool *pool,
+u32 lrng_pcpu_pool_hash(struct lrng_pool *pool,
 			u8 *outbuf, u32 requested_bits, bool fully_seeded)
 {
 	SHASH_DESC_ON_STACK(shash, NULL);
 	const struct lrng_crypto_cb *crypto_cb;
-	unsigned long flags;
+	struct lrng_drng *drng = lrng_drng_init_instance();
+	u8 digest[LRNG_MAX_DIGESTSIZE];
+	unsigned long flags, flags2;
 	u32 digestsize_bits, found_ent_bits, found_irqs, unused_bits = 0,
-	    collected_ent_bits = 0, collected_irqs = 0, requested_irqs,
-	    digestsize_irqs;
+	    collected_ent_bits = 0, collected_irqs = 0, requested_irqs;
 	int ret, cpu;
 	void *hash;
 
+	/* Lock guarding replacement of per-CPU hash */
 	read_lock_irqsave(&drng->hash_lock, flags);
+	/* We operate on the non-atomic part of the aux pool */
+	spin_lock_irqsave(&pool->lock, flags2);
 
 	crypto_cb = drng->crypto_cb;
 	hash = drng->hash;
 	digestsize_bits = crypto_cb->lrng_hash_digestsize(hash) << 3;
-	digestsize_irqs = lrng_entropy_to_data(digestsize_bits);
 
 	ret = crypto_cb->lrng_hash_init(shash, hash);
 	if (ret)
@@ -155,26 +293,17 @@ u32 lrng_pcpu_pool_hash(struct lrng_drng *drng, struct lrng_pool *pool,
 	 * have collected sufficient entropy, we will hash all per-CPU pools.
 	 */
 	for_each_online_cpu(cpu) {
-		unsigned long flags2;
-		spinlock_t *lock = per_cpu_ptr(&lrng_pcpu_lock, cpu);
 		u32 pcpu_unused_irqs = 0;
-		u8 *pcpu_pool = per_cpu_ptr(lrng_pcpu_pool, cpu);
 
 		/* If pool is not online, then no entropy is present. */
 		if (!lrng_pcpu_pool_online(cpu))
 			continue;
 
-		/* Obtain entropy statement like for the aux pool */
-		found_irqs = atomic_xchg_relaxed(
-				per_cpu_ptr(&lrng_pcpu_array_irqs, cpu), 0);
-		/* Cap to maximum amount of data we can hold */
-		found_irqs = min_t(u32, found_irqs, digestsize_irqs);
+		found_irqs = lrng_pcpu_pool_hash_one(drng, cpu, digest);
 
-		spin_lock_irqsave(lock, flags2);
-		ret = crypto_cb->lrng_hash_update(shash, pcpu_pool,
-						  LRNG_MAX_DIGESTSIZE);
-		spin_unlock_irqrestore(lock, flags2);
-
+		/* Add the per-CPU pool digest to our hash context */
+		ret = crypto_cb->lrng_hash_update(shash, digest,
+						  sizeof(digest));
 		if (ret)
 			goto err;
 
@@ -192,8 +321,6 @@ u32 lrng_pcpu_pool_hash(struct lrng_drng *drng, struct lrng_pool *pool,
 	ret = crypto_cb->lrng_hash_final(shash, pool->aux_pool);
 	if (ret)
 		goto err;
-
-	read_unlock_irqrestore(&drng->hash_lock, flags);
 
 	collected_ent_bits += lrng_data_to_entropy(collected_irqs);
 
@@ -213,17 +340,22 @@ u32 lrng_pcpu_pool_hash(struct lrng_drng *drng, struct lrng_pool *pool,
 
 	pr_debug("obtained %u bits of entropy\n", collected_ent_bits);
 
+out:
+	spin_unlock_irqrestore(&pool->lock, flags2);
+	read_unlock_irqrestore(&drng->hash_lock, flags);
+	memzero_explicit(digest, sizeof(digest));
 	return collected_ent_bits;
 
 err:
-	read_unlock_irqrestore(&drng->hash_lock, flags);
-	return 0;
+	collected_ent_bits = 0;
+	goto out;
 }
 
 /* Compress the lrng_pcpu_array array into lrng_pcp_pool */
 static inline void lrng_pcpu_array_compress(void)
 {
-	SHASH_DESC_ON_STACK(shash, NULL);
+	struct shash_desc *shash =
+			(struct shash_desc *)this_cpu_ptr(lrng_pcpu_pool);
 	struct lrng_drng **lrng_drng = lrng_drng_instances();
 	struct lrng_drng *drng = lrng_drng_init_instance();
 	const struct lrng_crypto_cb *crypto_cb;
@@ -231,13 +363,14 @@ static inline void lrng_pcpu_array_compress(void)
 	unsigned long flags, flags2;
 	int node = numa_node_id();
 	void *hash;
-	u8 *pcpu_pool = this_cpu_ptr(lrng_pcpu_pool);
+	bool init = false;
 
 	/* Get NUMA-node local hash instance */
 	if (lrng_drng && lrng_drng[node])
 		drng = lrng_drng[node];
 
 	if (unlikely(!this_cpu_read(lrng_pcpu_lock_init))) {
+		init = true;
 		spin_lock_init(lock);
 		this_cpu_write(lrng_pcpu_lock_init, true);
 	}
@@ -248,17 +381,21 @@ static inline void lrng_pcpu_array_compress(void)
 	crypto_cb = drng->crypto_cb;
 	hash = drng->hash;
 
-	if (crypto_cb->lrng_hash_init(shash, hash) ||
-	    /* Hash entire per-CPU data array content ... */
-	    crypto_cb->lrng_hash_update(shash,
+	if (unlikely(init)) {
+		pr_debug("Initializing per-CPU entropy pool for CPU %d on NUMA node %d with hash %s\n",
+			 raw_smp_processor_id(), node,
+			 crypto_cb->lrng_hash_name());
+		if (crypto_cb->lrng_hash_init(shash, hash)) {
+			this_cpu_write(lrng_pcpu_lock_init, false);
+			pr_warn("Initialization of hash failed\n");
+		}
+	} else {
+		/* Add entire per-CPU data array content into entropy pool. */
+		if (crypto_cb->lrng_hash_update(shash,
 					(u8 *)this_cpu_ptr(lrng_pcpu_array),
-					LRNG_DATA_ARRAY_SIZE * sizeof(u32)) ||
-	    /* ... together with per-CPU entropy pool ... */
-	    crypto_cb->lrng_hash_update(shash, pcpu_pool,
-					LRNG_MAX_DIGESTSIZE) ||
-	    /* ... to form new per-CPU entropy pool state. */
-	    crypto_cb->lrng_hash_final(shash, pcpu_pool))
-		pr_warn_ratelimited("Hashing of entropy data failed\n");
+					LRNG_DATA_ARRAY_SIZE * sizeof(u32)))
+			pr_warn_ratelimited("Hashing of entropy data failed\n");
+	}
 
 	spin_unlock_irqrestore(lock, flags2);
 	read_unlock_irqrestore(&drng->hash_lock, flags);

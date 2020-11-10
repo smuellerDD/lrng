@@ -156,7 +156,7 @@ static inline int _lrng_drng_seed(struct lrng_drng *drng)
 	u32 total_entropy_bits;
 	int ret;
 
-	total_entropy_bits = lrng_fill_seed_buffer(drng, &seedbuf);
+	total_entropy_bits = lrng_fill_seed_buffer(&seedbuf);
 
 	/* Allow the seeding operation to be called again */
 	lrng_pool_unlock();

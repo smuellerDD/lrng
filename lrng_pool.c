@@ -390,27 +390,16 @@ void lrng_pool_add_irq(void)
 
 /************************* Get data from entropy pool *************************/
 
-static u32 lrng_get_pool(struct lrng_drng *drng, u8 *outbuf,
-			 u32 requested_entropy_bits)
+static inline u32 lrng_get_pool(u8 *outbuf, u32 requested_entropy_bits)
 {
-	struct lrng_pool *pool = &lrng_pool;
 	struct lrng_state *state = &lrng_state;
-	unsigned long flags;
 
-	/* We operate on the non-atomic part of the pool */
-	spin_lock_irqsave(&pool->lock, flags);
-	requested_entropy_bits = lrng_pcpu_pool_hash(drng, &lrng_pool,
-						     outbuf,
-						     requested_entropy_bits,
-						     state->lrng_fully_seeded);
-	spin_unlock_irqrestore(&pool->lock, flags);
-
-	return requested_entropy_bits;
+	return lrng_pcpu_pool_hash(&lrng_pool, outbuf, requested_entropy_bits,
+				   state->lrng_fully_seeded);
 }
 
 /* Fill the seed buffer with data from the noise sources */
-int lrng_fill_seed_buffer(struct lrng_drng *drng,
-			  struct entropy_buf *entropy_buf)
+int lrng_fill_seed_buffer(struct entropy_buf *entropy_buf)
 {
 	struct lrng_state *state = &lrng_state;
 	u32 total_entropy_bits = 0;
@@ -430,7 +419,7 @@ int lrng_fill_seed_buffer(struct lrng_drng *drng,
 	 * has the ability to collect entropy equal or larger than the DRNG
 	 * strength.
 	 */
-	total_entropy_bits = lrng_get_pool(drng, entropy_buf->a,
+	total_entropy_bits = lrng_get_pool(entropy_buf->a,
 					   LRNG_DRNG_SECURITY_STRENGTH_BITS);
 	total_entropy_bits += lrng_get_arch(entropy_buf->b);
 	total_entropy_bits += lrng_get_jent(entropy_buf->c,

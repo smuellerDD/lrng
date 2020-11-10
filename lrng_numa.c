@@ -67,6 +67,15 @@ static void _lrng_drngs_numa_alloc(struct work_struct *work)
 		rwlock_init(&drng->hash_lock);
 
 		/*
+		 * Switch the hash used by the per-CPU pool.
+		 * We do not need to lock the new hash as it is not usable yet
+		 * due to **drngs not yet being initialized.
+		 */
+		if (lrng_pcpu_switch_hash(node, drng->crypto_cb, drng->hash,
+					  &lrng_cc20_crypto_cb))
+			goto err;
+
+		/*
 		 * No reseeding of NUMA DRNGs from previous DRNGs as this
 		 * would complicate the code. Let it simply reseed.
 		 */
@@ -90,6 +99,9 @@ err:
 			continue;
 
 		if (drng) {
+			lrng_pcpu_switch_hash(node, &lrng_cc20_crypto_cb, NULL,
+					      drng->crypto_cb);
+			drng->crypto_cb->lrng_hash_dealloc(drng->hash);
 			drng->crypto_cb->lrng_drng_dealloc(drng->drng);
 			kfree(drng);
 		}
