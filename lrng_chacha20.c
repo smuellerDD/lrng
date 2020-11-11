@@ -261,8 +261,7 @@ static int lrng_cc20_hash_final(struct shash_desc *shash, u8 *digest)
 
 static const char *lrng_cc20_hash_name(void)
 {
-	const char *cc20_hash_name = "SHA-256";
-	return cc20_hash_name;
+	return "SHA-256";
 }
 
 #else /* CONFIG_CRYPTO_LIB_SHA256 */
@@ -314,8 +313,7 @@ static int lrng_cc20_hash_final(struct shash_desc *shash, u8 *digest)
 
 static const char *lrng_cc20_hash_name(void)
 {
-	const char *cc20_hash_name = "SHA-1";
-	return cc20_hash_name;
+	return "SHA-1";
 }
 
 #endif /* CONFIG_CRYPTO_LIB_SHA256 */
@@ -332,8 +330,7 @@ static void lrng_cc20_hash_dealloc(void *hash)
 
 static const char *lrng_cc20_drng_name(void)
 {
-	const char *cc20_drng_name = "ChaCha20 DRNG";
-	return cc20_drng_name;
+	return "ChaCha20 DRNG";
 }
 
 const struct lrng_crypto_cb lrng_cc20_crypto_cb = {
