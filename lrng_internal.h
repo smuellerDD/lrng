@@ -10,6 +10,7 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
+#include <linux/slab.h>
 #include <linux/spinlock.h>
 
 /*************************** General LRNG parameter ***************************/
@@ -95,14 +96,8 @@
  */
 #define LRNG_IRQ_OVERSAMPLING_FACTOR	10
 
-/*
- * Alignmask which should cover all cipher implementations
- * WARNING: If this is changed to a value larger than 8, manual
- * alignment is necessary as older versions of GCC may not be capable
- * of aligning stack variables at boundaries greater than 8.
- * In this case, PTR_ALIGN must be used.
- */
-#define LRNG_KCAPI_ALIGN		8
+/* Alignmask that is intended to be identical to CRYPTO_MINALIGN */
+#define LRNG_KCAPI_ALIGN		ARCH_KMALLOC_MINALIGN
 
 /************************ Default DRNG implementation *************************/
 
