@@ -95,13 +95,10 @@ static void *lrng_kcapi_drng_alloc(u32 sec_strength)
 		return ERR_PTR(-EINVAL);
 	}
 
-	if (!memcmp(drng_name, "drbg", 4)) {
-		pr_err("SP800-90A DRBG cannot be allocated using lrng_kcapi backend, use lrng_drbg backend instead\n");
-		return ERR_PTR(-EINVAL);
-	}
-
-	if (!memcmp(drng_name, "stdrng", 6)) {
-		pr_err("stdrng cannot be allocated using lrng_kcapi backend, it is too unspecific and potentially may allocate the DRBG\n");
+	if (!memcmp(drng_name, "drbg", 4) ||
+	    !memcmp(drng_name, "stdrng", 6) ||
+	    !memcmp(drng_name, "jitterentropy_rng", 17)) {
+		pr_err("Refusing to load the requested random number generator\n");
 		return ERR_PTR(-EINVAL);
 	}
 
