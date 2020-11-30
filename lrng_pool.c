@@ -15,6 +15,7 @@
 #include <linux/workqueue.h>
 
 #include "lrng_internal.h"
+#include "lrng_sw_noise.h"
 
 struct lrng_state {
 	bool lrng_operational;		/* Is DRNG operational? */
@@ -202,7 +203,8 @@ static void lrng_pool_configure(bool highres_timer, u32 irq_entropy_bits)
 
 static int __init lrng_init_time_source(void)
 {
-	if (random_get_entropy() || random_get_entropy()) {
+	if ((random_get_entropy() & LRNG_DATA_SLOTSIZE_MASK) ||
+	    (random_get_entropy() & LRNG_DATA_SLOTSIZE_MASK)) {
 		/*
 		 * As the highres timer is identified here, previous interrupts
 		 * obtained during boot time are treated like a lowres-timer
