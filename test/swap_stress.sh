@@ -73,10 +73,10 @@ done
 
 # Enable the following for full testing, but it slows testing down considerably
 # Write data into interfaces for triggering reseed and write into aux pool:
-echo "spawn write load on /dev/urandom"
-( dd if=/dev/urandom of=/dev/urandom bs=33 > /dev/null 2>&1 ) &
-eval dd_urandom_$urandom=$!
-urandom=$(($urandom+1))
+#echo "spawn write load on /dev/urandom"
+#( dd if=/dev/urandom of=/dev/urandom bs=33 > /dev/null 2>&1 ) &
+#eval dd_urandom_$urandom=$!
+#urandom=$(($urandom+1))
 
 # Start reading from /dev/random - ensure that the pdrng is in used and locks
 # are taken
