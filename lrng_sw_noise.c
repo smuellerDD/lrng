@@ -225,7 +225,6 @@ lrng_pcpu_pool_hash_one(struct lrng_drng *drng, int cpu, u8 *digest)
  * bits as we assume the entropy of interrupts is measured in bits. When data is
  * processed, the entropy value is in bytes as the data is measured in bytes.
  *
- * @drng: DRNG state providing the crypto callbacks to use
  * @pool: global entropy pool holding the aux pool
  * @outbuf: buffer to store data in with size LRNG_DRNG_SECURITY_STRENGTH_BYTES
  * @requested_bits: amount of data to be generated
@@ -254,7 +253,9 @@ u32 lrng_pcpu_pool_hash(struct lrng_pool *pool,
 	hash = drng->hash;
 	digestsize_bits = crypto_cb->lrng_hash_digestsize(hash) << 3;
 
-	ret = crypto_cb->lrng_hash_init(shash, hash);
+	/* Harvest entropy from aux pool */
+	ret = crypto_cb->lrng_hash_init(shash, hash) ?:
+	      crypto_cb->lrng_hash_update(shash, (u8 *)pool, sizeof(*pool));
 	if (ret)
 		goto err;
 
@@ -262,11 +263,6 @@ u32 lrng_pcpu_pool_hash(struct lrng_pool *pool,
 	found_ent_bits = atomic_xchg_relaxed(&pool->aux_entropy_bits, 0);
 	/* Cap entropy by security strength of used digest */
 	found_ent_bits = min_t(u32, digestsize_bits, found_ent_bits);
-
-	/* Harvest entropy from aux pool */
-	ret = crypto_cb->lrng_hash_update(shash, (u8 *)pool, sizeof(*pool));
-	if (ret)
-		goto err;
 
 	/* We collected that amount of entropy */
 	collected_ent_bits += found_ent_bits;
