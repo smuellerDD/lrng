@@ -365,26 +365,24 @@ static inline void lrng_pcpu_array_compress(void)
 	if (lrng_drng && lrng_drng[node])
 		drng = lrng_drng[node];
 
+	read_lock_irqsave(&drng->hash_lock, flags);
+	crypto_cb = drng->crypto_cb;
+	hash = drng->hash;
+
 	if (unlikely(!this_cpu_read(lrng_pcpu_lock_init))) {
 		init = true;
 		spin_lock_init(lock);
 		this_cpu_write(lrng_pcpu_lock_init, true);
-	}
-
-	read_lock_irqsave(&drng->hash_lock, flags);
-	spin_lock_irqsave(lock, flags2);
-
-	crypto_cb = drng->crypto_cb;
-	hash = drng->hash;
-
-	if (unlikely(init)) {
 		pr_debug("Initializing per-CPU entropy pool for CPU %d on NUMA node %d with hash %s\n",
 			 raw_smp_processor_id(), node,
 			 crypto_cb->lrng_hash_name());
-		if (crypto_cb->lrng_hash_init(shash, hash)) {
-			this_cpu_write(lrng_pcpu_lock_init, false);
-			pr_warn("Initialization of hash failed\n");
-		}
+	}
+
+	spin_lock_irqsave(lock, flags2);
+
+	if (unlikely(init) && crypto_cb->lrng_hash_init(shash, hash)) {
+		this_cpu_write(lrng_pcpu_lock_init, false);
+		pr_warn("Initialization of hash failed\n");
 	} else {
 		/* Add entire per-CPU data array content into entropy pool. */
 		if (crypto_cb->lrng_hash_update(shash,
