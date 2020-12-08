@@ -140,51 +140,47 @@ static int lrng_cc20_drng_generate_helper(void *drng, u8 *outbuf, u32 outbuflen)
 	return ret;
 }
 
-void lrng_cc20_init_state(struct chacha20_state *state)
+static inline void
+_lrng_cc20_init_state_common(u32 *val, bool (*seed)(unsigned long *v),
+			     bool (*rand)(unsigned long *v))
+{
+	unsigned long v;
+
+	*val ^= jiffies;
+	*val ^= random_get_entropy();
+	if (seed(&v) || rand(&v))
+		*val ^= v;
+}
+
+static void lrng_cc20_init_state_common(struct chacha20_state *state,
+					bool (*seed)(unsigned long *v),
+					bool (*rand)(unsigned long *v))
 {
 	struct chacha20_block *chacha20 = &state->block;
-	unsigned long v;
 	u32 i;
 
 	lrng_cc20_init_rfc7539(chacha20);
 
-	for (i = 0; i < CHACHA_KEY_SIZE_WORDS; i++) {
-		chacha20->key.u[i] ^= jiffies;
-		chacha20->key.u[i] ^= random_get_entropy();
-		if (arch_get_random_seed_long(&v) || arch_get_random_long(&v))
-			chacha20->key.u[i] ^= v;
-	}
+	for (i = 0; i < CHACHA_KEY_SIZE_WORDS; i++)
+		_lrng_cc20_init_state_common(&chacha20->key.u[i], seed, rand);
 
-	for (i = 0; i < 3; i++) {
-		chacha20->nonce[i] ^= jiffies;
-		chacha20->nonce[i] ^= random_get_entropy();
-		if (arch_get_random_seed_long(&v) || arch_get_random_long(&v))
-			chacha20->nonce[i] ^= v;
-	}
+	for (i = 0; i < 3; i++)
+		_lrng_cc20_init_state_common(&chacha20->nonce[i], seed, rand);
 
 	lrng_chacha20_update(state, NULL, CHACHA_BLOCK_WORDS);
+}
+
+void lrng_cc20_init_state(struct chacha20_state *state)
+{
+	lrng_cc20_init_state_common(state, arch_get_random_seed_long,
+				    arch_get_random_long);
 	pr_info("ChaCha20 core initialized\n");
 }
 
 void __init lrng_cc20_init_state_boot(struct chacha20_state *state)
 {
-	struct chacha20_block *chacha20 = &state->block;
-	unsigned long v;
-	u32 i;
-
-	for (i = 0; i < CHACHA_KEY_SIZE_WORDS; i++) {
-		if (arch_get_random_seed_long_early(&v) ||
-		    arch_get_random_long_early(&v))
-			chacha20->key.u[i] ^= v;
-	}
-
-	for (i = 0; i < 3; i++) {
-		if (arch_get_random_seed_long_early(&v) ||
-		    arch_get_random_long_early(&v))
-			chacha20->nonce[i] ^= v;
-	}
-
-	lrng_chacha20_update(state, NULL, CHACHA_BLOCK_WORDS);
+	lrng_cc20_init_state_common(state, arch_get_random_seed_long_early,
+				    arch_get_random_long_early);
 }
 
 /*
