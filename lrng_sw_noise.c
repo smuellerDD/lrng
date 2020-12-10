@@ -36,7 +36,7 @@ static DEFINE_PER_CPU(atomic_t, lrng_pcpu_array_irqs) = ATOMIC_INIT(0);
  */
 #define LRNG_PCPU_POOL_SIZE	(sizeof(struct shash_desc) + HASH_MAX_DESCSIZE)
 static DEFINE_PER_CPU(u8 [LRNG_PCPU_POOL_SIZE], lrng_pcpu_pool)
-							CRYPTO_MINALIGN_ATTR;
+						__aligned(LRNG_KCAPI_ALIGN);
 /*
  * Lock to allow other CPUs to read the pool - as this is only done during
  * reseed which is infrequent, this lock is hardly contended.
@@ -506,45 +506,40 @@ static inline void lrng_pcpu_array_add_slot(u32 data)
 	lrng_pcpu_array_to_hash(ptr);
 }
 
+static inline void
+lrng_time_process_common(u32 time, void(*add_time)(u32 data))
+{
+	enum lrng_health_res health_test;
+
+	if (lrng_raw_hires_entropy_store(time))
+		return;
+
+	health_test = lrng_health_test(time);
+	if (health_test > lrng_health_fail_use)
+		return;
+
+	if (health_test == lrng_health_pass)
+		atomic_inc_return(this_cpu_ptr(&lrng_pcpu_array_irqs));
+
+	add_time(time);
+}
+
 /*
  * Batching up of entropy in per-CPU array before injecting into entropy pool.
  */
 static inline void lrng_time_process(void)
 {
 	u32 now_time = random_get_entropy();
-	u32 now_time_masked = now_time & LRNG_DATA_SLOTSIZE_MASK;
-	enum lrng_health_res health_test;
 
-	/* During boot time, we process the full time stamp */
 	if (unlikely(!lrng_state_fully_seeded())) {
-		if (lrng_raw_hires_entropy_store(now_time))
-			goto out;
-
-		health_test = lrng_health_test(now_time);
-		if (health_test > lrng_health_fail_use)
-			goto out;
-
-		if (health_test == lrng_health_pass)
-			atomic_inc_return(this_cpu_ptr(&lrng_pcpu_array_irqs));
-
-		_lrng_pcpu_array_add_u32(now_time);
+		/* During boot time, we process the full time stamp */
+		lrng_time_process_common(now_time, _lrng_pcpu_array_add_u32);
 	} else {
 		/* Runtime operation */
-		if (lrng_raw_hires_entropy_store(now_time_masked))
-			goto out;
-
-		health_test = lrng_health_test(now_time_masked);
-		if (health_test > lrng_health_fail_use)
-			goto out;
-
-		/* Interrupt delivers entropy if health test passes */
-		if (health_test == lrng_health_pass)
-			atomic_inc_return(this_cpu_ptr(&lrng_pcpu_array_irqs));
-
-		lrng_pcpu_array_add_slot(now_time_masked);
+		lrng_time_process_common(now_time & LRNG_DATA_SLOTSIZE_MASK,
+					 lrng_pcpu_array_add_slot);
 	}
 
-out:
 	lrng_perf_time(now_time);
 }
 
