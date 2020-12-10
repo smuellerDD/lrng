@@ -457,13 +457,7 @@ static inline void _lrng_pcpu_array_add_u32(u32 data)
 	 */
 	BUILD_BUG_ON(LRNG_DATA_NUM_VALUES <= LRNG_DATA_SLOTS_PER_UINT);
 
-	/* ptr to previous unit */
-	pre_ptr = (ptr - LRNG_DATA_SLOTS_PER_UINT) & LRNG_DATA_WORD_MASK;
-	ptr &= LRNG_DATA_WORD_MASK;
-
-	/* mask to split data into the two parts for the two units */
-	mask = ((1 << (pre_ptr & (LRNG_DATA_SLOTS_PER_UINT - 1)) *
-		       LRNG_DATA_SLOTSIZE_BITS)) - 1;
+	lrng_pcpu_split_u32(&ptr, &pre_ptr, &mask);
 
 	/* MSB of data go into previous unit */
 	this_cpu_or(lrng_pcpu_array[lrng_data_idx2array(pre_ptr)],

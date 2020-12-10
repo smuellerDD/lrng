@@ -54,3 +54,18 @@ static inline unsigned int lrng_data_slot_val(unsigned int val,
 {
 	return val << lrng_data_slot2bitindex(slot);
 }
+
+/*
+ * Return the pointers for the previous and current units to inject a u32 into.
+ * Also return the mask which which the u32 word is to be processed.
+ */
+static inline void lrng_pcpu_split_u32(u32 *ptr, u32 *pre_ptr, u32 *mask)
+{
+	/* ptr to previous unit */
+	*pre_ptr = (*ptr - LRNG_DATA_SLOTS_PER_UINT) & LRNG_DATA_WORD_MASK;
+	*ptr &= LRNG_DATA_WORD_MASK;
+
+	/* mask to split data into the two parts for the two units */
+	*mask = ((1 << (*pre_ptr & (LRNG_DATA_SLOTS_PER_UINT - 1)) *
+			LRNG_DATA_SLOTSIZE_BITS)) - 1;
+}

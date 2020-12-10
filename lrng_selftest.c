@@ -74,14 +74,8 @@ static inline void lrng_data_process_selftest_u32(uint32_t data)
 
 	/* ptr to current unit */
 	ptr = lrng_data_selftest_ptr;
-	/* ptr to previous unit */
-	pre_ptr = (lrng_data_selftest_ptr - LRNG_DATA_SLOTS_PER_UINT) &
-		  LRNG_DATA_WORD_MASK;
-	ptr &= LRNG_DATA_WORD_MASK;
 
-	/* mask to split data into the two parts for the two units */
-	mask = ((1 << (pre_ptr & (LRNG_DATA_SLOTS_PER_UINT - 1)) *
-		       LRNG_DATA_SLOTSIZE_BITS)) - 1;
+	lrng_pcpu_split_u32(&ptr, &pre_ptr, &mask);
 
 	/* MSB of data go into previous unit */
 	lrng_data_selftest[lrng_data_idx2array(pre_ptr)] |= data & ~mask;
