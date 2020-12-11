@@ -1,13 +1,21 @@
-# SP800-90B Data Gathering Test Cases
+# Tests of Entropy during early boot
 
-This directory contains the following tests which are detailed in the
-README files of the respective subsections:
+This test collects the first 1,000 entropy event values (i.e. interrupts)
+generated during boot of the Linux kernel.
 
-* Collection of raw entropy from the running Linux kernel compliant to
-  SP800-90B section 3.1.3
+The test infrastructure sets the Linux system up to reboot the system
+some 1,000 times to collect these 1,000 event values.
 
-* Collection of raw entropy after reboot compliant to SP800-90B section
-  3.1.4
+# Test procedure
 
-The test results are relevant for the SP800-90B raw entropy analysis.
+See boottime_test_record.sh.
 
+The result is a matrix where on each line the 1,000 successive time stamps
+of the interrupts for one boot operation are recorded.
+
+The number of lines equals to the number of reboots.
+
+# Test analysis
+
+Copy the obtained output file into results and process the result by
+invoking validation-restart-*/processdata.sh.

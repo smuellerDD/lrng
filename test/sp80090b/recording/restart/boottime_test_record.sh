@@ -6,7 +6,7 @@
 # many times and record the first time stamps.
 #
 # Test execution:
-#	1. Enable CONFIG_LRNG_TESTING and compile kernel and ensure that the
+#	1. Enable LRNG_RAW_HIRES_ENTROPY and compile kernel and ensure that the
 #	   Linux kernel command line contains lrng_testing.boot_raw_hires_test=1
 #	2. Compile getrawentropy.c and install into /usr/local/sbin
 #	3. Copy this file to /usr/local/sbin and make it executable and do not
@@ -21,7 +21,9 @@
 #	2. start with step 4 from above
 #
 # Test interruption:
-#	boot with kernel command line option of boottime_test_stop
+#	Boot with kernel command line option of boottime_test_stop. After this
+#	interruption, the next reboot will continue collecting data for this
+#	test. The interruption does not affect the test data.
 #
 OUTFILE="/root/lrng_raw_noise_restart"
 STATE="/root/lrng_state"

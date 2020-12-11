@@ -11,5 +11,5 @@ restorecon -v -R /
 
 echo "To improve the reboot speed change the timeout in /etc/default/grub as follows"
 echo "GRUB_TIMEOUT=1"
-echo "Then run update-grub and grub-install /dev/sda to install grub in the mbr of the first hdd."
+echo "Then run grub2-mkconfig to update the grub configuration file for the new setting to take effect."
 
