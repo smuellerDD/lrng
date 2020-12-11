@@ -65,9 +65,9 @@ static inline void lrng_data_process_selftest_insert(u32 time)
 				   lrng_data_idx2slot(ptr));
 }
 
-static inline void lrng_data_process_selftest_u32(uint32_t data)
+static inline void lrng_data_process_selftest_u32(u32 data)
 {
-	uint32_t pre_ptr, ptr, mask;
+	u32 pre_ptr, ptr, mask;
 
 	/* Increment pointer by number of slots taken for input value */
 	lrng_data_selftest_ptr += LRNG_DATA_SLOTS_PER_UINT;
