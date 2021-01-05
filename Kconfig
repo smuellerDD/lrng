@@ -36,17 +36,8 @@ choice
 	  The collection size is unrelated to the entropy rate
 	  or the amount of entropy the LRNG can process.
 
-	config LRNG_COLLECTION_SIZE_16
-		bool "16 interrupt events"
-
 	config LRNG_COLLECTION_SIZE_32
 		bool "32 interrupt events"
-
-	config LRNG_COLLECTION_SIZE_64
-		bool "64 interrupt events (default)"
-
-	config LRNG_COLLECTION_SIZE_128
-		bool "128 interrupt events"
 
 	config LRNG_COLLECTION_SIZE_256
 		bool "256 interrupt events"
@@ -55,19 +46,28 @@ choice
 		bool "512 interrupt events"
 
 	config LRNG_COLLECTION_SIZE_1024
-		bool "1024 interrupt events"
+		bool "1024 interrupt events (default)"
+
+	config LRNG_COLLECTION_SIZE_2048
+		bool "2048 interrupt events"
+
+	config LRNG_COLLECTION_SIZE_4096
+		bool "4096 interrupt events"
+
+	config LRNG_COLLECTION_SIZE_8192
+		bool "8192 interrupt events"
 
 endchoice
 
 config LRNG_COLLECTION_SIZE
 	int
-	default 16 if LRNG_COLLECTION_SIZE_16
 	default 32 if LRNG_COLLECTION_SIZE_32
-	default 64 if LRNG_COLLECTION_SIZE_64
-	default 128 if LRNG_COLLECTION_SIZE_128
 	default 256 if LRNG_COLLECTION_SIZE_256
 	default 512 if LRNG_COLLECTION_SIZE_512
 	default 1024 if LRNG_COLLECTION_SIZE_1024
+	default 2048 if LRNG_COLLECTION_SIZE_2048
+	default 4096 if LRNG_COLLECTION_SIZE_4096
+	default 8192 if LRNG_COLLECTION_SIZE_8192
 
 menuconfig LRNG_DRNG_SWITCH
 	bool "Support DRNG runtime switching"
