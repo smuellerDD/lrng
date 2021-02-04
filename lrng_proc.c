@@ -71,7 +71,7 @@ static int lrng_proc_do_poolsize(struct ctl_table *table, int write,
 	int entropy_count;
 
 	/* LRNG can at most retain entropy in per-CPU pools and aux pool */
-	entropy_count = lrng_get_digestsize() * (num_online_cpus() + 1);
+	entropy_count = lrng_get_digestsize() * (lrng_pcpu_avail_pools() + 1);
 
 	fake_table.data = &entropy_count;
 	fake_table.maxlen = sizeof(entropy_count);

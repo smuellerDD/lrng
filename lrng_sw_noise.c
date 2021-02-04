@@ -61,6 +61,19 @@ void lrng_pcpu_reset(void)
 		atomic_set(per_cpu_ptr(&lrng_pcpu_array_irqs, cpu), 0);
 }
 
+u32 lrng_pcpu_avail_pools(void)
+{
+	u32 num_pools = 0;
+	int cpu;
+
+	for_each_online_cpu(cpu) {
+		if (lrng_pcpu_pool_online(cpu))
+			num_pools++;
+	}
+
+	return num_pools;
+}
+
 /* Return number of unused IRQs present in all per-CPU pools. */
 u32 lrng_pcpu_avail_irqs(void)
 {
