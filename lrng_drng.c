@@ -2,7 +2,7 @@
 /*
  * LRNG DRNG processing
  *
- * Copyright (C) 2016 - 2020, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2016 - 2021, Stephan Mueller <smueller@chronox.de>
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt

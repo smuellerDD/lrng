@@ -3,7 +3,7 @@
  * Backend for the LRNG providing the cryptographic primitives using the
  * kernel crypto API and its DRBG.
  *
- * Copyright (C) 2016 - 2020, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2016 - 2021, Stephan Mueller <smueller@chronox.de>
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt

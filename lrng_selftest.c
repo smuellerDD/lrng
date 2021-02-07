@@ -2,7 +2,7 @@
 /*
  * LRNG power-on and on-demand self-test
  *
- * Copyright (C) 2016 - 2020, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2016 - 2021, Stephan Mueller <smueller@chronox.de>
  */
 
 /*

@@ -2,7 +2,7 @@
 /*
  * Linux Random Number Generator (LRNG) testing interfaces
  *
- * Copyright (C) 2019 - 2020, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2019 - 2021, Stephan Mueller <smueller@chronox.de>
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt

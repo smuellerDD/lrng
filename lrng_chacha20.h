@@ -2,7 +2,7 @@
 /*
  * LRNG ChaCha20 definitions
  *
- * Copyright (C) 2016 - 2020, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2016 - 2021, Stephan Mueller <smueller@chronox.de>
  */
 
 #include <crypto/chacha.h>

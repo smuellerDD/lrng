@@ -2,7 +2,7 @@
 /*
  * LRNG auxiliary interfaces
  *
- * Copyright (C) 2019 Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2019 - 2021 Stephan Mueller <smueller@chronox.de>
  * Copyright (C) 2017 Jason A. Donenfeld <Jason@zx2c4.com>. All
  * Rights Reserved.
  * Copyright (C) 2016 Jason Cooper <jason@lakedaemon.net>

@@ -2,7 +2,7 @@
 /*
  * Backend for providing the hash primitive using the kernel crypto API.
  *
- * Copyright (C) 2020, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2021, Stephan Mueller <smueller@chronox.de>
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt

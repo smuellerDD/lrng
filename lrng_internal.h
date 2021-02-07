@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 OR BSD-2-Clause */
 /*
- * Copyright (C) 2018 - 2020, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2018 - 2021, Stephan Mueller <smueller@chronox.de>
  */
 
 #ifndef _LRNG_INTERNAL_H
