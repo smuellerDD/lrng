@@ -1,7 +1,8 @@
 # Tests of Entropy during early boot
 
 This test collects the first 1,000 entropy event values (i.e. interrupts)
-generated during boot of the Linux kernel.
+generated during boot of the Linux kernel. The collection of raw entropy
+after reboot is compliant to SP800-90B section 3.1.4.
 
 The test infrastructure sets the Linux system up to reboot the system
 some 1,000 times to collect these 1,000 event values.

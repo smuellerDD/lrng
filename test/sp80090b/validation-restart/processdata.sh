@@ -12,14 +12,13 @@ ENTROPYDATA_DIR="../results-measurements"
 NONIID_DATA="lrng_raw_noise_restart*.data"
 
 # this is where the resulting data and the entropy analysis will be stored
-RESULTS_DIR="../results-analysis-restart-row"
+RESULTS_DIR="../results-analysis-restart"
 
 # location of log file
 LOGFILE="$RESULTS_DIR/processdata.log"
 
 # point to the min entropy tool
-EATOOL_NONIID="../SP800-90B_EntropyAssessment/cpp/ea_non_iid"
-EATOOL_IID="../SP800-90B_EntropyAssessment/cpp/ea_iid"
+EATOOL_NONIID="../SP800-90B_EntropyAssessment/cpp/ea_restart"
 
 # specify if you want to compile the extractlsb program in this script
 BUILD_EXTRACT="yes"
@@ -89,82 +88,45 @@ then
 	exit 1
 fi
 
+# Step 1: concatenate data from each reboot
+filepath="$RESULTS_DIR/concatenated_data"
+rm -f $filepath
+files=0
 for file in $ENTROPYDATA_DIR/$NONIID_DATA
 do
-	filepath=$RESULTS_DIR/`basename ${file%%.data}`
-	echo "Converting recorded entropy data $file into different bit output" | tee -a $LOGFILE
+	echo "Concatenating recorded entropy data $file" | tee -a $LOGFILE
 
-	for item in $MASK_LIST
-	do
-		mask=${item%:*}
-		bits=${item#*:}
-		
-		./$EXTRACT $file $filepath.${mask}bitout.data $MAX_EVENTS $mask 2>&1 | tee -a $LOGFILE
-
-	done
+	cat $file >> $filepath
+	files=$((files+1))
 done
 
+# Step 2: converting the input data into managable data
+events=$((files*MAX_EVENTS))
+echo "Converting recorded entropy data $file into different bit output" | tee -a $LOGFILE
+for item in $MASK_LIST
+do
+	mask=${item%:*}
+	bits=${item#*:}
+		
+	./$EXTRACT $filepath $filepath.${mask}bitout.data $events $mask 2>&1 | tee -a $LOGFILE
+done
+
+# Step 3: analyze with tool
 echo "" | tee -a $LOGFILE
 echo "Extraction finished. Now analyzing entropy for noise source ..." | tee -a $LOGFILE
 echo "" | tee -a $LOGFILE
 
-# Analyze with the following:
-#
-#
-for file in $ENTROPYDATA_DIR/$NONIID_DATA
+for item in $MASK_LIST
 do
-	filepath=$RESULTS_DIR/`basename ${file%%.data}`
+	mask=${item%:*}
+	bits_field=${item#*:}
+	bits_list=`echo $bits_field | sed -e "s/,/ /g"`
 
-	for item in $MASK_LIST
+	infile=$filepath.${mask}bitout.data
+
+	for bits in $bits_list
 	do
-		mask=${item%:*}
-		bits_field=${item#*:}
-		bits_list=`echo $bits_field | sed -e "s/,/ /g"`
-
-		infile=$filepath.${mask}bitout.data
-
-		for bits in $bits_list
-		do	
-			outfile=$RESULTS_DIR/${filepath}.minentropy_${mask}_${bits}bits.txt
-			csvfile=$RESULTS_DIR/min_ent_extracted_${bits}bits.txt
-			inprocess_file=$outfile
-			if [ ! -f $outfile ]
-			then
-				echo "Analyzing entropy for $infile ${bits}-bit" | tee -a $LOGFILE
-				$EATOOL_NONIID $infile ${bits} -i -a -v > $outfile
-
-				minent=$(cat $outfile |  grep min | cut -d":" -f2)
-				# h' is per bit:
-				echo "$minent" >> $csvfile
-
-				rm -f $outfile
-
-			else
-				echo "File $outfile already generated"
-			fi
-		done
+		outfile=${filepath}.minentropy_${mask}_${bits}bits.txt
+		$EATOOL_NONIID -n -v $infile ${bits} > $outfile
 	done
-done
-
-for z in $RESULTS_DIR/*.txt
-do
-	# minimum value
-	a=1000
-	for i in $(cat $z)
-	do
-		if [ $(echo "$a>$i" | bc) -eq 1 ]
-			then a=$i;
-		fi
-	done
-	echo $a > $z.minval
-
-	# maximum value
-	a=0
-	for i in $(cat $z)
-	do
-		if [ $(echo "$a>$i" | bc) -eq 0 ]
-			then a=$i;
-		fi
-	done
-	echo $a > $z.maxval
 done

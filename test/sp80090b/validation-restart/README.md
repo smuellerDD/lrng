@@ -1,7 +1,7 @@
 # Validation of Raw Entropy Data Restart Test
 
 This validation tool processes the restart raw entropy data compliant to
-SP800-90B section 3.1.4 row-wise.
+SP800-90B section 3.1.4.
 
 Each restart must be recorded in a single file where each raw entropy
 value is stored on one line.
@@ -27,8 +27,8 @@ and results.
 
 LOGFILE: Name of the log file. The default is $RESULTS_DIR/processdata.log.
 
-EATOOL: Path of the python program used from the Entropy Assessment tool
-(usually, noniid_main.py).
+EATOOL: Path of the program used from the Entropy Assessment restart tool
+(usually, ea_restart).
 
 BUILD_EXTRACT: Indicates whether the script will build the extractlsb program.
 The default is "yes".
@@ -39,8 +39,4 @@ file set (var and single) for each extraction method. See below for a more
 detailed explanation.
 
 MAX_EVENTS: the size of the sample that will be extracted from the sample data.
-The default is 100000 (a 1% of the size of the sample file specified in the
-ROUNDS define macro). Notice that the minimum value suggested by SP800-90B is
-1000000, so you'll have to increase the default value (notice that this
-severely impacts in the performance and memory requirements of the python tool).
-
+The default is 1000 as this is the size of events for one restart.
