@@ -23,6 +23,37 @@ static DEFINE_PER_CPU(u32, lrng_pcpu_array_ptr) = 0;
 static DEFINE_PER_CPU(atomic_t, lrng_pcpu_array_irqs) = ATOMIC_INIT(0);
 
 /*
+ * The entropy collection is performed by executing the following steps:
+ * 1. fill up the per-CPU array holding the time stamps
+ * 2. once the per-CPU array is full, a compression of the data into
+ *    the auxiliary pool is performed - this happens in interrupt context
+ *
+ * If step 2 is not desired in interrupt context, the following boolean
+ * needs to be set to false. This implies that old entropy data in the
+ * per-CPU array collected since the last DRNG reseed is overwritten with
+ * new entropy data instead of retaining the entropy with the compression
+ * operation.
+ *
+ * Impact on entropy:
+ *
+ * If continuous compression is enabled, the maximum entropy that is collected
+ * per CPU between DRNG reseeds is equal to the digest size of the used hash.
+ *
+ * If continuous compression is disabled, the maximum number of entropy events
+ * that can be collected per CPU is equal to LRNG_DATA_ARRAY_SIZE. This amount
+ * of events is converted into an entropy statement which then represents the
+ * maximum amount of entropy collectible per CPU between DRNG reseeds.
+ */
+static bool lrng_pcpu_continuous_compression __read_mostly =
+			IS_ENABLED(CONFIG_LRNG_ENABLE_CONTINUOUS_COMPRESSION);
+
+#ifdef CONFIG_LRNG_SWITCHABLE_CONTINUOUS_COMPRESSION
+module_param(lrng_pcpu_continuous_compression, bool, 0444);
+MODULE_PARM_DESC(lrng_pcpu_continuous_compression,
+		 "Perform entropy compression if per-CPU entropy data array is full\n");
+#endif
+
+/*
  * Per-CPU entropy pool with compressed entropy event
  *
  * The per-CPU entropy pool is defined as the hash state. New data is simply
@@ -49,6 +80,24 @@ static inline bool lrng_pcpu_pool_online(int cpu)
 	return per_cpu(lrng_pcpu_lock_init, cpu);
 }
 
+bool lrng_pcpu_continuous_compression_state(void)
+{
+	return lrng_pcpu_continuous_compression;
+}
+
+void lrng_pcpu_check_compression_state(void)
+{
+	/* One pool must hold sufficient entropy for disabled compression */
+	if (!lrng_pcpu_continuous_compression) {
+		u32 max_ent = min_t(u32, lrng_get_digestsize(),
+				    lrng_data_to_entropy(LRNG_DATA_NUM_VALUES));
+		if (max_ent < LRNG_DRNG_SECURITY_STRENGTH_BITS) {
+			pr_warn("Force continuous compression operation to ensure LRNG can hold enough entropy\n");
+			lrng_pcpu_continuous_compression = true;
+		}
+	}
+}
+
 /*
  * Reset all per-CPU pools - reset entropy estimator but leave the pool data
  * that may or may not have entropy unchanged.
@@ -61,17 +110,20 @@ void lrng_pcpu_reset(void)
 		atomic_set(per_cpu_ptr(&lrng_pcpu_array_irqs, cpu), 0);
 }
 
-u32 lrng_pcpu_avail_pools(void)
+u32 lrng_pcpu_avail_pool_size(void)
 {
-	u32 num_pools = 0;
+	u32 max_size = 0, max_pool = lrng_get_digestsize();
 	int cpu;
+
+	if (!lrng_pcpu_continuous_compression)
+		max_pool = min_t(u32, max_pool, LRNG_DATA_NUM_VALUES);
 
 	for_each_online_cpu(cpu) {
 		if (lrng_pcpu_pool_online(cpu))
-			num_pools++;
+			max_size += max_pool;
 	}
 
-	return num_pools;
+	return max_size;
 }
 
 /* Return number of unused IRQs present in all per-CPU pools. */
@@ -82,6 +134,11 @@ u32 lrng_pcpu_avail_irqs(void)
 
 	/* Obtain the cap of maximum numbers of IRQs we count */
 	digestsize_irqs = lrng_entropy_to_data(lrng_get_digestsize());
+	if (!lrng_pcpu_continuous_compression) {
+		/* Cap to max. number of IRQs the array can hold */
+		digestsize_irqs = min_t(u32, digestsize_irqs,
+					LRNG_DATA_NUM_VALUES);
+	}
 
 	for_each_online_cpu(cpu) {
 		if (!lrng_pcpu_pool_online(cpu))
@@ -199,8 +256,19 @@ lrng_pcpu_pool_hash_one(struct lrng_drng *drng, int cpu, u8 *digest)
 	/* Obtain entropy statement like for the aux pool */
 	found_irqs = atomic_xchg_relaxed(
 				per_cpu_ptr(&lrng_pcpu_array_irqs, cpu), 0);
-		/* Cap to maximum amount of data we can hold */
+	/* Cap to maximum amount of data we can hold in hash */
 	found_irqs = min_t(u32, found_irqs, digestsize_irqs);
+
+	if (!lrng_pcpu_continuous_compression) {
+		/* Add entire per-CPU data array content into entropy pool. */
+		if (pcpu_crypto_cb->lrng_hash_update(pcpu_shash,
+				(u8 *)per_cpu_ptr(lrng_pcpu_array, cpu),
+				LRNG_DATA_ARRAY_SIZE * sizeof(u32)))
+			pr_warn_ratelimited("Hashing of entropy data failed\n");
+
+		/* Cap to maximum amount of data we can hold in array */
+		found_irqs = min_t(u32, found_irqs, LRNG_DATA_NUM_VALUES);
+	}
 
 	/* Get the per-CPU pool digest, ... */
 	if (pcpu_crypto_cb->lrng_hash_final(pcpu_shash, digest) ?:
@@ -360,7 +428,7 @@ err:
 	goto out;
 }
 
-/* Compress the lrng_pcpu_array array into lrng_pcp_pool */
+/* Compress the lrng_pcpu_array array into lrng_pcpu_pool */
 static inline void lrng_pcpu_array_compress(void)
 {
 	struct shash_desc *shash =
@@ -396,7 +464,7 @@ static inline void lrng_pcpu_array_compress(void)
 	if (unlikely(init) && crypto_cb->lrng_hash_init(shash, hash)) {
 		this_cpu_write(lrng_pcpu_lock_init, false);
 		pr_warn("Initialization of hash failed\n");
-	} else {
+	} else if (lrng_pcpu_continuous_compression) {
 		/* Add entire per-CPU data array content into entropy pool. */
 		if (crypto_cb->lrng_hash_update(shash,
 					(u8 *)this_cpu_ptr(lrng_pcpu_array),
@@ -443,8 +511,6 @@ static inline void lrng_pcpu_array_to_hash(u32 ptr)
 		/* Ping pool handler about received entropy */
 		lrng_pool_add_irq();
 	}
-
-	memset(array, 0, LRNG_DATA_ARRAY_SIZE * sizeof(u32));
 }
 
 /*
@@ -456,6 +522,7 @@ static inline void _lrng_pcpu_array_add_u32(u32 data)
 	/* Increment pointer by number of slots taken for input value */
 	u32 pre_ptr, mask, ptr = this_cpu_add_return(lrng_pcpu_array_ptr,
 						     LRNG_DATA_SLOTS_PER_UINT);
+	unsigned int pre_array;
 
 	/*
 	 * This function injects a unit into the array - guarantee that
@@ -473,8 +540,10 @@ static inline void _lrng_pcpu_array_add_u32(u32 data)
 	lrng_pcpu_split_u32(&ptr, &pre_ptr, &mask);
 
 	/* MSB of data go into previous unit */
-	this_cpu_or(lrng_pcpu_array[lrng_data_idx2array(pre_ptr)],
-		    data & ~mask);
+	pre_array = lrng_data_idx2array(pre_ptr);
+	/* zeroization of slot to ensure the following OR adds the data */
+	this_cpu_and(lrng_pcpu_array[pre_array], ~(0xffffffff &~ mask));
+	this_cpu_or(lrng_pcpu_array[pre_array], data & ~mask);
 
 	/* Invoke compression as we just filled data array completely */
 	if (unlikely(pre_ptr > ptr))
@@ -491,7 +560,12 @@ static inline void _lrng_pcpu_array_add_u32(u32 data)
 /* Concatenate a 32-bit word at the end of the per-CPU array */
 void lrng_pcpu_array_add_u32(u32 data)
 {
-	_lrng_pcpu_array_add_u32(data);
+	/*
+	 * Disregard entropy-less data without continuous compression to
+	 * avoid it overwriting data with entropy when array ptr wraps.
+	 */
+	if (lrng_pcpu_continuous_compression)
+		_lrng_pcpu_array_add_u32(data);
 }
 
 /* Concatenate data of max LRNG_DATA_SLOTSIZE_MASK at the end of time array */
@@ -500,15 +574,20 @@ static inline void lrng_pcpu_array_add_slot(u32 data)
 	/* Get slot */
 	u32 ptr = this_cpu_inc_return(lrng_pcpu_array_ptr) &
 							LRNG_DATA_WORD_MASK;
+	unsigned int array = lrng_data_idx2array(ptr);
+	unsigned int slot = lrng_data_idx2slot(ptr);
 
 	BUILD_BUG_ON(LRNG_DATA_ARRAY_MEMBER_BITS % LRNG_DATA_SLOTSIZE_BITS);
 	/* Ensure consistency of values */
 	BUILD_BUG_ON(LRNG_DATA_ARRAY_MEMBER_BITS !=
 		     sizeof(lrng_pcpu_array[0]) << 3);
 
+	/* zeroization of slot to ensure the following OR adds the data */
+	this_cpu_and(lrng_pcpu_array[array],
+		     ~(lrng_data_slot_val(0xffffffff & LRNG_DATA_SLOTSIZE_MASK,
+					  slot)));
 	/* Store data into slot */
-	this_cpu_or(lrng_pcpu_array[lrng_data_idx2array(ptr)],
-		    lrng_data_slot_val(data, lrng_data_idx2slot(ptr)));
+	this_cpu_or(lrng_pcpu_array[array], lrng_data_slot_val(data, slot));
 
 	lrng_pcpu_array_to_hash(ptr);
 }

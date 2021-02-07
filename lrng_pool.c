@@ -217,6 +217,7 @@ static int __init lrng_init_time_source(void)
 					   LRNG_IRQ_OVERSAMPLING_FACTOR);
 		pr_warn("operating without high-resolution timer and applying IRQ oversampling factor %u\n",
 			LRNG_IRQ_OVERSAMPLING_FACTOR);
+		lrng_pcpu_check_compression_state();
 	}
 
 	return 0;

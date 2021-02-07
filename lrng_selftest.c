@@ -59,15 +59,21 @@ static inline void lrng_selftest_bswap32(u32 *ptr, u32 words)
 static inline void lrng_data_process_selftest_insert(u32 time)
 {
 	u32 ptr = lrng_data_selftest_ptr++ & LRNG_DATA_WORD_MASK;
+	unsigned int array = lrng_data_idx2array(ptr);
+	unsigned int slot = lrng_data_idx2slot(ptr);
 
-	lrng_data_selftest[lrng_data_idx2array(ptr)] |=
-		lrng_data_slot_val(time & LRNG_DATA_SLOTSIZE_MASK,
-				   lrng_data_idx2slot(ptr));
+	/* zeroization of slot to ensure the following OR adds the data */
+	lrng_data_selftest[array] &=
+		~(lrng_data_slot_val(0xffffffff & LRNG_DATA_SLOTSIZE_MASK,
+				     slot));
+	lrng_data_selftest[array] |=
+		lrng_data_slot_val(time & LRNG_DATA_SLOTSIZE_MASK, slot);
 }
 
 static inline void lrng_data_process_selftest_u32(u32 data)
 {
 	u32 pre_ptr, ptr, mask;
+	unsigned int pre_array;
 
 	/* Increment pointer by number of slots taken for input value */
 	lrng_data_selftest_ptr += LRNG_DATA_SLOTS_PER_UINT;
@@ -78,7 +84,10 @@ static inline void lrng_data_process_selftest_u32(u32 data)
 	lrng_pcpu_split_u32(&ptr, &pre_ptr, &mask);
 
 	/* MSB of data go into previous unit */
-	lrng_data_selftest[lrng_data_idx2array(pre_ptr)] |= data & ~mask;
+	pre_array = lrng_data_idx2array(pre_ptr);
+	/* zeroization of slot to ensure the following OR adds the data */
+	lrng_data_selftest[pre_array] &= ~(0xffffffff &~ mask);
+	lrng_data_selftest[pre_array] |= data & ~mask;
 
 	/* LSB of data go into current unit */
 	lrng_data_selftest[lrng_data_idx2array(ptr)] = data & mask;
@@ -96,6 +105,10 @@ static unsigned int lrng_data_process_selftest(void)
 		(((LRNG_DATA_NUM_VALUES - 1) & LRNG_DATA_SLOTSIZE_MASK) << 24);
 
 	(void)idx_one_compare;
+
+	/* "poison" the array to verify the operation of the zeroization */
+	lrng_data_selftest[0] = 0xffffffff;
+	lrng_data_selftest[1] = 0xffffffff;
 
 	lrng_data_process_selftest_insert(0);
 	/*

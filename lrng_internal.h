@@ -293,8 +293,10 @@ static inline u32 lrng_security_strength(void)
 void lrng_set_entropy_thresh(u32 new);
 void lrng_reset_state(void);
 
+bool lrng_pcpu_continuous_compression_state(void);
+void lrng_pcpu_check_compression_state(void);
 void lrng_pcpu_reset(void);
-u32 lrng_pcpu_avail_pools(void);
+u32 lrng_pcpu_avail_pool_size(void);
 u32 lrng_pcpu_avail_irqs(void);
 
 static inline u32 lrng_pcpu_avail_entropy(void)

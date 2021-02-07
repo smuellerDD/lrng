@@ -71,7 +71,7 @@ static int lrng_proc_do_poolsize(struct ctl_table *table, int write,
 	int entropy_count;
 
 	/* LRNG can at most retain entropy in per-CPU pools and aux pool */
-	entropy_count = lrng_get_digestsize() * (lrng_pcpu_avail_pools() + 1);
+	entropy_count = lrng_get_digestsize() + lrng_pcpu_avail_pool_size();
 
 	fake_table.data = &entropy_count;
 	fake_table.maxlen = sizeof(entropy_count);
@@ -142,7 +142,7 @@ static int lrng_proc_type_show(struct seq_file *m, void *v)
 {
 	struct lrng_drng *lrng_drng_init = lrng_drng_init_instance();
 	unsigned long flags = 0;
-	unsigned char buf[350];
+	unsigned char buf[365];
 
 	lrng_drng_lock(lrng_drng_init, &flags);
 	snprintf(buf, sizeof(buf),
@@ -155,7 +155,8 @@ static int lrng_proc_type_show(struct seq_file *m, void *v)
 		 "SP800-90B compliance: %s\n"
 		 "High-resolution timer: %s\n"
 		 "LRNG minimally seeded: %s\n"
-		 "LRNG fully seeded: %s\n",
+		 "LRNG fully seeded: %s\n"
+		 "Continuous compression: %s\n",
 		 lrng_drng_init->crypto_cb->lrng_drng_name(),
 		 lrng_drng_init->crypto_cb->lrng_hash_name(),
 		 lrng_drng_init->crypto_cb->lrng_hash_name(),
@@ -165,7 +166,8 @@ static int lrng_proc_type_show(struct seq_file *m, void *v)
 		 lrng_sp80090b_compliant() ? "true" : "false",
 		 lrng_pool_highres_timer() ? "true" : "false",
 		 lrng_state_min_seeded() ? "true" : "false",
-		 lrng_state_fully_seeded() ? "true" : "false");
+		 lrng_state_fully_seeded() ? "true" : "false",
+		 lrng_pcpu_continuous_compression_state() ? "true" : "false");
 	lrng_drng_unlock(lrng_drng_init, &flags);
 
 	seq_write(m, buf, strlen(buf));

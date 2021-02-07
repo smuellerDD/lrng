@@ -15,6 +15,54 @@ menuconfig LRNG
 if LRNG
 
 choice
+	prompt "Continuous entropy compression boot time setting"
+	default LRNG_CONTINUOUS_COMPRESSION_ENABLED
+	help
+	  Select the default behavior of the continuous compression
+	  operation.
+
+	  The Linux RNG collects entropy data during each interrupt.
+	  For performance reasons, a amount of entropy data defined by
+	  the LRNG entropy collection pool size is concatenated into
+	  an array. When that array is filled up, a hash is calculated
+	  to compress the entropy. That hash is calculated in
+	  interrupt context.
+
+	  In case such hash calculation in interrupt context is deemed
+	  too time-consuming, the continuous compression operation
+	  can be disabled. If disabled, the collection of entropy will
+	  not trigger a hash compression operation in interrupt context.
+	  The compression happens only when the DRNG is reseeded. This
+	  implies that old entropy data collected after the last
+	  DRNG-reseed is overwritten with newer entropy data instead
+	  of retaining its entropy with the compression operation.
+
+	config LRNG_CONTINUOUS_COMPRESSION_ENABLED
+		bool "Enable continuous compression (default)"
+
+	config LRNG_CONTINUOUS_COMPRESSION_DISABLED
+		bool "Disable continuous compression"
+endchoice
+
+config LRNG_ENABLE_CONTINUOUS_COMPRESSION
+	bool
+	default y if LRNG_CONTINUOUS_COMPRESSION_ENABLED
+	default n if LRNG_CONTINUOUS_COMPRESSION_DISABLED
+
+config LRNG_SWITCHABLE_CONTINUOUS_COMPRESSION
+	bool "Runtime-switchable continuous entropy compression"
+	help
+	  Per default, the continuous compression operation behavior
+	  is hard-wired into the kernel. Enable this option to allow
+	  it to be configurable at boot time.
+
+	  To modify the default behavior of the continuous
+	  compression operation, use the kernel command line option
+	  of lrng_sw_noise.lrng_pcpu_continuous_compression.
+
+	  If unsure, say N.
+
+choice
 	prompt "LRNG Entropy Collection Pool Size"
 	default LRNG_COLLECTION_SIZE_1024
 	help
@@ -37,6 +85,8 @@ choice
 	  or the amount of entropy the LRNG can process.
 
 	config LRNG_COLLECTION_SIZE_32
+	depends on LRNG_CONTINUOUS_COMPRESSION_ENABLED
+	depends on !LRNG_SWITCHABLE_CONTINUOUS_COMPRESSION
 		bool "32 interrupt events"
 
 	config LRNG_COLLECTION_SIZE_256
