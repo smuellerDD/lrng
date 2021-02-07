@@ -69,12 +69,17 @@ static inline unsigned int lrng_data_slot_val(unsigned int val,
 static inline void lrng_data_process(uint32_t time)
 {
 	uint32_t ptr = lrng_data_ptr++ & LRNG_DATA_WORD_MASK;
+	unsigned int array = lrng_data_idx2array(ptr);
+	unsigned int slot = lrng_data_idx2slot(ptr);
 
 	BUILD_BUG_ON(LRNG_DATA_ARRAY_MEMBER_BITS % LRNG_DATA_SLOTSIZE_BITS);
 
-	lrng_data[lrng_data_idx2array(ptr)] |=
-		lrng_data_slot_val(time & LRNG_DATA_SLOTSIZE_MASK,
-				   lrng_data_idx2slot(ptr));
+	/* zeroization of slot to ensure the following OR adds the data */
+	lrng_data[array] &=
+		~(lrng_data_slot_val(0xffffffff & LRNG_DATA_SLOTSIZE_MASK,
+				     slot));
+	lrng_data[array] |= lrng_data_slot_val(time & LRNG_DATA_SLOTSIZE_MASK,
+					       slot);
 
 	if (ptr < LRNG_DATA_WORD_MASK)
 		return;
@@ -85,6 +90,7 @@ static inline void lrng_data_process(uint32_t time)
 static inline void lrng_data_process_u32(uint32_t data)
 {
 	uint32_t pre_ptr, ptr, mask;
+	unsigned int pre_array;
 
 	/*
 	 * This function injects a unit into the array - guarantee that
@@ -107,7 +113,10 @@ static inline void lrng_data_process_u32(uint32_t data)
 		       LRNG_DATA_SLOTSIZE_BITS )) - 1;
 
 	/* MSB of data go into previous unit */
-	lrng_data[lrng_data_idx2array(pre_ptr)] |= data &~ mask;
+	pre_array = lrng_data_idx2array(pre_ptr);
+	/* zeroization of slot to ensure the following OR adds the data */
+	lrng_data[pre_array] &= ~(0xffffffff &~ mask);
+	lrng_data[pre_array] |= data &~ mask;
 
 	/* LSB of data go into current unit */
 	lrng_data[lrng_data_idx2array(ptr)] = data & mask;
@@ -119,14 +128,14 @@ static void check_res(uint32_t actual1, uint32_t exp1,
 	if (actual1 == exp1) {
 		printf("Test PASSED\n");
 	} else {
-		printf("Test FAILED: expected %u - received %u\n",
+		printf("Test FAILED 1: expected %u - received %u\n",
 		       exp1, actual1);
 	}
 
 	if (actual2 == exp2) {
 		printf("Test PASSED\n");
 	} else {
-		printf("Test FAILED: expected %u - received %u\n",
+		printf("Test FAILED 2: expected %u - received %u\n",
 		       exp2, actual2);
 	}
 }
@@ -134,32 +143,19 @@ static void check_res(uint32_t actual1, uint32_t exp1,
 int main(int argc, char *argv[])
 {
 	uint32_t time;
-	uint32_t idx_zero_compare_4 =
-		(0 << 0)  | (1 << 4)  | (2 << 8)  | (3 << 12) |
-		(4 << 16) | (5 << 20) | (6 << 24) | (7 << 28);
-	uint32_t idx_one_compare_4 =
-		(8 << 0)   | (9 << 4)   | (10 << 8)  | (11 << 12) |
-		(12 << 16) | (13 << 20) | (14 << 24) | (15 << 28);
-	uint32_t idx_zero_compare_8 =
+// 	uint32_t idx_zero_compare_4 =
+// 		(0 << 0)  | (1 << 4)  | (2 << 8)  | (3 << 12) |
+// 		(4 << 16) | (5 << 20) | (6 << 24) | (7 << 28);
+// 	uint32_t idx_one_compare_4 =
+// 		(8 << 0)   | (9 << 4)   | (10 << 8)  | (11 << 12) |
+// 		(12 << 16) | (13 << 20) | (14 << 24) | (15 << 28);
+	uint32_t idx_zero_compare =
 		(0 << 0) | (1 << 8) | (2 << 16) | (3 << 24);
-	uint32_t idx_one_compare_8 =
+	uint32_t idx_one_compare =
 		(4 << 0) | (5 << 8) | (6 << 16) | (7 << 24);
-
-	uint32_t idx_zero_compare, idx_one_compare;
 
 	(void)argc;
 	(void)argv;
-
-	if (LRNG_DATA_SLOTSIZE_BITS == 4) {
-		idx_zero_compare = idx_zero_compare_4;
-		idx_one_compare = idx_one_compare_4;
-	} else if (LRNG_DATA_SLOTSIZE_BITS == 8) {
-		idx_zero_compare = idx_zero_compare_8;
-		idx_one_compare = idx_one_compare_8;
-	} else {
-		printf("No comparison\n");
-		return 1;
-	}
 
 	/*
 	 * Note, when using lrng_data_process_u32() on unaligned ptr,
@@ -167,7 +163,9 @@ int main(int argc, char *argv[])
 	 * into the previous word.
 	 */
 
-	/* aligned writing of 2 32 words */
+	/* aligned writing of 2 32 words including the check of zeroization */
+	lrng_data[0] = 0xffffffff;
+	lrng_data[1] = 0xffffffff;
 	lrng_data_process_u32((0 << 0) | (1 << 8) | (2 << 16) | (3 << 24));
 	lrng_data_process_u32((4 << 0) | (5 << 8) | (6 << 16) | (7 << 24));
 	check_res(lrng_data[0], idx_zero_compare, lrng_data[1], idx_one_compare);
@@ -175,7 +173,12 @@ int main(int argc, char *argv[])
 //	lrng_data[1] = 0;
 //	lrng_data_ptr = 0;
 
-	/* non-aligned writing of on 32 word shifted by one slot */
+	/*
+	 * non-aligned writing of on 32 word shifted by one slot including the
+	 * check of zeroization
+	 */
+	lrng_data[2] = 0xffffffff;
+	lrng_data[3] = 0xffffffff;
 	lrng_data_process(0);
 	lrng_data_process_u32( (4 << 0) | (1 << 8) | (2 << 16) | (3 << 24) );
 	lrng_data_process(5);
@@ -256,8 +259,8 @@ int main(int argc, char *argv[])
 	check_res(lrng_data[14], idx_zero_compare, lrng_data[15], idx_one_compare);
 	check_res(lrng_data[0], idx_zero_compare, lrng_data[1], idx_one_compare);
 
-	lrng_data[0] = 0;
-	lrng_data[1] = 0;
+	lrng_data[0] = 0xffffffff;
+	lrng_data[1] = 0xffffffff;
 	lrng_data_ptr = 0;
 
 	/* Individual writing of slot */
