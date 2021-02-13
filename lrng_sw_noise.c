@@ -259,19 +259,16 @@ lrng_pcpu_pool_hash_one(struct lrng_drng *drng, int cpu, u8 *digest)
 	/* Cap to maximum amount of data we can hold in hash */
 	found_irqs = min_t(u32, found_irqs, digestsize_irqs);
 
-	if (!lrng_pcpu_continuous_compression) {
-		/* Add entire per-CPU data array content into entropy pool. */
-		if (pcpu_crypto_cb->lrng_hash_update(pcpu_shash,
-				(u8 *)per_cpu_ptr(lrng_pcpu_array, cpu),
-				LRNG_DATA_ARRAY_SIZE * sizeof(u32)))
-			pr_warn_ratelimited("Hashing of entropy data failed\n");
-
-		/* Cap to maximum amount of data we can hold in array */
+	/* Cap to maximum amount of data we can hold in array */
+	if (!lrng_pcpu_continuous_compression)
 		found_irqs = min_t(u32, found_irqs, LRNG_DATA_NUM_VALUES);
-	}
 
-	/* Get the per-CPU pool digest, ... */
-	if (pcpu_crypto_cb->lrng_hash_final(pcpu_shash, digest) ?:
+	/* Store all not-yet compressed data in data array into hash */
+	if (pcpu_crypto_cb->lrng_hash_update(pcpu_shash,
+				(u8 *)per_cpu_ptr(lrng_pcpu_array, cpu),
+				LRNG_DATA_ARRAY_SIZE * sizeof(u32)) ?:
+	    /* Get the per-CPU pool digest, ... */
+	    pcpu_crypto_cb->lrng_hash_final(pcpu_shash, digest) ?:
 	    /* ... re-initialize the hash, ... */
 	    pcpu_crypto_cb->lrng_hash_init(pcpu_shash, pcpu_hash) ?:
 	    /* ... feed the old hash into the new state. */
