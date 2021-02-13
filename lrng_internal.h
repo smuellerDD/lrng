@@ -6,7 +6,7 @@
 #ifndef _LRNG_INTERNAL_H
 #define _LRNG_INTERNAL_H
 
-#include <crypto/sha.h>
+#include <crypto/sha2.h>
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/mutex.h>

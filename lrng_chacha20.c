@@ -9,7 +9,6 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <crypto/chacha.h>
-#include <crypto/sha.h>
 #include <linux/lrng.h>
 #include <linux/random.h>
 #include <linux/slab.h>
@@ -227,6 +226,8 @@ static void lrng_cc20_drng_dealloc(void *drng)
 
 #ifdef CONFIG_CRYPTO_LIB_SHA256
 
+#include <crypto/sha2.h>
+
 static u32 lrng_cc20_hash_digestsize(void *hash)
 {
 	return SHA256_DIGEST_SIZE;
@@ -262,6 +263,7 @@ static const char *lrng_cc20_hash_name(void)
 
 #else /* CONFIG_CRYPTO_LIB_SHA256 */
 
+#include <crypto/sha1.h>
 #include <crypto/sha1_base.h>
 
 /*
