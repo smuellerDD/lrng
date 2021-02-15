@@ -1,0 +1,59 @@
+--- linux-4.19/drivers/char/lrng/lrng_chacha20.h.orig	2020-08-20 13:44:36.391973096 +0200
++++ linux-4.19/drivers/char/lrng/lrng_chacha20.h	2020-08-20 13:48:05.763485879 +0200
+@@ -5,7 +5,10 @@
+  * Copyright (C) 2016 - 2020, Stephan Mueller <smueller@chronox.de>
+  */
+ 
+-#include <crypto/chacha.h>
++#include <crypto/chacha20.h>
++
++#define CHACHA_BLOCK_SIZE	CHACHA20_BLOCK_SIZE
++#define CHACHA_KEY_SIZE		CHACHA20_KEY_SIZE
+ 
+ /* State according to RFC 7539 section 2.3 */
+ struct chacha20_block {
+--- linux-4.19/drivers/char/lrng/lrng_chacha20.c.orig	2020-08-20 13:36:54.557430342 +0200
++++ linux-4.19/drivers/char/lrng/lrng_chacha20.c	2020-08-20 13:49:43.196655230 +0200
+@@ -8,7 +8,7 @@
+ 
+ #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+ 
+-#include <crypto/chacha.h>
++#include <crypto/chacha20.h>
+ #include <linux/lrng.h>
+ #include <linux/random.h>
+ #include <linux/slab.h>
+@@ -49,7 +49,7 @@ static void lrng_chacha20_update(struct
+ 	BUILD_BUG_ON(CHACHA_BLOCK_SIZE != 2 * CHACHA_KEY_SIZE);
+ 
+ 	if (used_words > CHACHA_KEY_SIZE_WORDS) {
+-		chacha20_block(&chacha20->constants[0], (u8 *)tmp);
++		chacha20_block(&chacha20->constants[0], tmp);
+ 		for (i = 0; i < CHACHA_KEY_SIZE_WORDS; i++)
+ 			chacha20->key.u[i] ^= le32_to_cpu(tmp[i]);
+ 		memzero_explicit(tmp, sizeof(tmp));
+@@ -118,13 +118,13 @@ static int lrng_cc20_drng_generate_helpe
+ 	int zeroize_buf = 0;
+ 
+ 	while (outbuflen >= CHACHA_BLOCK_SIZE) {
+-		chacha20_block(&chacha20->constants[0], outbuf);
++		chacha20_block(&chacha20->constants[0], (u32 *)outbuf);
+ 		outbuf += CHACHA_BLOCK_SIZE;
+ 		outbuflen -= CHACHA_BLOCK_SIZE;
+ 	}
+ 
+ 	if (outbuflen) {
+-		chacha20_block(&chacha20->constants[0], (u8 *)aligned_buf);
++		chacha20_block(&chacha20->constants[0], aligned_buf);
+ 		memcpy(outbuf, aligned_buf, outbuflen);
+ 		used = ((outbuflen + sizeof(aligned_buf[0]) - 1) /
+ 			sizeof(aligned_buf[0]));
+@@ -284,7 +284,7 @@ static void lrng_sha1_block_fn(struct sh
+ 	u32 temp[SHA1_WORKSPACE_WORDS];
+ 
+ 	while (blocks--) {
+-		sha1_transform(sctx->state, src, temp);
++		sha_transform(sctx->state, src, temp);
+ 		src += SHA1_BLOCK_SIZE;
+ 	}
+ 	memzero_explicit(temp, sizeof(temp));

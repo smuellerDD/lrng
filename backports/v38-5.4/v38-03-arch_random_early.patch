@@ -1,0 +1,26 @@
+--- linux-5.4/drivers/char/lrng/lrng_pool.c.orig	2020-10-10 20:56:39.331954692 +0200
++++ linux-5.4/drivers/char/lrng/lrng_pool.c	2020-10-10 20:56:50.031999524 +0200
+@@ -318,8 +318,8 @@ int __init rand_initialize(void)
+ 	seed.time = ktime_get_real();
+ 
+ 	for (i = 0; i < ARRAY_SIZE(seed.data); i++) {
+-		if (!arch_get_random_seed_long_early(&(seed.data[i])) &&
+-		    !arch_get_random_long_early(&seed.data[i]))
++		if (!arch_get_random_seed_long(&(seed.data[i])) &&
++		    !arch_get_random_long(&seed.data[i]))
+ 			seed.data[i] = random_get_entropy();
+ 	}
+ 	memcpy(&seed.utsname, utsname(), sizeof(*(utsname())));
+--- linux-5.4/drivers/char/lrng/lrng_chacha20.c.orig	2021-02-13 10:21:05.387833636 +0100
++++ linux-5.4/drivers/char/lrng/lrng_chacha20.c	2021-02-13 10:23:53.900998157 +0100
+@@ -178,8 +178,8 @@ void lrng_cc20_init_state(struct chacha2
+ 
+ void __init lrng_cc20_init_state_boot(struct chacha20_state *state)
+ {
+-	lrng_cc20_init_state_common(state, arch_get_random_seed_long_early,
+-				    arch_get_random_long_early);
++	lrng_cc20_init_state_common(state, arch_get_random_seed_long,
++				    arch_get_random_long);
+ }
+ 
+ /*
