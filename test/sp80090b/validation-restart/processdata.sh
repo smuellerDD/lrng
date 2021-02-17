@@ -127,6 +127,6 @@ do
 	for bits in $bits_list
 	do
 		outfile=${filepath}.minentropy_${mask}_${bits}bits.txt
-		$EATOOL_NONIID -n -v $infile ${bits} > $outfile
+		$EATOOL_NONIID -n -v $infile ${bits} 1 > $outfile
 	done
 done
