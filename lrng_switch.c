@@ -107,6 +107,7 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 			node);
 
 		lrng_set_digestsize(cb->lrng_hash_digestsize(new_hash));
+		lrng_set_entropy_thresh(lrng_security_strength());
 
 		/* Reseed if previous LRNG security strength was insufficient */
 		if (current_security_strength < lrng_security_strength())
