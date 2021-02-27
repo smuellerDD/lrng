@@ -219,9 +219,10 @@ out:
  * the LRNG crypto switch support is only atomic per NUMA node.
  */
 static inline u32
-lrng_pcpu_pool_hash_one(struct lrng_drng *drng, int cpu, u8 *digest)
+lrng_pcpu_pool_hash_one(struct lrng_drng *drng, int cpu, u8 *digest,
+			struct shash_desc *aux_shash)
 {
-	const struct lrng_crypto_cb *pcpu_crypto_cb;
+	const struct lrng_crypto_cb *pcpu_crypto_cb, *aux_crypto_cb;
 	struct shash_desc *pcpu_shash =
 		(struct shash_desc *)per_cpu_ptr(lrng_pcpu_pool, cpu);
 	struct lrng_drng **lrng_drng = lrng_drng_instances();
@@ -248,6 +249,7 @@ lrng_pcpu_pool_hash_one(struct lrng_drng *drng, int cpu, u8 *digest)
 	/* Lock guarding against reading / writing to per-CPU pool */
 	spin_lock_irqsave(lock, flags2);
 
+	aux_crypto_cb = drng->crypto_cb;
 	pcpu_crypto_cb = pcpu_drng->crypto_cb;
 	pcpu_hash = pcpu_drng->hash;
 	digestsize = pcpu_crypto_cb->lrng_hash_digestsize(pcpu_hash);
@@ -271,8 +273,10 @@ lrng_pcpu_pool_hash_one(struct lrng_drng *drng, int cpu, u8 *digest)
 	    pcpu_crypto_cb->lrng_hash_final(pcpu_shash, digest) ?:
 	    /* ... re-initialize the hash, ... */
 	    pcpu_crypto_cb->lrng_hash_init(pcpu_shash, pcpu_hash) ?:
-	    /* ... feed the old hash into the new state. */
-	    pcpu_crypto_cb->lrng_hash_update(pcpu_shash, digest, digestsize))
+	    /* ... feed the old hash into the new state, ... */
+	    pcpu_crypto_cb->lrng_hash_update(pcpu_shash, digest, digestsize) ?:
+	    /* ... feed the old hash into the aux pool. */
+	    aux_crypto_cb->lrng_hash_update(aux_shash, digest, digestsize))
 		found_irqs = 0;
 
 	spin_unlock_irqrestore(lock, flags2);
@@ -373,13 +377,7 @@ u32 lrng_pcpu_pool_hash(struct lrng_pool *pool,
 		if (!lrng_pcpu_pool_online(cpu))
 			continue;
 
-		found_irqs = lrng_pcpu_pool_hash_one(drng, cpu, digest);
-
-		/* Add the per-CPU pool digest to our hash context */
-		ret = crypto_cb->lrng_hash_update(shash, digest,
-						  sizeof(digest));
-		if (ret)
-			goto err;
+		found_irqs = lrng_pcpu_pool_hash_one(drng, cpu, digest, shash);
 
 		collected_irqs += found_irqs;
 		if (collected_irqs > requested_irqs) {
