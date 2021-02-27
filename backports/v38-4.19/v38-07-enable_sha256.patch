@@ -18,7 +18,7 @@
 +libsha256-y			:= sha256.o
 --- linux-4.19/drivers/char/lrng/lrng_chacha20.c.orig	2020-10-15 18:50:48.366857000 +0200
 +++ linux-4.19/drivers/char/lrng/lrng_chacha20.c	2020-10-15 19:06:05.109752912 +0200
-@@ -231,6 +231,6 @@ static void lrng_cc20_drng_dealloc(void
+@@ -226,7 +226,7 @@ static void lrng_cc20_drng_dealloc(void *drng)
  
  #ifdef CONFIG_CRYPTO_LIB_SHA256
  
@@ -27,7 +27,6 @@
 
  static u32 lrng_cc20_hash_digestsize(void *hash)
  {
- 	return SHA256_DIGEST_SIZE;
 --- linux-4.19/include/crypto/hash.h.orig	2020-10-15 20:26:21.099078090 +0200
 +++ linux-4.19/include/crypto/hash.h	2020-10-15 20:27:02.427257809 +0200
 @@ -151,9 +151,11 @@ struct shash_desc {
