@@ -1,7 +1,7 @@
 --- linux-4.19/drivers/char/lrng/lrng_chacha20.h.orig	2020-08-20 13:44:36.391973096 +0200
 +++ linux-4.19/drivers/char/lrng/lrng_chacha20.h	2020-08-20 13:48:05.763485879 +0200
 @@ -5,7 +5,10 @@
-  * Copyright (C) 2016 - 2020, Stephan Mueller <smueller@chronox.de>
+  * Copyright (C) 2016 - 2021, Stephan Mueller <smueller@chronox.de>
   */
  
 -#include <crypto/chacha.h>
