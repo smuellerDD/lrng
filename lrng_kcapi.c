@@ -59,6 +59,7 @@ static int lrng_kcapi_drng_seed_helper(void *drng, const u8 *inbuf,
 	ret = lrng_kcapi_hash_init(shash, hash) ?:
 	      lrng_kcapi_hash_update(shash, inbuf, inbuflen) ?:
 	      lrng_kcapi_hash_final(shash, digest);
+	lrng_kcapi_hash_zero(shash);
 	if (ret)
 		return ret;
 
@@ -207,6 +208,7 @@ static const struct lrng_crypto_cb lrng_kcapi_crypto_cb = {
 	.lrng_hash_init			= lrng_kcapi_hash_init,
 	.lrng_hash_update		= lrng_kcapi_hash_update,
 	.lrng_hash_final		= lrng_kcapi_hash_final,
+	.lrng_hash_desc_zero		= lrng_kcapi_hash_zero,
 };
 
 static int __init lrng_kcapi_init(void)

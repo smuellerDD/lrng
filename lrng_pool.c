@@ -359,6 +359,7 @@ int lrng_pool_insert_aux(const u8 *inbuf, u32 inbuflen, u32 entropy_bits)
 
 out:
 	spin_unlock_irqrestore(&pool->lock, flags2);
+	crypto_cb->lrng_hash_desc_zero(shash);
 	read_unlock_irqrestore(&drng->hash_lock, flags);
 
 	return ret;

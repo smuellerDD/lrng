@@ -95,3 +95,9 @@ int lrng_kcapi_hash_final(struct shash_desc *shash, u8 *digest)
 	return crypto_shash_final(shash, digest);
 }
 EXPORT_SYMBOL(lrng_kcapi_hash_final);
+
+void lrng_kcapi_hash_zero(struct shash_desc *shash)
+{
+	shash_desc_zero(shash);
+}
+EXPORT_SYMBOL(lrng_kcapi_hash_zero);

@@ -414,6 +414,7 @@ u32 lrng_pcpu_pool_hash(struct lrng_pool *pool,
 
 out:
 	spin_unlock_irqrestore(&pool->lock, flags2);
+	crypto_cb->lrng_hash_desc_zero(shash);
 	read_unlock_irqrestore(&drng->hash_lock, flags);
 	memzero_explicit(digest, sizeof(digest));
 	return collected_ent_bits;

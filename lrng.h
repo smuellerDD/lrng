@@ -46,6 +46,7 @@
  *				hash: is pointer to data structure allocated
  *				      with lrng_hash_alloc
  *				return: 0 on success, < 0 on error
+ * @lrng_hash_desc_zero		Zeroization of hash state buffer
  *
  * Assumptions:
  *
@@ -66,6 +67,7 @@ struct lrng_crypto_cb {
 	int (*lrng_hash_update)(struct shash_desc *shash, const u8 *inbuf,
 				u32 inbuflen);
 	int (*lrng_hash_final)(struct shash_desc *shash, u8 *digest);
+	void (*lrng_hash_desc_zero)(struct shash_desc *shash);
 };
 
 /* Register cryptographic backend */

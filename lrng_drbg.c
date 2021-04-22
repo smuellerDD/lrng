@@ -172,6 +172,7 @@ static const struct lrng_crypto_cb lrng_drbg_crypto_cb = {
 	.lrng_hash_init			= lrng_kcapi_hash_init,
 	.lrng_hash_update		= lrng_kcapi_hash_update,
 	.lrng_hash_final		= lrng_kcapi_hash_final,
+	.lrng_hash_desc_zero		= lrng_kcapi_hash_zero,
 };
 
 static int __init lrng_drbg_init(void)

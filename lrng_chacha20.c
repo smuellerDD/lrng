@@ -237,7 +237,7 @@ static int lrng_cc20_hash_init(struct shash_desc *shash, void *hash)
 {
 	/*
 	 * We do not need a TFM - we only need sufficient space for
-	 * struct sha1_state on the stack.
+	 * struct sha256_state on the stack.
 	 */
 	sha256_init(shash_desc_ctx(shash));
 	return 0;
@@ -259,6 +259,11 @@ static int lrng_cc20_hash_final(struct shash_desc *shash, u8 *digest)
 static const char *lrng_cc20_hash_name(void)
 {
 	return "SHA-256";
+}
+
+static void lrng_cc20_hash_desc_zero(struct shash_desc *shash)
+{
+	memzero_explicit(shash_desc_ctx(shash), sizeof(struct sha256_state));
 }
 
 #else /* CONFIG_CRYPTO_LIB_SHA256 */
@@ -314,6 +319,11 @@ static const char *lrng_cc20_hash_name(void)
 	return "SHA-1";
 }
 
+static void lrng_cc20_hash_desc_zero(struct shash_desc *shash)
+{
+	memzero_explicit(shash_desc_ctx(shash), sizeof(struct sha1_state));
+}
+
 #endif /* CONFIG_CRYPTO_LIB_SHA256 */
 
 static void *lrng_cc20_hash_alloc(void)
@@ -344,4 +354,5 @@ const struct lrng_crypto_cb lrng_cc20_crypto_cb = {
 	.lrng_hash_init			= lrng_cc20_hash_init,
 	.lrng_hash_update		= lrng_cc20_hash_update,
 	.lrng_hash_final		= lrng_cc20_hash_final,
+	.lrng_hash_desc_zero		= lrng_cc20_hash_desc_zero,
 };
