@@ -144,7 +144,7 @@ u32 lrng_slow_noise_req_entropy(u32 required_entropy_bits);
 
 /****************************** DRNG processing *******************************/
 
-/* Secondary DRNG state handle */
+/* DRNG state handle */
 struct lrng_drng {
 	void *drng;				/* DRNG handle */
 	void *hash;				/* Hash handle */
@@ -312,8 +312,7 @@ static inline u32 lrng_avail_entropy(void)
 int lrng_pcpu_switch_hash(int node,
 			  const struct lrng_crypto_cb *new_cb, void *new_hash,
 			  const struct lrng_crypto_cb *old_cb);
-u32 lrng_pcpu_pool_hash(struct lrng_pool *pool,
-			u8 *outbuf, u32 requested_bits, bool fully_seeded);
+u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded);
 void lrng_pcpu_array_add_u32(u32 data);
 
 bool lrng_state_exseed_allow(enum lrng_external_noise_source source);
@@ -335,6 +334,7 @@ struct entropy_buf {
 	u8 a[LRNG_DRNG_SECURITY_STRENGTH_BYTES];
 	u8 b[LRNG_DRNG_SECURITY_STRENGTH_BYTES];
 	u8 c[LRNG_DRNG_SECURITY_STRENGTH_BYTES];
+	u8 d[LRNG_DRNG_SECURITY_STRENGTH_BYTES];
 	u32 now;
 };
 

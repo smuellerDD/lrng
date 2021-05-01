@@ -317,13 +317,14 @@ int __init rand_initialize(void)
  * the auxiliary pool. The message digest is the new state of the auxiliary
  * pool.
  */
-int lrng_pool_insert_aux(const u8 *inbuf, u32 inbuflen, u32 entropy_bits)
+static int
+lrng_pool_insert_aux_locked(const u8 *inbuf, u32 inbuflen, u32 entropy_bits)
 {
 	SHASH_DESC_ON_STACK(shash, NULL);
 	struct lrng_drng *drng = lrng_drng_init_instance();
 	const struct lrng_crypto_cb *crypto_cb;
 	struct lrng_pool *pool = &lrng_pool;
-	unsigned long flags, flags2;
+	unsigned long flags;
 	void *hash;
 	u32 digestsize;
 	int ret;
@@ -337,7 +338,6 @@ int lrng_pool_insert_aux(const u8 *inbuf, u32 inbuflen, u32 entropy_bits)
 	hash = drng->hash;
 	digestsize = crypto_cb->lrng_hash_digestsize(hash);
 
-	spin_lock_irqsave(&pool->lock, flags2);
 	ret = crypto_cb->lrng_hash_init(shash, hash) ?:
 	      /* Hash auxiliary pool ... */
 	      crypto_cb->lrng_hash_update(shash, pool->aux_pool, digestsize) ?:
@@ -358,9 +358,21 @@ int lrng_pool_insert_aux(const u8 *inbuf, u32 inbuflen, u32 entropy_bits)
 	atomic_set(&pool->aux_entropy_bits, entropy_bits);
 
 out:
-	spin_unlock_irqrestore(&pool->lock, flags2);
 	crypto_cb->lrng_hash_desc_zero(shash);
 	read_unlock_irqrestore(&drng->hash_lock, flags);
+
+	return ret;
+}
+
+int lrng_pool_insert_aux(const u8 *inbuf, u32 inbuflen, u32 entropy_bits)
+{
+	struct lrng_pool *pool = &lrng_pool;
+	unsigned long flags;
+	int ret;
+
+	spin_lock_irqsave(&pool->lock, flags);
+	ret = lrng_pool_insert_aux_locked(inbuf, inbuflen, entropy_bits);
+	spin_unlock_irqrestore(&pool->lock, flags);
 
 	return ret;
 }
@@ -394,19 +406,50 @@ void lrng_pool_add_irq(void)
 
 /************************* Get data from entropy pool *************************/
 
-static inline u32 lrng_get_pool(u8 *outbuf, u32 requested_entropy_bits)
+/**
+ * Get auxiliary entropy pool and its entropy content for seed buffer.
+ * @outbuf: buffer to store data in with size requested_bits
+ * @requested_bits: Requested amount of entropy
+ * @return: amount of entropy in outbuf in bits.
+ */
+static inline u32 lrng_get_aux_pool(u8 *outbuf, u32 requested_bits)
 {
-	struct lrng_state *state = &lrng_state;
+	struct lrng_pool *pool = &lrng_pool;
+	u32 collected_ent_bits, unused_bits = 0;
 
-	return lrng_pcpu_pool_hash(&lrng_pool, outbuf, requested_entropy_bits,
-				   state->lrng_fully_seeded);
+	/* Cap entropy with entropy counter from aux pool and the used digest */
+	collected_ent_bits = min_t(u32, lrng_get_digestsize(),
+			       atomic_xchg_relaxed(&pool->aux_entropy_bits, 0));
+
+	/* We collected too much entropy and put the overflow back */
+	if (collected_ent_bits > requested_bits) {
+		/* Amount of bits we collected too much */
+		unused_bits = collected_ent_bits - requested_bits;
+		/* Put entropy back */
+		atomic_add(unused_bits, &pool->aux_entropy_bits);
+		/* Fix collected entropy */
+		collected_ent_bits = requested_bits;
+	}
+	pr_debug("obtained %u bits of entropy from aux pool, %u bits of entropy remaining\n",
+		 collected_ent_bits, unused_bits);
+
+	/*
+	 * Do not truncate the output size exactly to collected_ent_bits as
+	 * the aux pool may contain data that is not credited with entropy,
+	 * but we want to use them to stir the DRNG state.
+	 */
+	memcpy(outbuf, pool->aux_pool, requested_bits >> 3);
+
+	return collected_ent_bits;
 }
 
 /* Fill the seed buffer with data from the noise sources */
 int lrng_fill_seed_buffer(struct entropy_buf *entropy_buf)
 {
+	struct lrng_pool *pool = &lrng_pool;
 	struct lrng_state *state = &lrng_state;
-	u32 total_entropy_bits = 0;
+	unsigned long flags;
+	u32 total_entropy_bits = 0, requested_bits;
 
 	/* Guarantee that requested bits is a multiple of bytes */
 	BUILD_BUG_ON(LRNG_DRNG_SECURITY_STRENGTH_BITS % 8);
@@ -417,20 +460,36 @@ int lrng_fill_seed_buffer(struct entropy_buf *entropy_buf)
 	     lrng_slow_noise_req_entropy(LRNG_MIN_SEED_ENTROPY_BITS)))
 		goto wakeup;
 
+	/* Ensure aux pool extraction and backtracking op are atomic */
+	spin_lock_irqsave(&pool->lock, flags);
+
+	/* Concatenate the output of the entropy sources. */
+	total_entropy_bits = lrng_get_aux_pool(entropy_buf->a,
+					      LRNG_DRNG_SECURITY_STRENGTH_BITS);
+
 	/*
-	 * Concatenate the output of the noise sources. This would be the
-	 * spot to add an entropy extractor logic if desired. Note, this
-	 * has the ability to collect entropy equal or larger than the DRNG
-	 * strength.
+	 * If the aux pool returned entropy, pull respective less from per-CPU
+	 * pool, but attempt to at least get LRNG_MIN_SEED_ENTROPY_BITS entropy.
 	 */
-	total_entropy_bits = lrng_get_pool(entropy_buf->a,
-					   LRNG_DRNG_SECURITY_STRENGTH_BITS);
-	total_entropy_bits += lrng_get_arch(entropy_buf->b);
-	total_entropy_bits += lrng_get_jent(entropy_buf->c,
+	requested_bits = max_t(u32, LRNG_DRNG_SECURITY_STRENGTH_BITS -
+			       total_entropy_bits, LRNG_MIN_SEED_ENTROPY_BITS);
+	total_entropy_bits += lrng_pcpu_pool_hash(entropy_buf->b,
+						  requested_bits,
+						  state->lrng_fully_seeded);
+
+	total_entropy_bits += lrng_get_arch(entropy_buf->c);
+	total_entropy_bits += lrng_get_jent(entropy_buf->d,
 					    LRNG_DRNG_SECURITY_STRENGTH_BYTES);
 
 	/* also reseed the DRNG with the current time stamp */
 	entropy_buf->now = random_get_entropy();
+
+	/* Mix the extracted data back into pool for backtracking resistance */
+	if (lrng_pool_insert_aux_locked((u8 *)entropy_buf,
+					sizeof(struct entropy_buf), 0))
+		pr_warn("Backtracking resistance operation failed\n");
+
+	spin_unlock_irqrestore(&pool->lock, flags);
 
 	/* allow external entropy provider to provide seed */
 	lrng_state_exseed_allow_all();
