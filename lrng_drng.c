@@ -150,32 +150,28 @@ static void lrng_drng_inject(struct lrng_drng *drng,
 /*
  * Perform the seeding of the DRNG with data from noise source
  */
-static inline int _lrng_drng_seed(struct lrng_drng *drng)
+static inline void _lrng_drng_seed(struct lrng_drng *drng)
 {
 	struct entropy_buf seedbuf __aligned(LRNG_KCAPI_ALIGN);
 	u32 total_entropy_bits;
-	int ret;
 
 	total_entropy_bits = lrng_fill_seed_buffer(&seedbuf);
 
 	/* Allow the seeding operation to be called again */
 	lrng_pool_unlock();
 	lrng_init_ops(total_entropy_bits);
-	ret = total_entropy_bits >> 3;
 
 	lrng_drng_inject(drng, (u8 *)&seedbuf, sizeof(seedbuf));
 	memzero_explicit(&seedbuf, sizeof(seedbuf));
 
-	if (ret >= (int)(lrng_security_strength() >> 3))
+	if (total_entropy_bits >= (int)(lrng_security_strength()))
 		drng->fully_seeded = true;
-
-	return ret;
 }
 
 static int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen);
 static void lrng_drng_seed(struct lrng_drng *drng)
 {
-	int ret = _lrng_drng_seed(drng);
+	_lrng_drng_seed(drng);
 
 	BUILD_BUG_ON(LRNG_MIN_SEED_ENTROPY_BITS >
 		     LRNG_DRNG_SECURITY_STRENGTH_BITS);
@@ -193,8 +189,7 @@ static void lrng_drng_seed(struct lrng_drng *drng)
 			lrng_drng_reseed_max_time * HZ))) {
 		u8 seedbuf[LRNG_DRNG_SECURITY_STRENGTH_BYTES]
 						__aligned(LRNG_KCAPI_ALIGN);
-
-		ret = lrng_drng_get(drng, seedbuf, sizeof(seedbuf));
+		int ret = lrng_drng_get(drng, seedbuf, sizeof(seedbuf));
 
 		if (ret < 0) {
 			pr_warn("Error generating random numbers for atomic DRNG: %d\n",

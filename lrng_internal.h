@@ -338,7 +338,7 @@ struct entropy_buf {
 	u32 now;
 };
 
-int lrng_fill_seed_buffer(struct entropy_buf *entropy_buf);
+u32 lrng_fill_seed_buffer(struct entropy_buf *entropy_buf);
 void lrng_init_ops(u32 seed_bits);
 
 /************************** Health Test linking code **************************/

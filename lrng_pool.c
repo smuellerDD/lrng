@@ -444,7 +444,7 @@ static inline u32 lrng_get_aux_pool(u8 *outbuf, u32 requested_bits)
 }
 
 /* Fill the seed buffer with data from the noise sources */
-int lrng_fill_seed_buffer(struct entropy_buf *entropy_buf)
+u32 lrng_fill_seed_buffer(struct entropy_buf *entropy_buf)
 {
 	struct lrng_pool *pool = &lrng_pool;
 	struct lrng_state *state = &lrng_state;
