@@ -35,10 +35,17 @@ static int __init lrng_parse_trust_cpu(char *arg)
 	if (ret)
 		return ret;
 
-	if (trust_cpu)
+	if (trust_cpu) {
 		archrandom = LRNG_ARCHRANDOM_TRUST_CPU_STRENGTH;
-	else
+		/* Set the initial threshold */
+		lrng_set_entropy_thresh(
+			lrng_slow_noise_req_entropy(
+				LRNG_ARCHRANDOM_TRUST_CPU_STRENGTH));
+		/* Check if DRNG can be seeded. */
+		lrng_pool_add_irq();
+	} else {
 		archrandom = LRNG_ARCHRANDOM_DEFAULT_STRENGTH;
+	}
 
 	return 0;
 }

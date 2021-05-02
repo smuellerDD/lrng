@@ -107,6 +107,13 @@ static void lrng_drngs_init_cc20(void)
 	lrng_drng_unlock(&lrng_drng_atomic, &flags);
 
 	lrng_set_available();
+
+	/* Check if DRNG can be seeded. */
+	lrng_pool_add_irq();
+	/* Set the initial threshold */
+	lrng_set_entropy_thresh(
+		lrng_slow_noise_req_entropy(LRNG_INIT_ENTROPY_BITS +
+					    CONFIG_LRNG_OVERSAMPLE_ES_BITS));
 }
 
 /************************* Random Number Generation ***************************/

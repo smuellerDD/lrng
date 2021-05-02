@@ -41,7 +41,7 @@ static struct lrng_pool lrng_pool __aligned(LRNG_KCAPI_ALIGN) = {
 	.digestsize		= ATOMIC_INIT(LRNG_ATOMIC_DIGEST_SIZE),
 	.irq_info		= {
 		.irq_entropy_bits	= LRNG_IRQ_ENTROPY_BITS,
-		.num_events_thresh	= ATOMIC_INIT(LRNG_INIT_ENTROPY_BITS),
+		.num_events_thresh	= ATOMIC_INIT(0),
 		/* Sample IRQ pointer data at least during boot */
 		.irq_highres_timer	= false },
 	.lock			= __SPIN_LOCK_UNLOCKED(lrng_pool.lock)
