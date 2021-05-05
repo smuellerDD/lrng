@@ -105,7 +105,18 @@ u32 lrng_avail_aux_entropy(void)
 /* Set the digest size of the used hash in bytes */
 void lrng_set_digestsize(u32 digestsize)
 {
+	struct lrng_pool *pool = &lrng_pool;
+	u32 ent_bits = atomic_xchg_relaxed(&pool->aux_entropy_bits, 0),
+	    old_digestsize = lrng_get_digestsize();
+
 	atomic_set(&lrng_pool.digestsize, digestsize);
+
+	/*
+	 * In case the new digest is larger than the old one, cap the available
+	 * entropy to the old message digest used to process the existing data.
+	 */
+	ent_bits = min_t(u32, ent_bits, old_digestsize);
+	atomic_add(ent_bits, &pool->aux_entropy_bits);
 }
 
 /* Obtain the digest size provided by the used hash in bits */

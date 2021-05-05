@@ -166,6 +166,7 @@ int lrng_pcpu_switch_hash(int node,
 			  const struct lrng_crypto_cb *old_cb)
 {
 	u8 digest[LRNG_MAX_DIGESTSIZE];
+	u32 digestsize_irqs, found_irqs;
 	int ret, cpu;
 
 	for_each_online_cpu(cpu) {
@@ -182,6 +183,10 @@ int lrng_pcpu_switch_hash(int node,
 
 		pcpu_shash = (struct shash_desc *)per_cpu_ptr(lrng_pcpu_pool,
 							      cpu);
+
+		digestsize_irqs = old_cb->lrng_hash_digestsize(pcpu_shash);
+		digestsize_irqs = lrng_entropy_to_data(digestsize_irqs << 3);
+
 		if (pcpu_shash->tfm == new_hash)
 			continue;
 
@@ -202,6 +207,17 @@ int lrng_pcpu_switch_hash(int node,
 		spin_unlock_irqrestore(lock, flags);
 		if (ret)
 			goto out;
+
+		/*
+		 * In case the new digest is larger than the old one, cap
+		 * the available entropy to the old message digest used to
+		 * process the existing data.
+		 */
+		found_irqs = atomic_xchg_relaxed(
+				per_cpu_ptr(&lrng_pcpu_array_irqs, cpu), 0);
+		found_irqs = min_t(u32, found_irqs, digestsize_irqs);
+		atomic_add_return_relaxed(found_irqs,
+				per_cpu_ptr(&lrng_pcpu_array_irqs, cpu));
 
 		pr_debug("Re-initialize per-CPU entropy pool for CPU %d on NUMA node %d with hash %s\n",
 			 cpu, node, new_cb->lrng_hash_name());
