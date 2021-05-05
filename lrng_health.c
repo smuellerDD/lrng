@@ -106,9 +106,12 @@ static inline void lrng_sp80090b_startup(struct lrng_health *health)
 {
 	if (!health->sp80090b_startup_done &&
 	    atomic_dec_and_test(&health->sp80090b_startup_blocks)) {
+		struct entropy_buf eb;
+
 		health->sp80090b_startup_done = true;
 		pr_info("SP800-90B startup health tests completed\n");
-		lrng_init_ops(0);
+		memset(&eb, 0, sizeof(eb));
+		lrng_init_ops(&eb);
 
 		/*
 		 * Force a reseed of DRNGs to ensure they are seeded with

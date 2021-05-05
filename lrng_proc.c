@@ -142,7 +142,7 @@ static int lrng_proc_type_show(struct seq_file *m, void *v)
 {
 	struct lrng_drng *lrng_drng_init = lrng_drng_init_instance();
 	unsigned long flags = 0;
-	unsigned char buf[365];
+	unsigned char buf[390];
 
 	lrng_drng_lock(lrng_drng_init, &flags);
 	snprintf(buf, sizeof(buf),
@@ -153,6 +153,7 @@ static int lrng_proc_type_show(struct seq_file *m, void *v)
 		 "per-CPU interrupt collection size: %u\n"
 		 "number of DRNG instances: %u\n"
 		 "SP800-90B compliance: %s\n"
+		 "SP800-90C compliance: %s\n"
 		 "High-resolution timer: %s\n"
 		 "LRNG minimally seeded: %s\n"
 		 "LRNG fully seeded: %s\n"
@@ -164,6 +165,7 @@ static int lrng_proc_type_show(struct seq_file *m, void *v)
 		 LRNG_DATA_NUM_VALUES,
 		 numa_drngs,
 		 lrng_sp80090b_compliant() ? "true" : "false",
+		 lrng_sp80090c_compliant() ? "true" : "false",
 		 lrng_pool_highres_timer() ? "true" : "false",
 		 lrng_state_min_seeded() ? "true" : "false",
 		 lrng_state_fully_seeded() ? "true" : "false",

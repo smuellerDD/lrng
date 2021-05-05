@@ -186,7 +186,6 @@ int lrng_pcpu_switch_hash(int node,
 			continue;
 
 		lock = per_cpu_ptr(&lrng_pcpu_lock, cpu);
-
 		spin_lock_irqsave(lock, flags);
 		/* Get the per-CPU pool hash with old digest ... */
 		ret = old_cb->lrng_hash_final(pcpu_shash, digest) ?:
@@ -286,7 +285,8 @@ u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded)
 	struct lrng_drng *drng = lrng_drng_init_instance();
 	u8 digest[LRNG_MAX_DIGESTSIZE];
 	unsigned long flags, flags2;
-	u32 found_irqs, collected_irqs = 0, collected_ent_bits, requested_irqs;
+	u32 found_irqs, collected_irqs = 0, collected_ent_bits, requested_irqs,
+	    returned_ent_bits;
 	int ret, cpu;
 	void *hash;
 
@@ -301,7 +301,8 @@ u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded)
 	if (ret)
 		goto err;
 
-	requested_irqs = lrng_entropy_to_data(requested_bits);
+	requested_irqs = lrng_entropy_to_data(requested_bits) +
+			 CONFIG_LRNG_OVERSAMPLE_ES_BITS;
 
 	/*
 	 * Harvest entropy from each per-CPU hash state - even though we may
@@ -356,6 +357,13 @@ u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded)
 	/* Cap to maximum entropy that can ever be generated with given hash */
 	collected_ent_bits = min_t(u32, collected_ent_bits,
 				   crypto_cb->lrng_hash_digestsize(hash) << 3);
+	/* Apply oversampling: discount requested oversampling rate */
+	returned_ent_bits =
+		(collected_ent_bits >= CONFIG_LRNG_OVERSAMPLE_ES_BITS) ?
+		 (collected_ent_bits - CONFIG_LRNG_OVERSAMPLE_ES_BITS) : 0;
+
+	pr_debug("obtained %u bits by collecting %u bits of entropy from entropy pool noise source\n",
+		 returned_ent_bits, collected_ent_bits);
 
 	/*
 	 * Truncate to available entropy as implicitly allowed by SP800-90B
@@ -363,22 +371,19 @@ u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded)
 	 * entropy.
 	 *
 	 * During boot time, we read requested_bits data with
-	 * collected_ent_bits entropy. In case our conservative entropy
+	 * returned_ent_bits entropy. In case our conservative entropy
 	 * estimate underestimates the available entropy we can transport as
 	 * much available entropy as possible. The entropy pool does not
 	 * operate compliant to the German AIS 21/31 NTG.1 yet.
 	 */
-	memcpy(outbuf, digest, fully_seeded ? collected_ent_bits >> 3 :
+	memcpy(outbuf, digest, fully_seeded ? returned_ent_bits >> 3 :
 					      requested_bits >> 3);
-
-	pr_debug("obtained %u bits of entropy from entropy pool noise source\n",
-		 collected_ent_bits);
 
 out:
 	crypto_cb->lrng_hash_desc_zero(shash);
 	read_unlock_irqrestore(&drng->hash_lock, flags);
 	memzero_explicit(digest, sizeof(digest));
-	return collected_ent_bits;
+	return returned_ent_bits;
 
 err:
 	collected_ent_bits = 0;

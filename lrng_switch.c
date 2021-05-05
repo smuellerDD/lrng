@@ -93,6 +93,8 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 	/* Trigger the switch of the per-CPU entropy pools for current node. */
 	ret = lrng_pcpu_switch_hash(node, cb, new_hash, drng_store->crypto_cb);
 	if (!ret) {
+		u32 additional = 0;
+
 		if (reset_drng)
 			lrng_drng_reset(drng_store);
 
@@ -107,11 +109,20 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 			node);
 
 		lrng_set_digestsize(cb->lrng_hash_digestsize(new_hash));
-		lrng_set_entropy_thresh(lrng_security_strength());
+		if (lrng_sp80090c_compliant())
+			additional = CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS;
+		lrng_set_entropy_thresh(lrng_security_strength() + additional +
+					CONFIG_LRNG_OVERSAMPLE_ES_BITS);
 
 		/* Reseed if previous LRNG security strength was insufficient */
 		if (current_security_strength < lrng_security_strength())
 			drng_store->force_reseed = true;
+
+		/* Force oversampling seeding as we initialize DRNG */
+		if (IS_ENABLED(CONFIG_LRNG_OVERSAMPLE_ENTROPY_SOURCES)) {
+			drng_store->force_reseed = true;
+			drng_store->fully_seeded = false;
+		}
 
 		/* ChaCha20 serves as atomic instance left untouched. */
 		if (old_drng != &chacha20) {

@@ -35,10 +35,10 @@ MODULE_PARM_DESC(jitterrng, "Entropy in bits of 256 data bits from Jitter RNG no
  */
 static struct rand_data *lrng_jent_state;
 
-u32 lrng_get_jent(u8 *outbuf, unsigned int outbuflen)
+u32 lrng_get_jent(u8 *outbuf, u32 requested_bits)
 {
 	int ret;
-	u32 ent_bits = jitterrng;
+	u32 ent_bits = lrng_jent_entropylevel(requested_bits);
 	unsigned long flags;
 	static DEFINE_SPINLOCK(lrng_jent_lock);
 	static int lrng_jent_initialized = 0;
@@ -62,7 +62,7 @@ u32 lrng_get_jent(u8 *outbuf, unsigned int outbuflen)
 		lrng_jent_initialized = 1;
 		pr_debug("Jitter RNG working on current system\n");
 	}
-	ret = jent_read_entropy(lrng_jent_state, outbuf, outbuflen);
+	ret = jent_read_entropy(lrng_jent_state, outbuf, requested_bits >> 3);
 	spin_unlock_irqrestore(&lrng_jent_lock, flags);
 
 	if (ret) {
@@ -70,19 +70,14 @@ u32 lrng_get_jent(u8 *outbuf, unsigned int outbuflen)
 		return 0;
 	}
 
-	/* Obtain entropy statement */
-	if (outbuflen != LRNG_DRNG_SECURITY_STRENGTH_BYTES)
-		ent_bits = (ent_bits * outbuflen<<3) /
-			   LRNG_DRNG_SECURITY_STRENGTH_BITS;
-	/* Cap entropy to buffer size in bits */
-	ent_bits = min_t(u32, ent_bits, outbuflen<<3);
 	pr_debug("obtained %u bits of entropy from Jitter RNG noise source\n",
 		 ent_bits);
 
 	return ent_bits;
 }
 
-u32 lrng_jent_entropylevel(void)
+u32 lrng_jent_entropylevel(u32 requested_bits)
 {
-	return min_t(u32, jitterrng, LRNG_DRNG_SECURITY_STRENGTH_BITS);
+	return lrng_fast_noise_entropylevel(jitterrng, requested_bits);
 }
+

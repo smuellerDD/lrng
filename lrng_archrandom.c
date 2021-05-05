@@ -51,6 +51,11 @@ static int __init lrng_parse_trust_cpu(char *arg)
 }
 early_param("random.trust_cpu", lrng_parse_trust_cpu);
 
+u32 lrng_archrandom_entropylevel(u32 requested_bits)
+{
+	return lrng_fast_noise_entropylevel(archrandom, requested_bits);
+}
+
 /**
  * lrng_get_arch() - Get CPU noise source entropy
  *
@@ -60,19 +65,21 @@ early_param("random.trust_cpu", lrng_parse_trust_cpu);
  * * > 0 on success where value provides the added entropy in bits
  * *   0 if no fast source was available
  */
-u32 lrng_get_arch(u8 *outbuf)
+u32 lrng_get_arch(u8 *outbuf, u32 requested_bits)
 {
-	u32 i, ent_bits = archrandom;
+	u32 i, ent_bits = lrng_archrandom_entropylevel(requested_bits);
 
 	/* operate on full blocks */
 	BUILD_BUG_ON(LRNG_DRNG_SECURITY_STRENGTH_BYTES % sizeof(unsigned long));
+	BUILD_BUG_ON(CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS %
+							 sizeof(unsigned long));
 	/* ensure we have aligned buffers */
 	BUILD_BUG_ON(LRNG_KCAPI_ALIGN % sizeof(unsigned long));
 
 	if (!ent_bits)
 		return 0;
 
-	for (i = 0; i < LRNG_DRNG_SECURITY_STRENGTH_BYTES;
+	for (i = 0; i < (requested_bits >> 3);
 	     i += sizeof(unsigned long)) {
 		if (!arch_get_random_seed_long((unsigned long *)(outbuf + i)) &&
 		    !arch_get_random_long((unsigned long *)(outbuf + i))) {
@@ -81,20 +88,7 @@ u32 lrng_get_arch(u8 *outbuf)
 		}
 	}
 
-	/* Obtain entropy statement -- cap entropy to buffer size in bits */
-	ent_bits = min_t(u32, ent_bits, LRNG_DRNG_SECURITY_STRENGTH_BITS);
 	pr_debug("obtained %u bits of entropy from CPU RNG noise source\n",
 		 ent_bits);
 	return ent_bits;
-}
-
-u32 lrng_slow_noise_req_entropy(u32 required_entropy_bits)
-{
-	u32 arch_ent_bits = min_t(u32, archrandom,
-				  LRNG_DRNG_SECURITY_STRENGTH_BITS);
-	u32 fast_noise_entropy = arch_ent_bits + lrng_jent_entropylevel();
-
-	if (fast_noise_entropy > required_entropy_bits)
-		return 0;
-	return (required_entropy_bits - fast_noise_entropy);
 }

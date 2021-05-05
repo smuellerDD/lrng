@@ -116,6 +116,20 @@ static void lrng_drngs_init_cc20(void)
 					    CONFIG_LRNG_OVERSAMPLE_ES_BITS));
 }
 
+bool lrng_sp80090c_compliant(void)
+{
+	if (!IS_ENABLED(CONFIG_LRNG_OVERSAMPLE_ENTROPY_SOURCES))
+		return false;
+
+	/* Entropy source hash must be capable of transporting enough entropy */
+	if (lrng_get_digestsize() <
+	    (LRNG_DRNG_SECURITY_STRENGTH_BITS +
+	     CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS))
+		return false;
+
+	return true;
+}
+
 /************************* Random Number Generation ***************************/
 
 /* Inject a data buffer into the DRNG */
@@ -160,18 +174,24 @@ static void lrng_drng_inject(struct lrng_drng *drng,
 static inline void _lrng_drng_seed(struct lrng_drng *drng)
 {
 	struct entropy_buf seedbuf __aligned(LRNG_KCAPI_ALIGN);
-	u32 total_entropy_bits;
+	u32 total_entropy_bits, requested_bits = lrng_security_strength();
 
-	total_entropy_bits = lrng_fill_seed_buffer(&seedbuf);
+	/* Apply oversampling during initialization according to SP800-90C */
+	if (lrng_sp80090c_compliant() && !drng->fully_seeded)
+		requested_bits += CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS;
+
+	lrng_fill_seed_buffer(&seedbuf, requested_bits);
 
 	/* Allow the seeding operation to be called again */
 	lrng_pool_unlock();
-	lrng_init_ops(total_entropy_bits);
+	lrng_init_ops(&seedbuf);
 
 	lrng_drng_inject(drng, (u8 *)&seedbuf, sizeof(seedbuf));
+	total_entropy_bits = seedbuf.a_bits + seedbuf.b_bits + seedbuf.c_bits +
+			     seedbuf.d_bits;
 	memzero_explicit(&seedbuf, sizeof(seedbuf));
 
-	if (total_entropy_bits >= (int)(lrng_security_strength()))
+	if (total_entropy_bits >= requested_bits)
 		drng->fully_seeded = true;
 }
 
@@ -370,7 +390,9 @@ static void _lrng_reset(struct work_struct *work)
 			lrng_drng_unlock(drng, &flags);
 		}
 	}
-	lrng_set_entropy_thresh(LRNG_INIT_ENTROPY_BITS);
+	lrng_set_entropy_thresh(
+		lrng_slow_noise_req_entropy(LRNG_INIT_ENTROPY_BITS +
+					    CONFIG_LRNG_OVERSAMPLE_ES_BITS));
 
 	lrng_reset_state();
 }

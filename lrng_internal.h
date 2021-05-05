@@ -130,17 +130,34 @@ void get_random_bytes_full(void *buf, int nbytes);
 /************************** Jitter RNG Noise Source ***************************/
 
 #ifdef CONFIG_LRNG_JENT
-u32 lrng_get_jent(u8 *outbuf, unsigned int outbuflen);
-u32 lrng_jent_entropylevel(void);
+u32 lrng_get_jent(u8 *outbuf, u32 requested_bits);
+u32 lrng_jent_entropylevel(u32 requested_bits);
 #else /* CONFIG_CRYPTO_JITTERENTROPY */
-static inline u32 lrng_get_jent(u8 *outbuf, unsigned int outbuflen) {return 0; }
-static inline u32 lrng_jent_entropylevel(void) { return 0; }
+static inline u32 lrng_get_jent(u8 *outbuf, u32 requested_bits) { return 0; }
+static inline u32 lrng_jent_entropylevel(u32 requested_bits) { return 0; }
 #endif /* CONFIG_CRYPTO_JITTERENTROPY */
 
 /*************************** CPU-based Noise Source ***************************/
 
-u32 lrng_get_arch(u8 *outbuf);
-u32 lrng_slow_noise_req_entropy(u32 required_entropy_bits);
+static inline u32 lrng_fast_noise_entropylevel(u32 ent_bits, u32 requested_bits)
+{
+	/* Obtain entropy statement */
+	ent_bits = ent_bits * requested_bits / LRNG_DRNG_SECURITY_STRENGTH_BITS;
+	/* Cap entropy to buffer size in bits */
+	ent_bits = min_t(u32, ent_bits, requested_bits);
+	return ent_bits;
+}
+
+u32 lrng_get_arch(u8 *outbuf, u32 requested_bits);
+u32 lrng_archrandom_entropylevel(u32 requested_bits);
+
+static inline u32 lrng_slow_noise_req_entropy(u32 requested_bits)
+{
+	u32 ent_bits = lrng_archrandom_entropylevel(requested_bits) +
+		       lrng_jent_entropylevel(requested_bits);
+
+	return (ent_bits > requested_bits) ? 0 : (requested_bits - ent_bits);
+}
 
 /****************************** DRNG processing *******************************/
 
@@ -209,6 +226,7 @@ static __always_inline void lrng_drng_unlock(struct lrng_drng *drng,
 }
 
 void lrng_reset(void);
+bool lrng_sp80090c_compliant(void);
 void lrng_drng_init_early(void);
 bool lrng_get_available(void);
 void lrng_set_available(void);
@@ -331,15 +349,19 @@ int lrng_pool_insert_aux(const u8 *inbuf, u32 inbuflen, u32 entropy_bits);
 void lrng_pool_add_irq(void);
 
 struct entropy_buf {
-	u8 a[LRNG_DRNG_SECURITY_STRENGTH_BYTES];
-	u8 b[LRNG_DRNG_SECURITY_STRENGTH_BYTES];
-	u8 c[LRNG_DRNG_SECURITY_STRENGTH_BYTES];
-	u8 d[LRNG_DRNG_SECURITY_STRENGTH_BYTES];
-	u32 now;
+	u8 a[LRNG_DRNG_SECURITY_STRENGTH_BYTES +
+	     (CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS >> 3)];
+	u8 b[LRNG_DRNG_SECURITY_STRENGTH_BYTES +
+	     (CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS >> 3)];
+	u8 c[LRNG_DRNG_SECURITY_STRENGTH_BYTES +
+	     (CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS >> 3)];
+	u8 d[LRNG_DRNG_SECURITY_STRENGTH_BYTES +
+	     (CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS >> 3)];
+	u32 now, a_bits, b_bits, c_bits, d_bits;
 };
 
-u32 lrng_fill_seed_buffer(struct entropy_buf *entropy_buf);
-void lrng_init_ops(u32 seed_bits);
+void lrng_fill_seed_buffer(struct entropy_buf *entropy_buf, u32 requested_bits);
+void lrng_init_ops(struct entropy_buf *eb);
 
 /************************** Health Test linking code **************************/
 
