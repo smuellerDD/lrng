@@ -259,11 +259,11 @@ lrng_pcpu_pool_hash_one(const struct lrng_crypto_cb *pcpu_crypto_cb,
 	if (!lrng_pcpu_continuous_compression)
 		found_irqs = min_t(u32, found_irqs, LRNG_DATA_NUM_VALUES);
 
-	/* Store all not-yet compressed data in data array into hash */
+	/* Store all not-yet compressed data in data array into hash, ... */
 	if (pcpu_crypto_cb->lrng_hash_update(pcpu_shash,
 				(u8 *)per_cpu_ptr(lrng_pcpu_array, cpu),
 				LRNG_DATA_ARRAY_SIZE * sizeof(u32)) ?:
-	    /* Get the per-CPU pool digest, ... */
+	    /* ... get the per-CPU pool digest, ... */
 	    pcpu_crypto_cb->lrng_hash_final(pcpu_shash, digest) ?:
 	    /* ... re-initialize the hash, ... */
 	    pcpu_crypto_cb->lrng_hash_init(pcpu_shash, pcpu_hash) ?:
@@ -402,7 +402,7 @@ out:
 	return returned_ent_bits;
 
 err:
-	collected_ent_bits = 0;
+	returned_ent_bits = 0;
 	goto out;
 }
 
