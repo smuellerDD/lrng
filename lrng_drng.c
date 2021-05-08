@@ -111,8 +111,12 @@ static void lrng_drngs_init_cc20(void)
 	lrng_set_available();
 
 	/* Seed the DRNG with any entropy available */
-	if (!lrng_pool_trylock())
+	if (!lrng_pool_trylock()) {
 		lrng_drng_seed(&lrng_drng_init);
+		pr_info("ChaCha20 core initialized with first seeding\n");
+	} else {
+		pr_info("ChaCha20 core initialized without seeding\n");
+	}
 }
 
 bool lrng_sp80090c_compliant(void)
@@ -405,15 +409,6 @@ void lrng_reset(void)
 }
 
 /***************************** Initialize LRNG *******************************/
-
-void __init lrng_drng_init_early(void)
-{
-	unsigned long flags = 0;
-
-	lrng_drng_lock(&lrng_drng_init, &flags);
-	lrng_cc20_init_state_boot(&chacha20);
-	lrng_drng_unlock(&lrng_drng_init, &flags);
-}
 
 static int __init lrng_init(void)
 {

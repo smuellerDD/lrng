@@ -319,8 +319,6 @@ int __init rand_initialize(void)
 	} seed __aligned(LRNG_KCAPI_ALIGN);
 	unsigned int i;
 
-	lrng_drng_init_early();
-
 	BUILD_BUG_ON(LRNG_MAX_DIGESTSIZE % sizeof(unsigned long));
 
 	seed.time = ktime_get_real();

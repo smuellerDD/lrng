@@ -139,47 +139,9 @@ static int lrng_cc20_drng_generate_helper(void *drng, u8 *outbuf, u32 outbuflen)
 	return ret;
 }
 
-static inline void
-_lrng_cc20_init_state_common(u32 *val, bool (*seed)(unsigned long *v),
-			     bool (*rand)(unsigned long *v))
-{
-	unsigned long v;
-
-	*val ^= jiffies;
-	*val ^= random_get_entropy();
-	if (seed(&v) || rand(&v))
-		*val ^= v;
-}
-
-static void lrng_cc20_init_state_common(struct chacha20_state *state,
-					bool (*seed)(unsigned long *v),
-					bool (*rand)(unsigned long *v))
-{
-	struct chacha20_block *chacha20 = &state->block;
-	u32 i;
-
-	lrng_cc20_init_rfc7539(chacha20);
-
-	for (i = 0; i < CHACHA_KEY_SIZE_WORDS; i++)
-		_lrng_cc20_init_state_common(&chacha20->key.u[i], seed, rand);
-
-	for (i = 0; i < 3; i++)
-		_lrng_cc20_init_state_common(&chacha20->nonce[i], seed, rand);
-
-	lrng_chacha20_update(state, NULL, CHACHA_BLOCK_WORDS);
-}
-
 void lrng_cc20_init_state(struct chacha20_state *state)
 {
-	lrng_cc20_init_state_common(state, arch_get_random_seed_long,
-				    arch_get_random_long);
-	pr_info("ChaCha20 core initialized\n");
-}
-
-void __init lrng_cc20_init_state_boot(struct chacha20_state *state)
-{
-	lrng_cc20_init_state_common(state, arch_get_random_seed_long_early,
-				    arch_get_random_long_early);
+	lrng_cc20_init_rfc7539(&state->block);
 }
 
 /*
