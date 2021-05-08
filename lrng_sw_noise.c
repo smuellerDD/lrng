@@ -302,7 +302,8 @@ u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded)
 	u8 digest[LRNG_MAX_DIGESTSIZE];
 	unsigned long flags, flags2;
 	u32 found_irqs, collected_irqs = 0, collected_ent_bits, requested_irqs,
-	    returned_ent_bits;
+	    returned_ent_bits, osr_bits = lrng_sp80090c_compliant() ?
+					     CONFIG_LRNG_OVERSAMPLE_ES_BITS : 0;
 	int ret, cpu;
 	void *hash;
 
@@ -317,8 +318,7 @@ u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded)
 	if (ret)
 		goto err;
 
-	requested_irqs = lrng_entropy_to_data(requested_bits) +
-			 CONFIG_LRNG_OVERSAMPLE_ES_BITS;
+	requested_irqs = lrng_entropy_to_data(requested_bits) + osr_bits;
 
 	/*
 	 * Harvest entropy from each per-CPU hash state - even though we may
@@ -374,9 +374,8 @@ u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded)
 	collected_ent_bits = min_t(u32, collected_ent_bits,
 				   crypto_cb->lrng_hash_digestsize(hash) << 3);
 	/* Apply oversampling: discount requested oversampling rate */
-	returned_ent_bits =
-		(collected_ent_bits >= CONFIG_LRNG_OVERSAMPLE_ES_BITS) ?
-		 (collected_ent_bits - CONFIG_LRNG_OVERSAMPLE_ES_BITS) : 0;
+	returned_ent_bits = (collected_ent_bits >= osr_bits) ?
+					(collected_ent_bits - osr_bits) : 0;
 
 	pr_debug("obtained %u bits by collecting %u bits of entropy from entropy pool noise source\n",
 		 returned_ent_bits, collected_ent_bits);

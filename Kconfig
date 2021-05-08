@@ -37,7 +37,7 @@ config LRNG_OVERSAMPLE_ENTROPY_SOURCES
 	  increase to reach full entropy in a buffer.
 
 	  The strategy is consistent with the requirements in
-	  NIST SP800-90C.
+	  NIST SP800-90C and is only enforced with fips=1.
 
 	  If unsure, say N.
 

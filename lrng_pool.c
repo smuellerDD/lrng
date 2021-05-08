@@ -441,7 +441,9 @@ void lrng_pool_add_irq(void)
 static inline u32 lrng_get_aux_pool(u8 *outbuf, u32 requested_bits)
 {
 	struct lrng_pool *pool = &lrng_pool;
-	u32 collected_ent_bits, returned_ent_bits, unused_bits = 0;
+	u32 collected_ent_bits, returned_ent_bits, unused_bits = 0,
+	    osr_bits = lrng_sp80090c_compliant() ?
+					CONFIG_LRNG_OVERSAMPLE_ES_BITS : 0;
 
 	/* Ensure that no more than the size of aux_pool can be requested */
 	requested_bits = min_t(u32, requested_bits, (LRNG_MAX_DIGESTSIZE << 3));
@@ -451,8 +453,7 @@ static inline u32 lrng_get_aux_pool(u8 *outbuf, u32 requested_bits)
 			       atomic_xchg_relaxed(&pool->aux_entropy_bits, 0));
 
 	/* We collected too much entropy and put the overflow back */
-	if (collected_ent_bits >
-	    (requested_bits + CONFIG_LRNG_OVERSAMPLE_ES_BITS)) {
+	if (collected_ent_bits > (requested_bits + osr_bits)) {
 		/* Amount of bits we collected too much */
 		unused_bits = collected_ent_bits - requested_bits;
 		/* Put entropy back */
@@ -462,9 +463,8 @@ static inline u32 lrng_get_aux_pool(u8 *outbuf, u32 requested_bits)
 	}
 
 	/* Apply oversampling: discount requested oversampling rate */
-	returned_ent_bits =
-		(collected_ent_bits >= CONFIG_LRNG_OVERSAMPLE_ES_BITS) ?
-		 (collected_ent_bits - CONFIG_LRNG_OVERSAMPLE_ES_BITS) : 0;
+	returned_ent_bits = (collected_ent_bits >= osr_bits) ?
+					(collected_ent_bits - osr_bits) : 0;
 
 	pr_debug("obtained %u bits by collecting %u bits of entropy from aux pool, %u bits of entropy remaining\n",
 		 returned_ent_bits, collected_ent_bits, unused_bits);

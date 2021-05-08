@@ -7,6 +7,7 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <linux/fips.h>
 #include <linux/lrng.h>
 
 #include "lrng_internal.h"
@@ -125,7 +126,8 @@ bool lrng_sp80090c_compliant(void)
 	     CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS))
 		return false;
 
-	return true;
+	/* SP800-90C only requested in FIPS mode */
+	return fips_enabled;
 }
 
 /************************* Random Number Generation ***************************/
