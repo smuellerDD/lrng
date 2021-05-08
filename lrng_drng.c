@@ -80,6 +80,7 @@ void lrng_drng_reset(struct lrng_drng *drng)
 }
 
 /* Initialize the default DRNG during boot */
+static void lrng_drng_seed(struct lrng_drng *drng);
 static void lrng_drngs_init_cc20(void)
 {
 	unsigned long flags = 0;
@@ -108,12 +109,9 @@ static void lrng_drngs_init_cc20(void)
 
 	lrng_set_available();
 
-	/* Check if DRNG can be seeded. */
-	lrng_pool_add_irq();
-	/* Set the initial threshold */
-	lrng_set_entropy_thresh(
-		lrng_slow_noise_req_entropy(LRNG_INIT_ENTROPY_BITS +
-					    CONFIG_LRNG_OVERSAMPLE_ES_BITS));
+	/* Seed the DRNG with any entropy available */
+	if (!lrng_pool_trylock())
+		lrng_drng_seed(&lrng_drng_init);
 }
 
 bool lrng_sp80090c_compliant(void)
