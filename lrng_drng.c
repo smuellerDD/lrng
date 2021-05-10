@@ -283,7 +283,7 @@ void lrng_drng_force_reseed(void)
 	u32 node;
 
 	if (!lrng_drng) {
-		lrng_drng_init.force_reseed = true;
+		lrng_drng_init.force_reseed = lrng_drng_init.fully_seeded;
 		pr_debug("force reseed of initial DRNG\n");
 		return;
 	}
@@ -293,10 +293,10 @@ void lrng_drng_force_reseed(void)
 		if (!drng)
 			continue;
 
-		drng->force_reseed = true;
+		drng->force_reseed = drng->fully_seeded;
 		pr_debug("force reseed of DRNG on node %u\n", node);
 	}
-	lrng_drng_atomic.force_reseed = true;
+	lrng_drng_atomic.force_reseed = lrng_drng_atomic.fully_seeded;
 }
 
 /**
