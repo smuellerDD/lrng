@@ -333,6 +333,9 @@ int __init rand_initialize(void)
 	lrng_pool_insert_aux((u8 *)&seed, sizeof(seed), 0);
 	memzero_explicit(&seed, sizeof(seed));
 
+	lrng_drngs_init_cc20(true);
+	invalidate_batched_entropy();
+
 	return 0;
 }
 

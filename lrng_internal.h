@@ -225,6 +225,7 @@ static __always_inline void lrng_drng_unlock(struct lrng_drng *drng,
 }
 
 void lrng_reset(void);
+void lrng_drngs_init_cc20(bool force_seed);
 bool lrng_sp80090c_compliant(void);
 bool lrng_get_available(void);
 void lrng_set_available(void);

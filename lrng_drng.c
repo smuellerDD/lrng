@@ -82,7 +82,7 @@ void lrng_drng_reset(struct lrng_drng *drng)
 
 /* Initialize the default DRNG during boot */
 static void lrng_drng_seed(struct lrng_drng *drng);
-static void lrng_drngs_init_cc20(void)
+void lrng_drngs_init_cc20(bool force_seed)
 {
 	unsigned long flags = 0;
 
@@ -92,6 +92,8 @@ static void lrng_drngs_init_cc20(void)
 	lrng_drng_lock(&lrng_drng_init, &flags);
 	if (lrng_get_available()) {
 		lrng_drng_unlock(&lrng_drng_init, &flags);
+		if (force_seed)
+			goto seed;
 		return;
 	}
 
@@ -110,6 +112,7 @@ static void lrng_drngs_init_cc20(void)
 
 	lrng_set_available();
 
+seed:
 	/* Seed the DRNG with any entropy available */
 	if (!lrng_pool_trylock()) {
 		lrng_drng_seed(&lrng_drng_init);
@@ -317,7 +320,7 @@ static int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen)
 
 	outbuflen = min_t(size_t, outbuflen, INT_MAX);
 
-	lrng_drngs_init_cc20();
+	lrng_drngs_init_cc20(false);
 
 	while (outbuflen) {
 		u32 todo = min_t(u32, outbuflen, LRNG_DRNG_MAX_REQSIZE);
@@ -412,7 +415,7 @@ void lrng_reset(void)
 
 static int __init lrng_init(void)
 {
-	lrng_drngs_init_cc20();
+	lrng_drngs_init_cc20(false);
 
 	lrng_drngs_numa_alloc();
 	return 0;
