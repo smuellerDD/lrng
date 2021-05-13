@@ -50,6 +50,11 @@ static struct lrng_pool lrng_pool __aligned(LRNG_KCAPI_ALIGN) = {
 
 static struct lrng_state lrng_state = { false, false, false, true, true };
 
+static u32 irq_entropy __read_mostly = LRNG_IRQ_ENTROPY_BITS;
+module_param(irq_entropy, uint, 0444);
+MODULE_PARM_DESC(irq_entropy,
+		 "How many interrupts must be collected for obtaining 256 bits of entropy\n");
+
 /********************************** Helper ***********************************/
 
 /* External entropy provider is allowed to provide seed data */
@@ -215,6 +220,9 @@ static void lrng_pool_configure(bool highres_timer, u32 irq_entropy_bits)
 
 static int __init lrng_init_time_source(void)
 {
+	/* Set a minimum number of interrupts that must be collected */
+	irq_entropy = max_t(u32, LRNG_IRQ_ENTROPY_BITS, irq_entropy);
+
 	if ((random_get_entropy() & LRNG_DATA_SLOTSIZE_MASK) ||
 	    (random_get_entropy() & LRNG_DATA_SLOTSIZE_MASK)) {
 		/*
@@ -222,10 +230,10 @@ static int __init lrng_init_time_source(void)
 		 * obtained during boot time are treated like a lowres-timer
 		 * would have been present.
 		 */
-		lrng_pool_configure(true, LRNG_IRQ_ENTROPY_BITS);
+		lrng_pool_configure(true, irq_entropy);
 	} else {
 		lrng_health_disable();
-		lrng_pool_configure(false, LRNG_IRQ_ENTROPY_BITS *
+		lrng_pool_configure(false, irq_entropy *
 					   LRNG_IRQ_OVERSAMPLING_FACTOR);
 		pr_warn("operating without high-resolution timer and applying IRQ oversampling factor %u\n",
 			LRNG_IRQ_OVERSAMPLING_FACTOR);
@@ -245,7 +253,7 @@ core_initcall(lrng_init_time_source);
  * reaching this value, the next seed threshold of 128 bits is set followed
  * by 256 bits.
  *
- * @entropy_bits: size of entropy currently injected into DRNG
+ * @eb: buffer containing the size of entropy currently injected into DRNG
  */
 void lrng_init_ops(struct entropy_buf *eb)
 {
