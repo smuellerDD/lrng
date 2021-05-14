@@ -1,0 +1,18 @@
+--- linux-4.19/include/crypto/sha.h.lrng13	2020-08-13 22:06:20.353827574 -0600
++++ linux-4.19/include/crypto/sha.h	2020-08-13 22:18:18.678469365 -0600
+@@ -112,4 +112,15 @@
+ 
+ extern int crypto_sha512_finup(struct shash_desc *desc, const u8 *data,
+ 			       unsigned int len, u8 *hash);
++ 
++/*
++ * An implementation of SHA-1's compression function.  Don't use in new code!
++ * You shouldn't be using SHA-1, and even if you *have* to use SHA-1, this isn't
++ * the correct way to hash something with SHA-1 (use crypto_shash instead).
++ */
++#define SHA1_DIGEST_WORDS	(SHA1_DIGEST_SIZE / 4)
++#define SHA1_WORKSPACE_WORDS	16
++void sha_init(__u32 *buf);
++void sha_transform(__u32 *digest, const char *data, __u32 *W);
++
+ #endif

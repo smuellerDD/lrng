@@ -1,0 +1,67 @@
+--- linux-4.4.268/drivers/char/lrng/lrng_testing.c.orig	2021-05-13 11:03:27.593278706 -0400
++++ linux-4.4.268/drivers/char/lrng/lrng_testing.c	2021-05-13 11:08:09.407204212 -0400
+@@ -113,8 +113,7 @@ static inline bool lrng_testing_store(st
+ 
+ 	spin_unlock_irqrestore(&data->lock, flags);
+ 
+-	if (wq_has_sleeper(&data->read_wait))
+-		wake_up_interruptible(&data->read_wait);
++	wake_up_interruptible(&data->read_wait);
+ 
+ 	return true;
+ }
+@@ -639,45 +638,45 @@ static int __init lrng_raw_init(void)
+ 	lrng_raw_debugfs_root = debugfs_create_dir(KBUILD_MODNAME, NULL);
+ 
+ #ifdef CONFIG_LRNG_RAW_HIRES_ENTROPY
+-	debugfs_create_file_unsafe("lrng_raw_hires", 0400,
++	debugfs_create_file("lrng_raw_hires", 0400,
+ 				   lrng_raw_debugfs_root, NULL,
+ 				   &lrng_raw_hires_fops);
+ #endif
+ #ifdef CONFIG_LRNG_RAW_JIFFIES_ENTROPY
+-	debugfs_create_file_unsafe("lrng_raw_jiffies", 0400,
++	debugfs_create_file("lrng_raw_jiffies", 0400,
+ 				   lrng_raw_debugfs_root, NULL,
+ 				   &lrng_raw_jiffies_fops);
+ #endif
+ #ifdef CONFIG_LRNG_RAW_IRQ_ENTROPY
+-	debugfs_create_file_unsafe("lrng_raw_irq", 0400, lrng_raw_debugfs_root,
++	debugfs_create_file("lrng_raw_irq", 0400, lrng_raw_debugfs_root,
+ 				   NULL, &lrng_raw_irq_fops);
+ #endif
+ #ifdef CONFIG_LRNG_RAW_IRQFLAGS_ENTROPY
+-	debugfs_create_file_unsafe("lrng_raw_irqflags", 0400,
++	debugfs_create_file("lrng_raw_irqflags", 0400,
+ 				   lrng_raw_debugfs_root, NULL,
+ 				   &lrng_raw_irqflags_fops);
+ #endif
+ #ifdef CONFIG_LRNG_RAW_RETIP_ENTROPY
+-	debugfs_create_file_unsafe("lrng_raw_retip", 0400,
++	debugfs_create_file("lrng_raw_retip", 0400,
+ 				   lrng_raw_debugfs_root, NULL,
+ 				   &lrng_raw_retip_fops);
+ #endif
+ #ifdef CONFIG_LRNG_RAW_REGS_ENTROPY
+-	debugfs_create_file_unsafe("lrng_raw_regs", 0400,
++	debugfs_create_file("lrng_raw_regs", 0400,
+ 				   lrng_raw_debugfs_root, NULL,
+ 				   &lrng_raw_regs_fops);
+ #endif
+ #ifdef CONFIG_LRNG_RAW_ARRAY
+-	debugfs_create_file_unsafe("lrng_raw_array", 0400,
++	debugfs_create_file("lrng_raw_array", 0400,
+ 				   lrng_raw_debugfs_root, NULL,
+ 				   &lrng_raw_array_fops);
+ #endif
+ #ifdef CONFIG_LRNG_IRQ_PERF
+-	debugfs_create_file_unsafe("lrng_irq_perf", 0400, lrng_raw_debugfs_root,
++	debugfs_create_file("lrng_irq_perf", 0400, lrng_raw_debugfs_root,
+ 				   NULL, &lrng_irq_perf_fops);
+ #endif
+ #ifdef CONFIG_LRNG_ACVT_HASH
+-	debugfs_create_file_unsafe("lrng_acvt_hash", 0600,
++	debugfs_create_file("lrng_acvt_hash", 0600,
+ 				   lrng_raw_debugfs_root, NULL,
+ 				   &lrng_acvt_hash_fops);
+ #endif
