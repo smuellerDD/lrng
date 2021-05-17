@@ -56,11 +56,17 @@ which is available at [2].
 The ChaCha20 DRNG code used for the LRNG is identical to the code in [2]
 which allows to apply conclusions drawn from [2] to be applied to the LRNG.
 
+# Cryptographic Algorithm Testing
+
+The used cryptographic algorithms are testable with the acvpparser [3].
+
 # References
 
 [1] `doc/lrng.pdf`
 
 [2] [ChaCha20 DRNG](https://github.com/smuellerDD/chacha20_drng)
+
+[3] [ACVPParser](https://github.com/smuellerDD/acvpparser)
 
 # Author
 Stephan Mueller <smueller@chronox.de>
