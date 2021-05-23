@@ -30,10 +30,29 @@
 
 # Count the available NUMA nodes
 NUMA_NODES=$(cat /proc/lrng_type  | grep instance | cut -d":" -f 2)
+DRBG_SKIP=0
+KCAPI_SKIP=0
 
 urandom=0
 lrng_type=0
 dd_random=0
+
+init() {
+	modinfo lrng_drbg > /dev/null 2>&1
+	DRBG_SKIP=$?
+
+	modinfo lrng_kcapi > /dev/null 2>&1
+	KCAPI_SKIP=$?
+
+	modinfo ansi_cprng > /dev/null 2>&1
+	KCAPI_SKIP=$((KCAPI_SKIP+$?))
+
+	if [ $DRBG_SKIP -ne 0 -a $KCAPI_SKIP -ne 0 ]
+	then
+		echo "No DRNG switchable modules found, test cannot be performed"
+		exit 1
+	fi
+}
 
 # Cleanup
 cleanup() {
@@ -59,7 +78,25 @@ cleanup() {
 	done
 }
 
+load_drbg() {
+	type=$1
+
+	sudo modprobe lrng_drbg lrng_drbg_type=$type
+	rng_name=$(cat /proc/lrng_type  | grep "DRNG name" | cut -d ":" -f2)
+	sudo rmmod lrng_drbg
+	rng_name="DRBG LRNG:$rng_name"
+}
+
+load_kcapi() {
+	sudo modprobe lrng_kcapi drng_name="$ANSI_CPRNG" pool_hash="sha512" seed_hash="sha384"
+	rng_name=$(cat /proc/lrng_type  | grep "DRNG name" | cut -d ":" -f2)
+	sudo rmmod lrng_kcapi
+	rng_name="KCAPI LRNG:$rng_name"
+}
+
 trap "cleanup; exit $?" 0 1 2 3 15
+
+init
 
 # Start reading for all DRNGs on all NUMA nodes - this ensures that all sdrngs
 # instances are under active use and locks are taken
@@ -98,23 +135,27 @@ DRNG_INSTANCES=$(($NUMA_NODES+1))
 
 # Load and unload new DRNG implementations while the aforementioned
 # operations are ongoing.
-modprobe ansi_cprng > /dev/null 2>&1
-ANSI_CPRNG="ansi_cprng"
-if (cat /proc/sys/crypto/fips_enabled | grep -q 1)
+if [ $KCAPI_SKIP -eq 0 ]
 then
-	ANSI_CPRNG="fips_ansi_cprng"
+	modprobe ansi_cprng > /dev/null 2>&1
+	ANSI_CPRNG="ansi_cprng"
+	if (cat /proc/sys/crypto/fips_enabled | grep -q 1)
+	then
+		ANSI_CPRNG="fips_ansi_cprng"
+	fi
 fi
 
 i=1
 while [ $i -lt 5000 ]
 do
-	if [ $((i%4)) -ne 3 ]
+	if [ $((i%4)) -ne 3 -a $DRBG_SKIP -eq 0 ]
 	then
-		sudo modprobe lrng_drbg lrng_drbg_type=$((i%4)); rng_name=$(cat /proc/lrng_type  | grep "DRNG name" | cut -d ":" -f2); sudo rmmod lrng_drbg
-		rng_name="DRBG LRNG:$rng_name"
+		load_drbg $((i%4))
+	elif [ $KCAPI_SKIP -eq 0 ]
+	then
+		load_kcapi
 	else
-		sudo modprobe lrng_kcapi drng_name="$ANSI_CPRNG" pool_hash="sha512" seed_hash="sha384"; rng_name=$(cat /proc/lrng_type  | grep "DRNG name" | cut -d ":" -f2); sudo rmmod lrng_kcapi
-		rng_name="KCAPI LRNG:$rng_name"
+		load_drbg 0
 	fi
 	if [ $(dmesg | grep "lrng_base: reset" | wc -l) -gt $DRNG_INSTANCES ]
 	then
