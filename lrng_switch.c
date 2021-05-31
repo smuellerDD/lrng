@@ -111,8 +111,10 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 		lrng_set_digestsize(cb->lrng_hash_digestsize(new_hash));
 		if (lrng_sp80090c_compliant())
 			additional = CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS;
-		lrng_set_entropy_thresh(lrng_security_strength() + additional +
-					CONFIG_LRNG_OVERSAMPLE_ES_BITS);
+		if (lrng_state_min_seeded()) {
+			lrng_set_entropy_thresh(lrng_security_strength() +
+						additional);
+		}
 
 		/* Reseed if previous LRNG security strength was insufficient */
 		if (current_security_strength < lrng_security_strength())
