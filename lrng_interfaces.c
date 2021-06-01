@@ -62,7 +62,7 @@ void lrng_init_wakeup(void)
 
 /**
  * lrng_process_ready_list() - Ping all kernel internal callers waiting until
- * the DRNG is at least minimally seeded to inform that the DRNG reached that
+ * the DRNG is completely initialized to inform that the DRNG reached that
  * seed level.
  *
  * When the SP800-90B testing is enabled, the ping only happens if the SP800-90B
@@ -75,7 +75,7 @@ void lrng_process_ready_list(void)
 	unsigned long flags;
 	struct random_ready_callback *rdy, *tmp;
 
-	if (!lrng_sp80090b_startup_complete())
+	if (!lrng_state_operational())
 		return;
 
 	spin_lock_irqsave(&lrng_ready_list_lock, flags);
@@ -222,7 +222,7 @@ EXPORT_SYMBOL(del_random_ready_callback);
 
 /**
  * add_random_ready_callback() - Add a callback function that will be invoked
- * when the DRNG is mimimally seeded.
+ * when the DRNG is fully initialized and seeded.
  *
  * @rdy: callback definition to be invoked when the LRNG is seeded
  *
@@ -237,7 +237,7 @@ int add_random_ready_callback(struct random_ready_callback *rdy)
 	unsigned long flags;
 	int err = -EALREADY;
 
-	if (likely(lrng_state_min_seeded()))
+	if (likely(lrng_state_operational()))
 		return err;
 
 	owner = rdy->owner;
@@ -245,7 +245,7 @@ int add_random_ready_callback(struct random_ready_callback *rdy)
 		return -ENOENT;
 
 	spin_lock_irqsave(&lrng_ready_list_lock, flags);
-	if (lrng_state_min_seeded())
+	if (lrng_state_operational())
 		goto out;
 
 	owner = NULL;
