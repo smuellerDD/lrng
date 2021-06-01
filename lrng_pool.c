@@ -19,6 +19,7 @@
 #include "lrng_sw_noise.h"
 
 struct lrng_state {
+	bool perform_seedwork;		/* Can seed work be performed? */
 	bool lrng_operational;		/* Is DRNG operational? */
 	bool lrng_fully_seeded;		/* Is DRNG fully seeded? */
 	bool lrng_min_seeded;		/* Is DRNG minimally seeded? */
@@ -65,7 +66,7 @@ static struct lrng_pool lrng_pool __aligned(LRNG_KCAPI_ALIGN) = {
 };
 
 static struct lrng_state lrng_state = {
-	false, false, false, false, true, true,
+	false, false, false, false, false, true, true,
 	.boot_entropy_thresh	= ATOMIC_INIT(LRNG_INIT_ENTROPY_BITS),
 	.reseed_in_progress	= ATOMIC_INIT(0),
 };
@@ -300,6 +301,7 @@ int __init rand_initialize(void)
 
 	/* Initialize the seed work queue */
 	INIT_WORK(&lrng_state.lrng_seed_work, lrng_drng_seed_work);
+	lrng_state.perform_seedwork = true;
 
 	lrng_drngs_init_cc20(true);
 	invalidate_batched_entropy();
@@ -398,7 +400,10 @@ void lrng_pool_add_entropy(void)
 		return;
 
 	/* Seed the DRNG with IRQ noise. */
-	schedule_work(&lrng_state.lrng_seed_work);
+	if (lrng_state.perform_seedwork)
+		schedule_work(&lrng_state.lrng_seed_work);
+	else
+		lrng_drng_seed_work(NULL);
 }
 
 /************************* Get data from entropy pool *************************/
