@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-2-Clause
 /*
- * LRNG Slow Noise Source: Interrupt data collection and random data generation
+ * LRNG Slow Entropy Source: Interrupt data collection
  *
  * Copyright (C) 2016 - 2021, Stephan Mueller <smueller@chronox.de>
  */
@@ -15,6 +15,16 @@
 
 #include "lrng_internal.h"
 #include "lrng_sw_noise.h"
+
+/* Number of interrupts required for LRNG_DRNG_SECURITY_STRENGTH_BITS entropy */
+static u32 lrng_irq_entropy_bits = LRNG_IRQ_ENTROPY_BITS;
+/* Is high-resolution timer present? */
+static bool lrng_irq_highres_timer = false;
+
+static u32 irq_entropy __read_mostly = LRNG_IRQ_ENTROPY_BITS;
+module_param(irq_entropy, uint, 0444);
+MODULE_PARM_DESC(irq_entropy,
+		 "How many interrupts must be collected for obtaining 256 bits of entropy\n");
 
 /* Per-CPU array holding concatenated entropy events */
 static DEFINE_PER_CPU(u32 [LRNG_DATA_ARRAY_SIZE], lrng_pcpu_array)
@@ -75,6 +85,26 @@ static DEFINE_PER_CPU(u8 [LRNG_PCPU_POOL_SIZE], lrng_pcpu_pool)
 static DEFINE_PER_CPU(spinlock_t, lrng_pcpu_lock);
 static DEFINE_PER_CPU(bool, lrng_pcpu_lock_init) = false;
 
+/* Return boolean whether LRNG identified presence of high-resolution timer */
+bool lrng_pool_highres_timer(void)
+{
+	return lrng_irq_highres_timer;
+}
+
+/* Convert entropy in bits into number of IRQs with the same entropy content. */
+static inline u32 lrng_entropy_to_data(u32 entropy_bits)
+{
+	return ((entropy_bits * lrng_irq_entropy_bits) /
+		LRNG_DRNG_SECURITY_STRENGTH_BITS);
+}
+
+/* Convert number of IRQs into entropy value. */
+static inline u32 lrng_data_to_entropy(u32 irqnum)
+{
+	return ((irqnum * LRNG_DRNG_SECURITY_STRENGTH_BITS) /
+		lrng_irq_entropy_bits);
+}
+
 static inline bool lrng_pcpu_pool_online(int cpu)
 {
 	return per_cpu(lrng_pcpu_lock_init, cpu);
@@ -85,18 +115,46 @@ bool lrng_pcpu_continuous_compression_state(void)
 	return lrng_pcpu_continuous_compression;
 }
 
-void lrng_pcpu_check_compression_state(void)
+static void lrng_pcpu_check_compression_state(void)
 {
 	/* One pool must hold sufficient entropy for disabled compression */
 	if (!lrng_pcpu_continuous_compression) {
 		u32 max_ent = min_t(u32, lrng_get_digestsize(),
 				    lrng_data_to_entropy(LRNG_DATA_NUM_VALUES));
-		if (max_ent < LRNG_DRNG_SECURITY_STRENGTH_BITS) {
+		if (max_ent < lrng_security_strength()) {
 			pr_warn("Force continuous compression operation to ensure LRNG can hold enough entropy\n");
 			lrng_pcpu_continuous_compression = true;
 		}
 	}
 }
+
+static int __init lrng_init_time_source(void)
+{
+	/* Set a minimum number of interrupts that must be collected */
+	irq_entropy = max_t(u32, LRNG_IRQ_ENTROPY_BITS, irq_entropy);
+
+	if ((random_get_entropy() & LRNG_DATA_SLOTSIZE_MASK) ||
+	    (random_get_entropy() & LRNG_DATA_SLOTSIZE_MASK)) {
+		/*
+		 * As the highres timer is identified here, previous interrupts
+		 * obtained during boot time are treated like a lowres-timer
+		 * would have been present.
+		 */
+		lrng_irq_highres_timer = true;
+		lrng_irq_entropy_bits = irq_entropy;
+	} else {
+		lrng_health_disable();
+		lrng_irq_highres_timer = false;
+		lrng_irq_entropy_bits = irq_entropy *
+					LRNG_IRQ_OVERSAMPLING_FACTOR;
+		pr_warn("operating without high-resolution timer and applying IRQ oversampling factor %u\n",
+			LRNG_IRQ_OVERSAMPLING_FACTOR);
+		lrng_pcpu_check_compression_state();
+	}
+
+	return 0;
+}
+core_initcall(lrng_init_time_source);
 
 /*
  * Reset all per-CPU pools - reset entropy estimator but leave the pool data
@@ -126,8 +184,8 @@ u32 lrng_pcpu_avail_pool_size(void)
 	return max_size;
 }
 
-/* Return number of unused IRQs present in all per-CPU pools. */
-u32 lrng_pcpu_avail_irqs(void)
+/* Return entropy of unused IRQs present in all per-CPU pools. */
+u32 lrng_pcpu_avail_entropy(void)
 {
 	u32 digestsize_irqs, irq = 0;
 	int cpu;
@@ -148,7 +206,8 @@ u32 lrng_pcpu_avail_irqs(void)
 							 cpu)));
 	}
 
-	return irq;
+	/* Consider oversampling rate */
+	return  lrng_reduce_by_osr(lrng_data_to_entropy(irq));
 }
 
 /**
@@ -302,8 +361,7 @@ u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded)
 	u8 digest[LRNG_MAX_DIGESTSIZE];
 	unsigned long flags, flags2;
 	u32 found_irqs, collected_irqs = 0, collected_ent_bits, requested_irqs,
-	    returned_ent_bits, osr_bits = lrng_sp80090c_compliant() ?
-					     CONFIG_LRNG_OVERSAMPLE_ES_BITS : 0;
+	    returned_ent_bits;
 	int ret, cpu;
 	void *hash;
 
@@ -318,7 +376,8 @@ u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded)
 	if (ret)
 		goto err;
 
-	requested_irqs = lrng_entropy_to_data(requested_bits) + osr_bits;
+	requested_irqs = lrng_entropy_to_data(requested_bits) +
+			 lrng_compress_osr();
 
 	/*
 	 * Harvest entropy from each per-CPU hash state - even though we may
@@ -374,8 +433,7 @@ u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded)
 	collected_ent_bits = min_t(u32, collected_ent_bits,
 				   crypto_cb->lrng_hash_digestsize(hash) << 3);
 	/* Apply oversampling: discount requested oversampling rate */
-	returned_ent_bits = (collected_ent_bits >= osr_bits) ?
-					(collected_ent_bits - osr_bits) : 0;
+	returned_ent_bits = lrng_reduce_by_osr(collected_ent_bits);
 
 	pr_debug("obtained %u bits by collecting %u bits of entropy from entropy pool noise source\n",
 		 returned_ent_bits, collected_ent_bits);
@@ -486,7 +544,7 @@ static inline void lrng_pcpu_array_to_hash(u32 ptr)
 	} else {
 		lrng_pcpu_array_compress();
 		/* Ping pool handler about received entropy */
-		lrng_pool_add_irq();
+		lrng_pool_add_entropy();
 	}
 }
 

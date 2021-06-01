@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-2-Clause
 /*
- * LRNG Fast Noise Source: CPU-based noise source
+ * LRNG Fast Entropy Source: CPU-based entropy source
  *
  * Copyright (C) 2016 - 2021, Stephan Mueller <smueller@chronox.de>
  */
@@ -37,12 +37,7 @@ static int __init lrng_parse_trust_cpu(char *arg)
 
 	if (trust_cpu) {
 		archrandom = LRNG_ARCHRANDOM_TRUST_CPU_STRENGTH;
-		/* Set the initial threshold */
-		lrng_set_entropy_thresh(
-			lrng_slow_noise_req_entropy(
-				LRNG_ARCHRANDOM_TRUST_CPU_STRENGTH));
-		/* Check if DRNG can be seeded. */
-		lrng_pool_add_irq();
+		lrng_pool_add_entropy();
 	} else {
 		archrandom = LRNG_ARCHRANDOM_DEFAULT_STRENGTH;
 	}

@@ -99,7 +99,6 @@ void lrng_drngs_init_cc20(bool force_seed)
 
 	lrng_drng_reset(&lrng_drng_init);
 	lrng_cc20_init_state(&chacha20);
-	lrng_state_init_seed_work();
 	lrng_drng_unlock(&lrng_drng_init, &flags);
 
 	lrng_drng_lock(&lrng_drng_atomic, &flags);
@@ -129,8 +128,7 @@ bool lrng_sp80090c_compliant(void)
 
 	/* Entropy source hash must be capable of transporting enough entropy */
 	if (lrng_get_digestsize() <
-	    (LRNG_DRNG_SECURITY_STRENGTH_BITS +
-	     CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS))
+	    (lrng_security_strength() + CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS))
 		return false;
 
 	/* SP800-90C only requested in FIPS mode */
@@ -397,9 +395,7 @@ static void _lrng_reset(struct work_struct *work)
 			lrng_drng_unlock(drng, &flags);
 		}
 	}
-	lrng_set_entropy_thresh(
-		lrng_slow_noise_req_entropy(LRNG_INIT_ENTROPY_BITS +
-					    CONFIG_LRNG_OVERSAMPLE_ES_BITS));
+	lrng_set_entropy_thresh(LRNG_INIT_ENTROPY_BITS);
 
 	lrng_reset_state();
 }

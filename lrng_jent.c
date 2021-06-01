@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-2-Clause
 /*
- * LRNG Fast Noise Source: Jitter RNG
+ * LRNG Fast Entropy Source: Jitter RNG
  *
  * Copyright (C) 2016 - 2021, Stephan Mueller <smueller@chronox.de>
  */
@@ -28,9 +28,6 @@ static struct rand_data *lrng_jent_state;
 
 static int __init lrng_jent_initialize(void)
 {
-	u32 ent_bits = lrng_fast_noise_entropylevel(jitterrng,
-					LRNG_DRNG_SECURITY_STRENGTH_BITS);
-
 	/* Initialize the Jitter RNG after the clocksources are initialized. */
 	lrng_jent_state = jent_lrng_entropy_collector();
 	if (!lrng_jent_state) {
@@ -39,7 +36,7 @@ static int __init lrng_jent_initialize(void)
 		return 0;
 	}
 	lrng_jent_initialized = true;
-	lrng_update_entropy_thresh(ent_bits);
+	lrng_pool_add_entropy();
 	pr_debug("Jitter RNG working on current system\n");
 
 	return 0;

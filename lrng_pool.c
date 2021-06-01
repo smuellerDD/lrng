@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0 OR BSD-2-Clause
 /*
- * LRNG Entropy pool management
+ * LRNG Entropy sources management
+ * LRNG Slow Entropy Source: Auxiliary entropy pool
  *
  * Copyright (C) 2016 - 2021, Stephan Mueller <smueller@chronox.de>
  */
@@ -21,6 +22,7 @@ struct lrng_state {
 	bool lrng_operational;		/* Is DRNG operational? */
 	bool lrng_fully_seeded;		/* Is DRNG fully seeded? */
 	bool lrng_min_seeded;		/* Is DRNG minimally seeded? */
+	bool all_online_numa_node_seeded;/* All NUMA DRNGs seeded? */
 
 	/*
 	 * To ensure that external entropy providers cannot dominate the
@@ -33,26 +35,40 @@ struct lrng_state {
 	bool lrng_seed_hw;		/* Allow HW to provide seed */
 	bool lrng_seed_user;		/* Allow user space to provide seed */
 
+	atomic_t boot_entropy_thresh;	/* Reseed threshold */
+	atomic_t reseed_in_progress;	/* Flag for on executing reseed */
 	struct work_struct lrng_seed_work;	/* (re)seed work queue */
+};
+
+/*
+ * This is the auxiliary pool
+ *
+ * The aux pool array is aligned to 8 bytes to comfort the kernel crypto API
+ * cipher implementations of the hash functions used to read the pool: for some
+ * accelerated implementations, we need an alignment to avoid a realignment
+ * which involves memcpy(). The alignment to 8 bytes should satisfy all crypto
+ * implementations.
+ */
+struct lrng_pool {
+	u8 aux_pool[LRNG_MAX_DIGESTSIZE];/* Storage for aux data */
+	atomic_t aux_entropy_bits;
+	atomic_t digestsize;		 /* Digest size of used hash */
+
+	/* Serialize read of entropy pool and update of aux pool */
+	spinlock_t lock;
 };
 
 static struct lrng_pool lrng_pool __aligned(LRNG_KCAPI_ALIGN) = {
 	.aux_entropy_bits	= ATOMIC_INIT(0),
 	.digestsize		= ATOMIC_INIT(LRNG_ATOMIC_DIGEST_SIZE),
-	.irq_info		= {
-		.irq_entropy_bits	= LRNG_IRQ_ENTROPY_BITS,
-		.num_events_thresh	= ATOMIC_INIT(LRNG_INIT_ENTROPY_BITS),
-		/* Sample IRQ pointer data at least during boot */
-		.irq_highres_timer	= false },
 	.lock			= __SPIN_LOCK_UNLOCKED(lrng_pool.lock)
 };
 
-static struct lrng_state lrng_state = { false, false, false, true, true };
-
-static u32 irq_entropy __read_mostly = LRNG_IRQ_ENTROPY_BITS;
-module_param(irq_entropy, uint, 0444);
-MODULE_PARM_DESC(irq_entropy,
-		 "How many interrupts must be collected for obtaining 256 bits of entropy\n");
+static struct lrng_state lrng_state = {
+	false, false, false, false, true, true,
+	.boot_entropy_thresh	= ATOMIC_INIT(LRNG_INIT_ENTROPY_BITS),
+	.reseed_in_progress	= ATOMIC_INIT(0),
+};
 
 /********************************** Helper ***********************************/
 
@@ -79,32 +95,15 @@ static inline void lrng_state_exseed_allow_all(void)
 	lrng_state_exseed_set(lrng_noise_source_user, true);
 }
 
-/* Initialize the seed work queue */
-void lrng_state_init_seed_work(void)
-{
-	INIT_WORK(&lrng_state.lrng_seed_work, lrng_drng_seed_work);
-}
-
-/* Convert entropy in bits into number of IRQs with the same entropy content. */
-u32 lrng_entropy_to_data(u32 entropy_bits)
-{
-	return ((entropy_bits * lrng_pool.irq_info.irq_entropy_bits) /
-		LRNG_DRNG_SECURITY_STRENGTH_BITS);
-}
-
-/* Convert number of IRQs into entropy value. */
-u32 lrng_data_to_entropy(u32 irqnum)
-{
-	return ((irqnum * LRNG_DRNG_SECURITY_STRENGTH_BITS) /
-		lrng_pool.irq_info.irq_entropy_bits);
-}
-
 /* Entropy in bits present in aux pool */
 u32 lrng_avail_aux_entropy(void)
 {
 	/* Cap available entropy with max entropy */
-	return min_t(u32, atomic_read_u32(&lrng_pool.digestsize) << 3,
-		     atomic_read_u32(&lrng_pool.aux_entropy_bits));
+	u32 avail_bits = min_t(u32, lrng_get_digestsize(),
+			       atomic_read_u32(&lrng_pool.aux_entropy_bits));
+
+	/* Consider oversampling rate due to aux pool conditioning */
+	return lrng_reduce_by_osr(avail_bits);
 }
 
 /* Set the digest size of the used hash in bytes */
@@ -130,27 +129,6 @@ u32 lrng_get_digestsize(void)
 	return atomic_read_u32(&lrng_pool.digestsize) << 3;
 }
 
-/* Set new entropy threshold for reseeding during boot */
-void lrng_set_entropy_thresh(u32 new_entropy_bits)
-{
-	atomic_set(&lrng_pool.irq_info.num_events_thresh,
-		   lrng_entropy_to_data(new_entropy_bits));
-}
-
-/* Update the seeding threshold new entropy from external sources arrives */
-void lrng_update_entropy_thresh(u32 new_entropy_bits)
-{
-	if (unlikely(!lrng_state_fully_seeded()) && new_entropy_bits) {
-		/* if data arrive before fully seeded, lower trigger point */
-		struct lrng_irq_info *irq_info = &lrng_pool.irq_info;
-		u32 thresh = atomic_read_u32(&irq_info->num_events_thresh);
-		u32 new_irqs = lrng_entropy_to_data(new_entropy_bits);
-
-		thresh = new_irqs > thresh ? 0 : thresh - new_irqs;
-		atomic_set(&irq_info->num_events_thresh, thresh);
-	}
-}
-
 /*
  * Reading of the LRNG pool is only allowed by one caller. The reading is
  * only performed to (re)seed DRNGs. Thus, if this "lock" is already taken,
@@ -159,12 +137,18 @@ void lrng_update_entropy_thresh(u32 new_entropy_bits)
  */
 int lrng_pool_trylock(void)
 {
-	return atomic_cmpxchg(&lrng_pool.irq_info.reseed_in_progress, 0, 1);
+	return atomic_cmpxchg(&lrng_state.reseed_in_progress, 0, 1);
 }
 
 void lrng_pool_unlock(void)
 {
-	atomic_set(&lrng_pool.irq_info.reseed_in_progress, 0);
+	atomic_set(&lrng_state.reseed_in_progress, 0);
+}
+
+/* Set new entropy threshold for reseeding during boot */
+void lrng_set_entropy_thresh(u32 new_entropy_bits)
+{
+	atomic_set(&lrng_state.boot_entropy_thresh, new_entropy_bits);
 }
 
 /*
@@ -178,14 +162,14 @@ void lrng_reset_state(void)
 	lrng_state.lrng_operational = false;
 	lrng_state.lrng_fully_seeded = false;
 	lrng_state.lrng_min_seeded = false;
-	lrng_pool.all_online_numa_node_seeded = false;
+	lrng_state.all_online_numa_node_seeded = false;
 	pr_debug("reset LRNG\n");
 }
 
 /* Set flag that all DRNGs are fully seeded */
 void lrng_pool_all_numa_nodes_seeded(void)
 {
-	lrng_pool.all_online_numa_node_seeded = true;
+	lrng_state.all_online_numa_node_seeded = true;
 }
 
 /* Return boolean whether LRNG reached minimally seed level */
@@ -206,57 +190,21 @@ bool lrng_state_operational(void)
 	return lrng_state.lrng_operational;
 }
 
-/* Return boolean whether LRNG identified presence of high-resolution timer */
-bool lrng_pool_highres_timer(void)
-{
-	return lrng_pool.irq_info.irq_highres_timer;
-}
-
 /* Set entropy content in user-space controllable aux pool */
 void lrng_pool_set_entropy(u32 entropy_bits)
 {
 	atomic_set(&lrng_pool.aux_entropy_bits, entropy_bits);
 }
 
-static void lrng_pool_configure(bool highres_timer, u32 irq_entropy_bits)
+/* Available entropy in the entire LRNG considering all entropy sources */
+u32 lrng_avail_entropy(void)
 {
-	struct lrng_irq_info *irq_info = &lrng_pool.irq_info;
+	u32 ent_thres = atomic_read_u32(&lrng_state.boot_entropy_thresh);
 
-	irq_info->irq_highres_timer = highres_timer;
-	if (irq_info->irq_entropy_bits != irq_entropy_bits) {
-		irq_info->irq_entropy_bits = irq_entropy_bits;
-		/* Reset the threshold based on new oversampling factor. */
-		lrng_set_entropy_thresh(atomic_read_u32(
-						&irq_info->num_events_thresh));
-	}
+	return lrng_pcpu_avail_entropy() + lrng_avail_aux_entropy() +
+	       lrng_archrandom_entropylevel(ent_thres) +
+	       lrng_jent_entropylevel(ent_thres);
 }
-
-static int __init lrng_init_time_source(void)
-{
-	/* Set a minimum number of interrupts that must be collected */
-	irq_entropy = max_t(u32, LRNG_IRQ_ENTROPY_BITS, irq_entropy);
-
-	if ((random_get_entropy() & LRNG_DATA_SLOTSIZE_MASK) ||
-	    (random_get_entropy() & LRNG_DATA_SLOTSIZE_MASK)) {
-		/*
-		 * As the highres timer is identified here, previous interrupts
-		 * obtained during boot time are treated like a lowres-timer
-		 * would have been present.
-		 */
-		lrng_pool_configure(true, irq_entropy);
-	} else {
-		lrng_health_disable();
-		lrng_pool_configure(false, irq_entropy *
-					   LRNG_IRQ_OVERSAMPLING_FACTOR);
-		pr_warn("operating without high-resolution timer and applying IRQ oversampling factor %u\n",
-			LRNG_IRQ_OVERSAMPLING_FACTOR);
-		lrng_pcpu_check_compression_state();
-	}
-
-	return 0;
-}
-
-core_initcall(lrng_init_time_source);
 
 /**
  * lrng_init_ops() - Set seed stages of LRNG
@@ -271,20 +219,21 @@ core_initcall(lrng_init_time_source);
 void lrng_init_ops(struct entropy_buf *eb)
 {
 	struct lrng_state *state = &lrng_state;
-	u32 requested_bits, seed_bits, external_es, osr_bits;
+	u32 requested_bits, seed_bits, external_es;
 
 	if (state->lrng_operational)
 		return;
 
 	requested_bits = lrng_security_strength();
 	if (lrng_sp80090c_compliant())
-		requested_bits = CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS;
+		requested_bits += CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS;
 
-	/* Entropy provided by external entropy sources. */
+	/*
+	 * Entropy provided by external entropy sources - if they provide
+	 * the requested amount of entropy, unblock the interface.
+	 */
 	external_es = eb->a_bits + eb->c_bits + eb->d_bits;
 	seed_bits = external_es + eb->b_bits;
-	osr_bits = lrng_sp80090c_compliant() ?
-					CONFIG_LRNG_OVERSAMPLE_ES_BITS : 0;
 
 	/* DRNG is seeded with full security strength */
 	if (state->lrng_fully_seeded) {
@@ -300,7 +249,7 @@ void lrng_init_ops(struct entropy_buf *eb)
 		state->lrng_min_seeded = true;
 		pr_info("LRNG fully seeded with %u bits of entropy\n",
 			seed_bits);
-		lrng_set_entropy_thresh(requested_bits + osr_bits);
+		lrng_set_entropy_thresh(requested_bits);
 		lrng_process_ready_list();
 		lrng_init_wakeup();
 
@@ -312,9 +261,7 @@ void lrng_init_ops(struct entropy_buf *eb)
 			state->lrng_min_seeded = true;
 			pr_info("LRNG minimally seeded with %u bits of entropy\n",
 				seed_bits);
-			lrng_set_entropy_thresh(
-				lrng_slow_noise_req_entropy(
-					lrng_security_strength() + osr_bits));
+			lrng_set_entropy_thresh(requested_bits);
 			lrng_process_ready_list();
 			lrng_init_wakeup();
 
@@ -322,9 +269,7 @@ void lrng_init_ops(struct entropy_buf *eb)
 		} else if (seed_bits >= LRNG_INIT_ENTROPY_BITS) {
 			pr_info("LRNG initial entropy level %u bits of entropy\n",
 				seed_bits);
-			lrng_set_entropy_thresh(
-				lrng_slow_noise_req_entropy(
-					LRNG_MIN_SEED_ENTROPY_BITS + osr_bits));
+			lrng_set_entropy_thresh(LRNG_MIN_SEED_ENTROPY_BITS);
 		}
 	}
 }
@@ -352,6 +297,9 @@ int __init rand_initialize(void)
 
 	lrng_pool_insert_aux((u8 *)&seed, sizeof(seed), 0);
 	memzero_explicit(&seed, sizeof(seed));
+
+	/* Initialize the seed work queue */
+	INIT_WORK(&lrng_state.lrng_seed_work, lrng_drng_seed_work);
 
 	lrng_drngs_init_cc20(true);
 	invalidate_batched_entropy();
@@ -421,19 +369,19 @@ int lrng_pool_insert_aux(const u8 *inbuf, u32 inbuflen, u32 entropy_bits)
 	ret = lrng_pool_insert_aux_locked(inbuf, inbuflen, entropy_bits);
 	spin_unlock_irqrestore(&pool->lock, flags);
 
-	lrng_update_entropy_thresh(entropy_bits);
+	lrng_pool_add_entropy();
 
 	return ret;
 }
 
 /* Hot code path during boot - mix data into entropy pool during boot */
-void lrng_pool_add_irq(void)
+void lrng_pool_add_entropy(void)
 {
 	/*
 	 * Once all DRNGs are fully seeded, the interrupt noise
 	 * sources will not trigger any reseeding any more.
 	 */
-	if (likely(lrng_pool.all_online_numa_node_seeded))
+	if (likely(lrng_state.all_online_numa_node_seeded))
 		return;
 
 	/* Only try to reseed if the DRNG is alive. */
@@ -441,8 +389,8 @@ void lrng_pool_add_irq(void)
 		return;
 
 	/* Only trigger the DRNG reseed if we have collected enough IRQs. */
-	if (lrng_pcpu_avail_irqs() <
-	    atomic_read_u32(&lrng_pool.irq_info.num_events_thresh))
+	if (lrng_avail_entropy() <
+	    atomic_read_u32(&lrng_state.boot_entropy_thresh))
 		return;
 
 	/* Ensure that the seeding only occurs once at any given time. */
@@ -464,9 +412,7 @@ void lrng_pool_add_irq(void)
 static inline u32 lrng_get_aux_pool(u8 *outbuf, u32 requested_bits)
 {
 	struct lrng_pool *pool = &lrng_pool;
-	u32 collected_ent_bits, returned_ent_bits, unused_bits = 0,
-	    osr_bits = lrng_sp80090c_compliant() ?
-					CONFIG_LRNG_OVERSAMPLE_ES_BITS : 0;
+	u32 collected_ent_bits, returned_ent_bits, unused_bits = 0;
 
 	/* Ensure that no more than the size of aux_pool can be requested */
 	requested_bits = min_t(u32, requested_bits, (LRNG_MAX_DIGESTSIZE << 3));
@@ -476,7 +422,7 @@ static inline u32 lrng_get_aux_pool(u8 *outbuf, u32 requested_bits)
 			       atomic_xchg_relaxed(&pool->aux_entropy_bits, 0));
 
 	/* We collected too much entropy and put the overflow back */
-	if (collected_ent_bits > (requested_bits + osr_bits)) {
+	if (collected_ent_bits > (requested_bits + lrng_compress_osr())) {
 		/* Amount of bits we collected too much */
 		unused_bits = collected_ent_bits - requested_bits;
 		/* Put entropy back */
@@ -486,8 +432,7 @@ static inline u32 lrng_get_aux_pool(u8 *outbuf, u32 requested_bits)
 	}
 
 	/* Apply oversampling: discount requested oversampling rate */
-	returned_ent_bits = (collected_ent_bits >= osr_bits) ?
-					(collected_ent_bits - osr_bits) : 0;
+	returned_ent_bits = lrng_reduce_by_osr(collected_ent_bits);
 
 	pr_debug("obtained %u bits by collecting %u bits of entropy from aux pool, %u bits of entropy remaining\n",
 		 returned_ent_bits, collected_ent_bits, unused_bits);
@@ -515,8 +460,7 @@ void lrng_fill_seed_buffer(struct entropy_buf *entropy_buf, u32 requested_bits)
 
 	/* Require at least 128 bits of entropy for any reseed. */
 	if (state->lrng_fully_seeded &&
-	    (lrng_avail_entropy() <
-	     lrng_slow_noise_req_entropy(LRNG_MIN_SEED_ENTROPY_BITS)))
+	    (lrng_avail_entropy() < LRNG_MIN_SEED_ENTROPY_BITS))
 		goto wakeup;
 
 	/* Ensure aux pool extraction and backtracking op are atomic */

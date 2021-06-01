@@ -151,14 +151,6 @@ static inline u32 lrng_fast_noise_entropylevel(u32 ent_bits, u32 requested_bits)
 u32 lrng_get_arch(u8 *outbuf, u32 requested_bits);
 u32 lrng_archrandom_entropylevel(u32 requested_bits);
 
-static inline u32 lrng_slow_noise_req_entropy(u32 requested_bits)
-{
-	u32 ent_bits = lrng_archrandom_entropylevel(requested_bits) +
-		       lrng_jent_entropylevel(requested_bits);
-
-	return (ent_bits > requested_bits) ? 0 : (requested_bits - ent_bits);
-}
-
 /****************************** DRNG processing *******************************/
 
 /* DRNG state handle */
@@ -228,6 +220,18 @@ static __always_inline void lrng_drng_unlock(struct lrng_drng *drng,
 void lrng_reset(void);
 void lrng_drngs_init_cc20(bool force_seed);
 bool lrng_sp80090c_compliant(void);
+
+static inline u32 lrng_compress_osr(void)
+{
+	return lrng_sp80090c_compliant() ?  CONFIG_LRNG_OVERSAMPLE_ES_BITS : 0;
+}
+
+static inline u32 lrng_reduce_by_osr(u32 entropy_bits)
+{
+	u32 osr_bits = lrng_compress_osr();
+	return (entropy_bits >= osr_bits) ? (entropy_bits - osr_bits) : 0;
+}
+
 bool lrng_get_available(void);
 void lrng_set_available(void);
 void lrng_drng_reset(struct lrng_drng *drng);
@@ -251,44 +255,6 @@ enum lrng_external_noise_source {
 	lrng_noise_source_user
 };
 
-/* Status information about IRQ noise source */
-struct lrng_irq_info {
-	atomic_t num_events_thresh;	/* Reseed threshold */
-	atomic_t reseed_in_progress;	/* Flag for on executing reseed */
-	bool irq_highres_timer;	/* Is high-resolution timer available? */
-	u32 irq_entropy_bits;	/* LRNG_IRQ_ENTROPY_BITS? */
-};
-
-/*
- * This is the entropy pool used by the slow noise source. Its size should
- * be at least as large as LRNG_DRNG_SECURITY_STRENGTH_BITS.
- *
- * The aux pool array is aligned to 8 bytes to comfort the kernel crypto API
- * cipher implementations of the hash functions used to read the pool: for some
- * accelerated implementations, we need an alignment to avoid a realignment
- * which involves memcpy(). The alignment to 8 bytes should satisfy all crypto
- * implementations.
- */
-struct lrng_pool {
-	/*
-	 * Storage for aux data - hash output buffer
-	 */
-	u8 aux_pool[LRNG_MAX_DIGESTSIZE];
-	atomic_t aux_entropy_bits;
-	/* All NUMA DRNGs seeded? */
-	bool all_online_numa_node_seeded;
-
-	/* Digest size of used hash */
-	atomic_t digestsize;
-	/* IRQ noise source status info */
-	struct lrng_irq_info irq_info;
-
-	/* Serialize read of entropy pool and update of aux pool */
-	spinlock_t lock;
-};
-
-u32 lrng_entropy_to_data(u32 entropy_bits);
-u32 lrng_data_to_entropy(u32 irqnum);
 u32 lrng_avail_aux_entropy(void);
 void lrng_set_digestsize(u32 digestsize);
 u32 lrng_get_digestsize(void);
@@ -304,30 +270,17 @@ static inline u32 lrng_security_strength(void)
 	 * size. On the other hand the entropy cannot be larger than the
 	 * security strength of the used DRBG.
 	 */
-	return min_t(u32, LRNG_FULL_SEED_ENTROPY_BITS,
-		     lrng_get_digestsize());
+	return min_t(u32, LRNG_FULL_SEED_ENTROPY_BITS, lrng_get_digestsize());
 }
 
 void lrng_set_entropy_thresh(u32 new);
-void lrng_update_entropy_thresh(u32 new_entropy_bits);
+u32 lrng_avail_entropy(void);
 void lrng_reset_state(void);
 
 bool lrng_pcpu_continuous_compression_state(void);
-void lrng_pcpu_check_compression_state(void);
 void lrng_pcpu_reset(void);
 u32 lrng_pcpu_avail_pool_size(void);
-u32 lrng_pcpu_avail_irqs(void);
-
-static inline u32 lrng_pcpu_avail_entropy(void)
-{
-	return lrng_data_to_entropy(lrng_pcpu_avail_irqs());
-}
-
-static inline u32 lrng_avail_entropy(void)
-{
-	return lrng_pcpu_avail_entropy() + lrng_avail_aux_entropy();
-}
-
+u32 lrng_pcpu_avail_entropy(void);
 int lrng_pcpu_switch_hash(int node,
 			  const struct lrng_crypto_cb *new_cb, void *new_hash,
 			  const struct lrng_crypto_cb *old_cb);
@@ -336,7 +289,6 @@ void lrng_pcpu_array_add_u32(u32 data);
 
 bool lrng_state_exseed_allow(enum lrng_external_noise_source source);
 void lrng_state_exseed_set(enum lrng_external_noise_source source, bool type);
-void lrng_state_init_seed_work(void);
 bool lrng_state_min_seeded(void);
 bool lrng_state_fully_seeded(void);
 bool lrng_state_operational(void);
@@ -347,7 +299,7 @@ void lrng_pool_all_numa_nodes_seeded(void);
 bool lrng_pool_highres_timer(void);
 void lrng_pool_set_entropy(u32 entropy_bits);
 int lrng_pool_insert_aux(const u8 *inbuf, u32 inbuflen, u32 entropy_bits);
-void lrng_pool_add_irq(void);
+void lrng_pool_add_entropy(void);
 
 struct entropy_buf {
 	u8 a[LRNG_DRNG_SECURITY_STRENGTH_BYTES +
