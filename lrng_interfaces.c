@@ -552,7 +552,7 @@ static long lrng_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 			return -EPERM;
 		if (get_user(ent_count_bits, p))
 			return -EFAULT;
-		ent_count_bits = (int)lrng_avail_entropy() + ent_count_bits;
+		ent_count_bits = (int)lrng_avail_aux_entropy() + ent_count_bits;
 		if (ent_count_bits < 0)
 			ent_count_bits = 0;
 		digestsize_bits = lrng_get_digestsize();
