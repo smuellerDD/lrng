@@ -127,7 +127,7 @@ void lrng_process_ready_list(void);
 /* External interface to use of the switchable DRBG inside the kernel */
 void get_random_bytes_full(void *buf, int nbytes);
 
-/************************** Jitter RNG Noise Source ***************************/
+/************************* Jitter RNG Entropy Source **************************/
 
 #ifdef CONFIG_LRNG_JENT
 u32 lrng_get_jent(u8 *outbuf, u32 requested_bits);
@@ -137,7 +137,7 @@ static inline u32 lrng_get_jent(u8 *outbuf, u32 requested_bits) { return 0; }
 static inline u32 lrng_jent_entropylevel(u32 requested_bits) { return 0; }
 #endif /* CONFIG_CRYPTO_JITTERENTROPY */
 
-/*************************** CPU-based Noise Source ***************************/
+/************************** CPU-based Entropy Source **************************/
 
 static inline u32 lrng_fast_noise_entropylevel(u32 ent_bits, u32 requested_bits)
 {
@@ -150,6 +150,18 @@ static inline u32 lrng_fast_noise_entropylevel(u32 ent_bits, u32 requested_bits)
 
 u32 lrng_get_arch(u8 *outbuf, u32 requested_bits);
 u32 lrng_archrandom_entropylevel(u32 requested_bits);
+
+/************************** Interrupt Entropy Source **************************/
+
+bool lrng_pcpu_continuous_compression_state(void);
+void lrng_pcpu_reset(void);
+u32 lrng_pcpu_avail_pool_size(void);
+u32 lrng_pcpu_avail_entropy(void);
+int lrng_pcpu_switch_hash(int node,
+			  const struct lrng_crypto_cb *new_cb, void *new_hash,
+			  const struct lrng_crypto_cb *old_cb);
+u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded);
+void lrng_pcpu_array_add_u32(u32 data);
 
 /****************************** DRNG processing *******************************/
 
@@ -248,7 +260,7 @@ static inline struct lrng_drng **lrng_drng_instances(void) { return NULL; }
 static inline void lrng_drngs_numa_alloc(void) { return; }
 #endif /* CONFIG_NUMA */
 
-/************************** Entropy pool management ***************************/
+/************************* Entropy sources management *************************/
 
 enum lrng_external_noise_source {
 	lrng_noise_source_hw,
@@ -276,16 +288,6 @@ static inline u32 lrng_security_strength(void)
 void lrng_set_entropy_thresh(u32 new);
 u32 lrng_avail_entropy(void);
 void lrng_reset_state(void);
-
-bool lrng_pcpu_continuous_compression_state(void);
-void lrng_pcpu_reset(void);
-u32 lrng_pcpu_avail_pool_size(void);
-u32 lrng_pcpu_avail_entropy(void);
-int lrng_pcpu_switch_hash(int node,
-			  const struct lrng_crypto_cb *new_cb, void *new_hash,
-			  const struct lrng_crypto_cb *old_cb);
-u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded);
-void lrng_pcpu_array_add_u32(u32 data);
 
 bool lrng_state_exseed_allow(enum lrng_external_noise_source source);
 void lrng_state_exseed_set(enum lrng_external_noise_source source, bool type);
