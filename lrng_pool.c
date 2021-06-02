@@ -474,8 +474,11 @@ void lrng_fill_seed_buffer(struct entropy_buf *entropy_buf, u32 requested_bits)
 
 	/* Require at least 128 bits of entropy for any reseed. */
 	if (state->lrng_fully_seeded &&
-	    (lrng_avail_entropy() < LRNG_MIN_SEED_ENTROPY_BITS))
+	    (lrng_avail_entropy() < LRNG_MIN_SEED_ENTROPY_BITS)) {
+		entropy_buf->a_bits = entropy_buf->b_bits = 0;
+		entropy_buf->c_bits = entropy_buf->d_bits = 0;
 		goto wakeup;
+	}
 
 	/* Ensure aux pool extraction and backtracking op are atomic */
 	spin_lock_irqsave(&pool->lock, flags);
