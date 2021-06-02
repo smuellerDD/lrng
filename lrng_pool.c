@@ -263,7 +263,6 @@ void lrng_init_ops(struct entropy_buf *eb)
 			pr_info("LRNG minimally seeded with %u bits of entropy\n",
 				seed_bits);
 			lrng_set_entropy_thresh(requested_bits);
-			lrng_process_ready_list();
 			lrng_init_wakeup();
 
 		/* DRNG is seeded with at least LRNG_INIT_ENTROPY_BITS bits */
