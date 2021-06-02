@@ -469,6 +469,9 @@ void lrng_fill_seed_buffer(struct entropy_buf *entropy_buf, u32 requested_bits)
 	/* Guarantee that requested bits is a multiple of bytes */
 	BUILD_BUG_ON(LRNG_DRNG_SECURITY_STRENGTH_BITS % 8);
 
+	/* always reseed the DRNG with the current time stamp */
+	entropy_buf->now = random_get_entropy();
+
 	/* Require at least 128 bits of entropy for any reseed. */
 	if (state->lrng_fully_seeded &&
 	    (lrng_avail_entropy() < LRNG_MIN_SEED_ENTROPY_BITS))
@@ -491,9 +494,6 @@ void lrng_fill_seed_buffer(struct entropy_buf *entropy_buf, u32 requested_bits)
 
 	entropy_buf->c_bits = lrng_get_arch(entropy_buf->c, requested_bits);
 	entropy_buf->d_bits = lrng_get_jent(entropy_buf->d, requested_bits);
-
-	/* also reseed the DRNG with the current time stamp */
-	entropy_buf->now = random_get_entropy();
 
 	/* Mix the extracted data back into pool for backtracking resistance */
 	if (lrng_pool_insert_aux_locked((u8 *)entropy_buf,
