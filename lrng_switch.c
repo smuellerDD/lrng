@@ -65,6 +65,7 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 	} else {
 		/* seed new DRNG with data */
 		ret = cb->lrng_drng_seed_helper(new_drng, seed, ret);
+		memzero_explicit(seed, sizeof(seed));
 		if (ret < 0) {
 			reset_drng = true;
 			pr_warn("seeding of new DRNG failed for NUMA node %d (%d)\n",
