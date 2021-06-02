@@ -19,6 +19,7 @@
 #include "lrng_sw_noise.h"
 
 struct lrng_state {
+	bool can_invalidate;		/* Can invalidate batched entropy? */
 	bool perform_seedwork;		/* Can seed work be performed? */
 	bool lrng_operational;		/* Is DRNG operational? */
 	bool lrng_fully_seeded;		/* Is DRNG fully seeded? */
@@ -66,7 +67,7 @@ static struct lrng_pool lrng_pool __aligned(LRNG_KCAPI_ALIGN) = {
 };
 
 static struct lrng_state lrng_state = {
-	false, false, false, false, false, true, true,
+	false, false, false, false, false, false, true, true,
 	.boot_entropy_thresh	= ATOMIC_INIT(LRNG_INIT_ENTROPY_BITS),
 	.reseed_in_progress	= ATOMIC_INIT(0),
 };
@@ -243,7 +244,9 @@ void lrng_init_ops(struct entropy_buf *eb)
 		lrng_process_ready_list();
 		lrng_init_wakeup();
 	} else if (seed_bits >= requested_bits) {
-		invalidate_batched_entropy();
+		if (state->can_invalidate)
+			invalidate_batched_entropy();
+
 		state->lrng_fully_seeded = true;
 		state->lrng_operational = lrng_sp80090b_startup_complete();
 		state->lrng_operational |= (requested_bits <= external_es);
@@ -258,7 +261,9 @@ void lrng_init_ops(struct entropy_buf *eb)
 
 		/* DRNG is seeded with at least 128 bits of entropy */
 		if (seed_bits >= LRNG_MIN_SEED_ENTROPY_BITS) {
-			invalidate_batched_entropy();
+			if (state->can_invalidate)
+				invalidate_batched_entropy();
+
 			state->lrng_min_seeded = true;
 			pr_info("LRNG minimally seeded with %u bits of entropy\n",
 				seed_bits);
@@ -304,6 +309,8 @@ int __init rand_initialize(void)
 
 	lrng_drngs_init_cc20(true);
 	invalidate_batched_entropy();
+
+	lrng_state.can_invalidate = true;
 
 	return 0;
 }
