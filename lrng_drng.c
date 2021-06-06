@@ -263,11 +263,14 @@ void lrng_drng_seed_work(struct work_struct *dummy)
 				goto out;
 			}
 		}
-		lrng_pool_all_numa_nodes_seeded();
 	} else {
-		if (!lrng_drng_init.fully_seeded)
+		if (!lrng_drng_init.fully_seeded) {
 			_lrng_drng_seed_work(&lrng_drng_init, 0);
+			goto out;
+		}
 	}
+
+	lrng_pool_all_numa_nodes_seeded(true);
 
 out:
 	/* Allow the seeding operation to be called again */

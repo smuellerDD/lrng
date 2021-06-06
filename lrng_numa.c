@@ -88,8 +88,10 @@ static void _lrng_drngs_numa_alloc(struct work_struct *work)
 	}
 
 	/* counterpart to smp_load_acquire in lrng_drng_instances */
-	if (!cmpxchg_release(&lrng_drng, NULL, drngs))
+	if (!cmpxchg_release(&lrng_drng, NULL, drngs)) {
+		lrng_pool_all_numa_nodes_seeded(false);
 		goto unlock;
+	}
 
 err:
 	for_each_online_node(node) {

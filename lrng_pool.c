@@ -169,9 +169,9 @@ void lrng_reset_state(void)
 }
 
 /* Set flag that all DRNGs are fully seeded */
-void lrng_pool_all_numa_nodes_seeded(void)
+void lrng_pool_all_numa_nodes_seeded(bool set)
 {
-	lrng_state.all_online_numa_node_seeded = true;
+	lrng_state.all_online_numa_node_seeded = set;
 }
 
 /* Return boolean whether LRNG reached minimally seed level */

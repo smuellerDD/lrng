@@ -297,7 +297,7 @@ bool lrng_state_operational(void);
 
 int lrng_pool_trylock(void);
 void lrng_pool_unlock(void);
-void lrng_pool_all_numa_nodes_seeded(void);
+void lrng_pool_all_numa_nodes_seeded(bool set);
 bool lrng_pool_highres_timer(void);
 void lrng_pool_set_entropy(u32 entropy_bits);
 int lrng_pool_insert_aux(const u8 *inbuf, u32 inbuflen, u32 entropy_bits);
