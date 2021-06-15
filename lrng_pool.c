@@ -201,6 +201,14 @@ bool lrng_fully_seeded(struct entropy_buf *eb)
 		lrng_get_seed_entropy_osr());
 }
 
+/* Disable the fully seeded and operational mode */
+void lrng_unset_operational(void)
+{
+	lrng_pool_all_numa_nodes_seeded(false);
+	lrng_state.lrng_operational = false;
+	lrng_state.lrng_fully_seeded = false;
+}
+
 /* Policy to enable LRNG operational mode */
 static inline void lrng_set_operational(u32 external_es)
 {
@@ -525,7 +533,7 @@ static inline u32 lrng_get_aux_pool(u8 *outbuf, u32 requested_bits)
 	if (crypto_cb->lrng_hash_final(shash, aux_output) ||
 	    /*
 	     * ... and re-initialize the aux state. Do not add the aux pool
-	     * digest for backward secrecy as it wil bey added with the
+	     * digest for backward secrecy as it will be added with the
 	     * insertion of the complete seed buffer after it has been filled.
 	     */
 	    crypto_cb->lrng_hash_init(shash, hash)) {

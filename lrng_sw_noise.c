@@ -228,8 +228,6 @@ int lrng_pcpu_switch_hash(int node,
 
 	for_each_online_cpu(cpu) {
 		struct shash_desc *pcpu_shash;
-		unsigned long flags;
-		spinlock_t *lock;
 
 		/*
 		 * Only switch the per-CPU pools for the current node because
@@ -247,8 +245,6 @@ int lrng_pcpu_switch_hash(int node,
 		if (pcpu_shash->tfm == new_hash)
 			continue;
 
-		lock = per_cpu_ptr(&lrng_pcpu_lock, cpu);
-		spin_lock_irqsave(lock, flags);
 		/* Get the per-CPU pool hash with old digest ... */
 		ret = old_cb->lrng_hash_final(pcpu_shash, digest) ?:
 		      /* ... re-initialize the hash with the new digest ... */
@@ -261,7 +257,6 @@ int lrng_pcpu_switch_hash(int node,
 		       */
 		      new_cb->lrng_hash_update(pcpu_shash, digest,
 					       sizeof(digest));
-		spin_unlock_irqrestore(lock, flags);
 		if (ret)
 			goto out;
 
