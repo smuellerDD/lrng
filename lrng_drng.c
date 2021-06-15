@@ -116,6 +116,7 @@ seed:
 	if (!lrng_pool_trylock()) {
 		lrng_drng_seed(&lrng_drng_init);
 		pr_info("ChaCha20 core initialized with first seeding\n");
+		lrng_pool_unlock();
 	} else {
 		pr_info("ChaCha20 core initialized without seeding\n");
 	}
@@ -181,11 +182,7 @@ static inline void _lrng_drng_seed(struct lrng_drng *drng)
 	struct entropy_buf seedbuf __aligned(LRNG_KCAPI_ALIGN);
 
 	lrng_fill_seed_buffer(&seedbuf, lrng_get_seed_entropy_osr());
-
-	/* Allow the seeding operation to be called again */
-	lrng_pool_unlock();
 	lrng_init_ops(&seedbuf);
-
 	lrng_drng_inject(drng, (u8 *)&seedbuf, sizeof(seedbuf));
 
 	if (!drng->fully_seeded) {
@@ -328,10 +325,12 @@ static int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen)
 		    time_after(jiffies, drng->last_seeded +
 			       lrng_drng_reseed_max_time * HZ)) {
 			if (likely(drng != &lrng_drng_atomic)) {
-				if (lrng_pool_trylock())
+				if (lrng_pool_trylock()) {
 					atomic_set(&drng->requests, 1);
-				else
+				} else {
 					lrng_drng_seed(drng);
+					lrng_pool_unlock();
+				}
 			}
 		}
 
