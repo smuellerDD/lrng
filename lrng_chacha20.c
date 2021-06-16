@@ -60,10 +60,11 @@ static void lrng_chacha20_update(struct chacha20_state *chacha20_state,
 
 	/* Deterministic increment of nonce as required in RFC 7539 chapter 4 */
 	chacha20->nonce[0]++;
-	if (chacha20->nonce[0] == 0)
+	if (chacha20->nonce[0] == 0) {
 		chacha20->nonce[1]++;
-	if (chacha20->nonce[1] == 0)
-		chacha20->nonce[2]++;
+		if (chacha20->nonce[1] == 0)
+			chacha20->nonce[2]++;
+	}
 
 	/* Leave counter untouched as it is start value is undefined in RFC */
 }
