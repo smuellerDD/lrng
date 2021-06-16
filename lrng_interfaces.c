@@ -99,7 +99,7 @@ void lrng_debug_report_seedlevel(const char *name)
 		return;
 
 	if (!lrng_state_min_seeded())
-		pr_notice("%pS %s called without reaching mimimally seeded level (available entropy %u)\n",
+		pr_notice("%pS %s called without reaching minimally seeded level (available entropy %u)\n",
 			  caller, name, lrng_avail_entropy());
 
 	WRITE_ONCE(previous, caller);
