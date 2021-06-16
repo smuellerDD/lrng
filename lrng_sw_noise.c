@@ -205,7 +205,7 @@ u32 lrng_pcpu_avail_entropy(void)
 	}
 
 	/* Consider oversampling rate */
-	return  lrng_reduce_by_osr(lrng_data_to_entropy(irq));
+	return lrng_reduce_by_osr(lrng_data_to_entropy(irq));
 }
 
 /**
@@ -225,6 +225,9 @@ int lrng_pcpu_switch_hash(int node,
 	u8 digest[LRNG_MAX_DIGESTSIZE];
 	u32 digestsize_irqs, found_irqs;
 	int ret = 0, cpu;
+
+	if (!IS_ENABLED(CONFIG_LRNG_DRNG_SWITCH))
+		return -EOPNOTSUPP;
 
 	for_each_online_cpu(cpu) {
 		struct shash_desc *pcpu_shash;

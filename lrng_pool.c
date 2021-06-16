@@ -359,6 +359,9 @@ int lrng_aux_switch_hash(const struct lrng_crypto_cb *new_cb, void *new_hash,
 	u8 digest[LRNG_MAX_DIGESTSIZE];
 	int ret;
 
+	if (!IS_ENABLED(CONFIG_LRNG_DRNG_SWITCH))
+		return -EOPNOTSUPP;
+
 	if (unlikely(!pool->initialized))
 		return 0;
 
