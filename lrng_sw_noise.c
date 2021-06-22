@@ -322,7 +322,7 @@ lrng_pcpu_pool_hash_one(const struct lrng_crypto_cb *pcpu_crypto_cb,
 	    pcpu_crypto_cb->lrng_hash_final(pcpu_shash, digest) ?:
 	    /* ... re-initialize the hash, ... */
 	    pcpu_crypto_cb->lrng_hash_init(pcpu_shash, pcpu_hash) ?:
-	    /* ... feed the old hash into the new state, ... */
+	    /* ... feed the old hash into the new state. */
 	    pcpu_crypto_cb->lrng_hash_update(pcpu_shash, digest, *digestsize))
 		found_irqs = 0;
 
@@ -367,7 +367,7 @@ u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded)
 	crypto_cb = drng->crypto_cb;
 	hash = drng->hash;
 
-	/* The hash state of filled with all per-CPU pool hashes, ... */
+	/* The hash state of filled with all per-CPU pool hashes. */
 	ret = crypto_cb->lrng_hash_init(shash, hash);
 	if (ret)
 		goto err;
