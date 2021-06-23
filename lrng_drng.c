@@ -187,7 +187,8 @@ static inline void _lrng_drng_seed(struct lrng_drng *drng)
 
 	if (!drng->fully_seeded) {
 		drng->fully_seeded = lrng_fully_seeded(&seedbuf);
-		pr_debug("DRNG fully seeded\n");
+		if (drng->fully_seeded)
+			pr_debug("DRNG fully seeded\n");
 	}
 	memzero_explicit(&seedbuf, sizeof(seedbuf));
 }
