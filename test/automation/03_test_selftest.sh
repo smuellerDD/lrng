@@ -121,7 +121,7 @@ else
 	if [ $? -ne 0 ]
 	then
 		echo_deact "Selftest: tests skipped"
-		return
+		exit
 	fi
 
 	#

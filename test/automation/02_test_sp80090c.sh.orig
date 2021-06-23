@@ -22,21 +22,41 @@
 
 . $(dirname $0)/libtest.sh
 
+create_irqs()
+{
+	dd if=/bin/bash of=$HOMEDIR/sp80090b.tmp oflag=sync
+	rm -f $HOMEDIR/sp80090b.tmp
+	sync
+	dd if=/dev/urandom of=/dev/null bs=32 count=1
+
+	local i=0
+	while [ $i -lt 256 ]
+	do
+		echo "Test message - ignore" >&2
+		i=$(($i+1))
+	done
+}
+
 load_drbg()
 {
 	local lastseed=$(dmesg | grep "lrng_drng: DRNG fully seeded" | tail -n 1)
+	local oldop=$(dmesg | grep "LRNG fully operational")
+	if [ -z "$oldop" ]
+	then
+		oldop=""
+	fi
+
 	modprobe lrng_drbg
 	if [ $? -ne 0 ]
 	then
 		echo_fail "SP800-90C: Cannot load lrng_drbg.ko"
 	fi
 
-	dd if=/bin/bash of=$HOMEDIR/sp80090b.tmp oflag=sync
-	rm -f $HOMEDIR/sp80090b.tmp
+	create_irqs
 
 	# Check that LRNG is re-set to fully operational
-	local op=$(dmesg | grep "LRNG fully operational" | wc -l)
-	if [ -z "$local" -o "$local" -ne 2 ]
+	local op=$(dmesg | grep "LRNG fully operational")
+	if [ -z "$op" -o "$op" -eq "$oldop" ]
 	then
 		echo_fail "SP800-90C: LRNG is not re-initialized for SP800-90C compliance"
 	else
@@ -74,8 +94,7 @@ check_fully_post_completed()
 			return 0
 		fi
 
-		dd if=/bin/bash of=$HOMEDIR/sp80090b.tmp oflag=sync
-		rm -f $HOMEDIR/sp80090b.tmp
+		create_irqs
 
 		i=$((i+1))
 	done
@@ -107,9 +126,7 @@ check_fully_seeded()
 				return 0
 			fi
 
-			dd if=/bin/bash of=$HOMEDIR/sp80090b.tmp oflag=sync
-			rm -f $HOMEDIR/sp80090b.tmp
-			dd if=/dev/random of=/dev/null bs=32 count=1
+			create_irqs
 
 			i=$((i+1))
 		done

@@ -163,17 +163,24 @@ then
 			;;
 	esac
 else
+	$(check_kernel_config "CONFIG_LRNG_RUNTIME_ES_CONFIG=y")
+	if [ $? -ne 0 ]
+	then
+		echo_deact "DRNG: tests skipped"
+		exit
+	fi
+
 	$(check_kernel_config "CONFIG_CRYPTO_FIPS=y")
 	if [ $? -ne 0 ]
 	then
 		echo_log "DRNG: FIPS mode not present - not all code paths tested"
-		return
+		exit
 	fi
 	$(check_kernel_config "CONFIG_LRNG_AIS2031_NTG1_SEEDING_STRATEGY=y")
 	if [ $? -ne 0 ]
 	then
 		echo_log "DRNG: NTG mode not present - not all code paths tested"
-		return
+		exit
 	fi
 
 	#

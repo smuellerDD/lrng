@@ -22,9 +22,11 @@ static u32 lrng_irq_entropy_bits = LRNG_IRQ_ENTROPY_BITS;
 static bool lrng_irq_highres_timer = false;
 
 static u32 irq_entropy __read_mostly = LRNG_IRQ_ENTROPY_BITS;
+#ifdef CONFIG_LRNG_RUNTIME_ES_CONFIG
 module_param(irq_entropy, uint, 0444);
 MODULE_PARM_DESC(irq_entropy,
 		 "How many interrupts must be collected for obtaining 256 bits of entropy\n");
+#endif
 
 /* Per-CPU array holding concatenated entropy events */
 static DEFINE_PER_CPU(u32 [LRNG_DATA_ARRAY_SIZE], lrng_pcpu_array)

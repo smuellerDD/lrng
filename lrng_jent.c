@@ -19,9 +19,11 @@
  * when it detects insufficient hardware, the chosen under estimation of
  * entropy is considered to be acceptable to all reviewers.
  */
-static u32 jitterrng = LRNG_DRNG_SECURITY_STRENGTH_BITS>>4;
+static u32 jitterrng = CONFIG_LRNG_JENT_ENTROPY_RATE;
+#ifdef CONFIG_LRNG_RUNTIME_ES_CONFIG
 module_param(jitterrng, uint, 0644);
 MODULE_PARM_DESC(jitterrng, "Entropy in bits of 256 data bits from Jitter RNG noise source");
+#endif
 
 static bool lrng_jent_initialized = false;
 static struct rand_data *lrng_jent_state;

@@ -48,7 +48,7 @@
  *
  * This value is allowed to be changed.
  */
-#define LRNG_IRQ_ENTROPY_BITS		LRNG_DRNG_SECURITY_STRENGTH_BITS
+#define LRNG_IRQ_ENTROPY_BITS		CONFIG_LRNG_IRQ_ENTROPY_RATE
 
 /*
  * Min required seed entropy is 128 bits covering the minimum entropy

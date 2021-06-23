@@ -129,11 +129,18 @@ then
 			;;
 	esac
 else
+	$(check_kernel_config "CONFIG_LRNG_RUNTIME_ES_CONFIG=y")
+	if [ $? -ne 0 ]
+	then
+		echo_deact "CPU RNG: tests skipped"
+		exit
+	fi
+
 	$(check_kernel_config "CONFIG_LRNG_JENT=y")
 	if [ $? -ne 0 ]
 	then
 		echo_deakt "CPU RNG: CPU RNG not enabled"
-		return
+		exit
 	fi
 
 	#

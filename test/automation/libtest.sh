@@ -353,7 +353,7 @@ init()
 	echo "========= Testing started $(date) ================ " >> $LOGFILE
 }
 
-trap "showstatus; cleanup; exit $(get_failures)" 0 1 2 3 15
+trap "showstatus; cleanup; exit" 0 1 2 3 15
 
 if [ ! -d "$KERNEL_BASE" -a -h "./kernel-sources" ]
 then

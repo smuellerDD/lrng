@@ -64,18 +64,25 @@ then
 			;;
 	esac
 else
+	$(check_kernel_config "CONFIG_LRNG_RUNTIME_ES_CONFIG=y")
+	if [ $? -ne 0 ]
+	then
+		echo_deact "SP800-90B: tests skipped"
+		exit
+	fi
+
 	$(check_kernel_config "CONFIG_CRYPTO_FIPS=y")
 	if [ $? -ne 0 ]
 	then
 		echo_deact "SP800-90B: tests skipped"
-		return
+		exit
 	fi
 
 	$(check_kernel_config "CONFIG_LRNG_HEALTH_TESTS=y")
 	if [ $? -ne 0 ]
 	then
 		echo_deact "SP800-90B: tests skipped"
-		return
+		exit
 	fi
 
 	#

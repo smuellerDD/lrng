@@ -55,12 +55,16 @@ config LRNG_SEED_BUFFER_INIT_ADD_BITS
 
 endmenu # "Specific DRNG seeding strategies"
 
+menu "Entropy Source Configuration"
+
+comment "Interrupt Entropy Source"
+
 choice
 	prompt "Continuous entropy compression boot time setting"
 	default LRNG_CONTINUOUS_COMPRESSION_ENABLED
 	help
-	  Select the default behavior of the continuous compression
-	  operation.
+	  Select the default behavior of the interrupt entropy source
+	  continuous compression operation.
 
 	  The Linux RNG collects entropy data during each interrupt.
 	  For performance reasons, a amount of entropy data defined by
@@ -73,10 +77,11 @@ choice
 	  too time-consuming, the continuous compression operation
 	  can be disabled. If disabled, the collection of entropy will
 	  not trigger a hash compression operation in interrupt context.
-	  The compression happens only when the DRNG is reseeded. This
-	  implies that old entropy data collected after the last
-	  DRNG-reseed is overwritten with newer entropy data instead
-	  of retaining its entropy with the compression operation.
+	  The compression happens only when the DRNG is reseeded which is
+	  in process context. This implies that old entropy data
+	  collected after the last DRNG-reseed is overwritten with newer
+	  entropy data once the collection pool is full instead of
+	  retaining its entropy with the compression operation.
 
 	config LRNG_CONTINUOUS_COMPRESSION_ENABLED
 		bool "Enable continuous compression (default)"
@@ -93,9 +98,9 @@ config LRNG_ENABLE_CONTINUOUS_COMPRESSION
 config LRNG_SWITCHABLE_CONTINUOUS_COMPRESSION
 	bool "Runtime-switchable continuous entropy compression"
 	help
-	  Per default, the continuous compression operation behavior
-	  is hard-wired into the kernel. Enable this option to allow
-	  it to be configurable at boot time.
+	  Per default, the interrupt entropy source continuous
+	  compression operation behavior is hard-wired into the kernel.
+	  Enable this option to allow it to be configurable at boot time.
 
 	  To modify the default behavior of the continuous
 	  compression operation, use the kernel command line option
@@ -108,19 +113,16 @@ choice
 	default LRNG_COLLECTION_SIZE_1024
 	help
 	  Select the size of the LRNG entropy collection pool
-	  storing data without performing a compression operation.
-	  The larger the collection size is, the faster the
-	  average interrupt handling will be. However, on the
-	  other hand the time until the LRNG received full entropy
-	  during boot time is longer because entropy is only awarded
-	  to events once they are compressed. The collection
-	  size represents the number of bytes of the per-CPU
-	  memory used to batch up entropy event data.
+	  storing data for the interrupt entropy source without
+	  performing a compression operation. The larger the
+	  collection size is, the faster the average interrupt
+	  handling will be. The collection size represents the
+	  number of bytes of the per-CPU memory used to batch
+	  up entropy event data.
 
 	  The default value is good for regular operations. Choose
-	  larger sizes for servers whose boot time is of less
-	  interest. Runtime memory is precious, choose a smaller
-	  size.
+	  larger sizes for servers that have no memory limitations.
+	  If runtime memory is precious, choose a smaller size.
 
 	  The collection size is unrelated to the entropy rate
 	  or the amount of entropy the LRNG can process.
@@ -162,66 +164,17 @@ config LRNG_COLLECTION_SIZE
 	default 4096 if LRNG_COLLECTION_SIZE_4096
 	default 8192 if LRNG_COLLECTION_SIZE_8192
 
-menuconfig LRNG_DRNG_SWITCH
-	bool "Support DRNG runtime switching"
-	help
-	  The Linux RNG per default uses a ChaCha20 DRNG that is
-	  accessible via the external interfaces. With this configuration
-	  option other DRNGs can be selected and loaded at runtime.
-
-if LRNG_DRNG_SWITCH
-
-config LRNG_KCAPI_HASH
-	bool
-	select CRYPTO_HASH
-
-config LRNG_DRBG
-	tristate "SP800-90A support for the LRNG"
-	depends on CRYPTO
-	select CRYPTO_DRBG_MENU
-	select CRYPTO_SHA512
-	select LRNG_KCAPI_HASH
-	help
-	  Enable the SP800-90A DRBG support for the LRNG. Once the
-	  module is loaded, output from /dev/random, /dev/urandom,
-	  getrandom(2), or get_random_bytes_full is provided by a DRBG.
-
-config LRNG_KCAPI
-	tristate "Kernel Crypto API support for the LRNG"
-	depends on CRYPTO
-	depends on !LRNG_DRBG
-	select CRYPTO_RNG
-	select LRNG_KCAPI_HASH
-	help
-	  Enable the support for generic pseudo-random number
-	  generators offered by the kernel crypto API with the
-	  LRNG. Once the module is loaded, output from /dev/random,
-	  /dev/urandom, getrandom(2), or get_random_bytes is
-	  provided by the selected kernel crypto API RNG.
-endif # LRNG_DRNG_SWITCH
-
-config LRNG_JENT
-	bool "Enable Jitter RNG as LRNG Seed Source"
-	depends on CRYPTO
-	select CRYPTO_JITTERENTROPY
-	help
-	  The Linux RNG may use the Jitter RNG as noise source. Enabling
-	  this option enables the use of the Jitter RNG. Its default
-	  entropy level is 16 bits of entropy per 256 data bits delivered
-	  by the Jitter RNG. This entropy level can be changed at boot
-	  time or at runtime with the lrng_base.jitterrng configuration
-	  variable.
-
 config LRNG_HEALTH_TESTS
-	bool "Enable noise source online health tests"
+	bool "Enable interrupt entropy source online health tests"
 	help
-	  The online health tests validate the noise source at
-	  runtime for fatal errors. These tests include SP800-90B
-	  compliant tests which are invoked if the system is booted
-	  with fips=1. In case of fatal errors during active
-	  SP800-90B tests, the issue is logged and the noise
-	  data is discarded. These tests are required for full
-	  compliance with SP800-90B.
+	  The online health tests applied to the interrupt entropy
+	  source validate the noise source at runtime for fatal
+	  errors. These tests include SP800-90B compliant tests
+	  which are invoked if the system is booted with fips=1.
+	  In case of fatal errors during active SP800-90B tests,
+	  the issue is logged and the noise data is discarded.
+	  These tests are required for full compliance of the
+	  interrupt entropy source with SP800-90B.
 
 	  If unsure, say Y.
 
@@ -267,6 +220,109 @@ config LRNG_APT_CUTOFF
 	int
 	default 325 if !LRNG_APT_BROKEN
 	default 32 if LRNG_APT_BROKEN
+
+config LRNG_IRQ_ENTROPY_RATE
+	int "Interrupt Entropy Source Entropy Rate"
+	range 256 4294967295
+	default 256
+	help
+	  The LRNG will collect the configured number of interrupts to
+	  obtain 256 bits of entropy. This value can be set to any between
+	  256 and 4294967295. The LRNG guarantees that this value is not
+	  lower than 256. This lower limit implies that one interrupt event
+	  is credited with one bit of entropy. This value is subject to the
+	  increase by the oversampling factor, if no high-resolution timer
+	  is found.
+
+	  In order to effectively disable the interrupt entropy source,
+	  the option has to be set to 4294967295. In this case, the
+	  interrupt entropy source will still deliver data but without
+	  being credited with entropy.
+
+comment "Jitter RNG Entropy Source"
+
+config LRNG_JENT
+	bool "Enable Jitter RNG as LRNG Seed Source"
+	depends on CRYPTO
+	select CRYPTO_JITTERENTROPY
+	help
+	  The Linux RNG may use the Jitter RNG as noise source. Enabling
+	  this option enables the use of the Jitter RNG. Its default
+	  entropy level is 16 bits of entropy per 256 data bits delivered
+	  by the Jitter RNG. This entropy level can be changed at boot
+	  time or at runtime with the lrng_base.jitterrng configuration
+	  variable.
+
+config LRNG_JENT_ENTROPY_RATE
+	int "Jitter RNG Entropy Source Entropy Rate"
+	range 0 256
+	default 16
+	help
+	  The option defines the amount of entropy the LRNG applies to 256
+	  bits of data obtained from the Jitter RNG entropy source. The
+	  LRNG enforces the limit that this value must be in the range
+	  between 0 and 256.
+
+	  In order to disable the Jitter RNG entropy source, the option
+	  has to be set to 0.
+
+comment "CPU Entropy Source"
+
+config LRNG_CPU_ENTROPY_RATE
+	int "CPU Entropy Source Entropy Rate"
+	range 0 256
+	default 8
+	help
+	  The option defines the amount of entropy the LRNG applies to 256
+	  bits of data obtained from the CPU entropy source. The LRNG
+	  enforces the limit that this value must be in the range between
+	  0 and 256.
+
+	  In order to disable the CPU entropy source, the option has to
+	  be set to 0.
+
+	  Note, this option is overwritten when the option
+	  CONFIG_RANDOM_TRUST_CPU is set.
+
+endmenu # "Entropy Source Configuration"
+
+menuconfig LRNG_DRNG_SWITCH
+	bool "Support DRNG runtime switching"
+	help
+	  The Linux RNG per default uses a ChaCha20 DRNG that is
+	  accessible via the external interfaces. With this configuration
+	  option other DRNGs can be selected and loaded at runtime.
+
+if LRNG_DRNG_SWITCH
+
+config LRNG_KCAPI_HASH
+	bool
+	select CRYPTO_HASH
+
+config LRNG_DRBG
+	tristate "SP800-90A support for the LRNG"
+	depends on CRYPTO
+	select CRYPTO_DRBG_MENU
+	select CRYPTO_SHA512
+	select LRNG_KCAPI_HASH
+	help
+	  Enable the SP800-90A DRBG support for the LRNG. Once the
+	  module is loaded, output from /dev/random, /dev/urandom,
+	  getrandom(2), or get_random_bytes_full is provided by a DRBG.
+
+config LRNG_KCAPI
+	tristate "Kernel Crypto API support for the LRNG"
+	depends on CRYPTO
+	depends on !LRNG_DRBG
+	select CRYPTO_RNG
+	select LRNG_KCAPI_HASH
+	help
+	  Enable the support for generic pseudo-random number
+	  generators offered by the kernel crypto API with the
+	  LRNG. Once the module is loaded, output from /dev/random,
+	  /dev/urandom, getrandom(2), or get_random_bytes is
+	  provided by the selected kernel crypto API RNG.
+endif # LRNG_DRNG_SWITCH
 
 menuconfig LRNG_TESTING_MENU
 	bool "LRNG testing interfaces"
@@ -411,6 +467,18 @@ config LRNG_ACVT_HASH
 
 	  The ACVT interface is available with the lrng_acvt_hash
 	  debugfs file.
+
+config LRNG_RUNTIME_ES_CONFIG
+	bool "Enable runtime configuration of entropy sources"
+	help
+	  When enabling this option, the LRNG provides the mechanism
+	  allowing to alter the entropy rate of each entropy source
+	  during boot time and runtime.
+
+	  The following interfaces are available:
+	  lrng_archrandom.archrandom for the CPU entropy source,
+	  lrng_jent.jitterrng for the Jitter RNG entropy source, and
+	  lrng_sw_noise.irq_entropy for the interrupt entropy source.
 
 config LRNG_TESTING
 	bool

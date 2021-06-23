@@ -16,15 +16,17 @@
  * As we have no ability to review the implementation of those noise sources,
  * it is prudent to have a conservative estimate here.
  */
-#define LRNG_ARCHRANDOM_DEFAULT_STRENGTH (LRNG_DRNG_SECURITY_STRENGTH_BITS>>5)
+#define LRNG_ARCHRANDOM_DEFAULT_STRENGTH CONFIG_LRNG_CPU_ENTROPY_RATE
 #define LRNG_ARCHRANDOM_TRUST_CPU_STRENGTH LRNG_DRNG_SECURITY_STRENGTH_BITS
 #ifdef CONFIG_RANDOM_TRUST_CPU
 static u32 archrandom = LRNG_ARCHRANDOM_TRUST_CPU_STRENGTH;
 #else
 static u32 archrandom = LRNG_ARCHRANDOM_DEFAULT_STRENGTH;
 #endif
+#ifdef CONFIG_LRNG_RUNTIME_ES_CONFIG
 module_param(archrandom, uint, 0644);
 MODULE_PARM_DESC(archrandom, "Entropy in bits of 256 data bits from CPU noise source (e.g. RDRAND)");
+#endif
 
 static int __init lrng_parse_trust_cpu(char *arg)
 {

@@ -102,11 +102,11 @@ verify_entropyrate_boot_underflow()
 
 	if [ $rate -ge 256 ]
 	then
-		echo_deact "Underflow test skipped due wrong invocation"
+		echo_deact "SW ES: Underflow test skipped due wrong invocation"
 		return
 	fi
 
-	echo_log "Verify underflow handling for configured rate $rate"
+	echo_log "SW ES: Verify underflow handling for configured rate $rate"
 
 	# In case of an underflow, the LRNG must set the rate to 256
 	verify_entropyrate 256
@@ -128,6 +128,13 @@ then
 			;;
 	esac
 else
+	$(check_kernel_config "CONFIG_LRNG_RUNTIME_ES_CONFIG=y")
+	if [ $? -ne 0 ]
+	then
+		echo_deact "SW ES: tests skipped"
+		exit
+	fi
+
 	#
 	# Validating FIPS mode
 	#
