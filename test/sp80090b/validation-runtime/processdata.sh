@@ -10,7 +10,6 @@
 ENTROPYDATA_DIR="../results-measurements"
 
 NONIID_DATA="lrng_raw_noise.data"
-IID_DATA="lrng_raw_lfsr.data"
 
 # this is where the resulting data and the entropy analysis will be stored
 RESULTS_DIR="../results-analysis"
@@ -20,7 +19,6 @@ LOGFILE="$RESULTS_DIR/processdata.log"
 
 # point to the min entropy tool
 EATOOL_NONIID="../SP800-90B_EntropyAssessment/cpp/ea_non_iid"
-EATOOL_IID="../SP800-90B_EntropyAssessment/cpp/ea_iid"
 
 # specify if you want to compile the extractlsb program in this script
 BUILD_EXTRACT="yes"
@@ -34,7 +32,7 @@ BUILD_EXTRACT="yes"
 # up to one byte.
 
 # List of masks usually analyzed (4 and 8 LSB) 
-MASK_LIST="0F:4 FF:8"
+MASK_LIST="FF:8"
 
 # List used for ARM Cortext A9 and A7 processors
 #MASK_LIST="FF:4,8 7F8:4,8"
@@ -135,25 +133,5 @@ do
 			fi
 		done
 	done
-done
-
-echo "" | tee -a $LOGFILE
-echo "Now analyzing entropy for conditioned data..." | tee -a $LOGFILE
-echo "" | tee -a $LOGFILE
- 
-for file in $ENTROPYDATA_DIR/$IID_DATA
-do
-	bits=8
-	infile=$file
-	filepath=`basename ${file%%.data}`
-	outfile=$RESULTS_DIR/${filepath}.minentropy_${bits}.txt
-	inprocess_file=$outfile
-	if [ ! -f $outfile ]
-	then
-		echo "Analyzing entropy for $infile ${bits}-bit" | tee -a $LOGFILE
-		$EATOOL_IID $infile ${bits} -i -a -v > $outfile
-	else
-		echo "File $outfile already generated"
-	fi
 done
 
