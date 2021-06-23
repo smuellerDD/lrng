@@ -192,6 +192,26 @@ bool lrng_state_operational(void)
 	return lrng_state.lrng_operational;
 }
 
+/* Policy to check whether entropy buffer contains full seeded entropy */
+bool lrng_fully_seeded(struct entropy_buf *eb)
+{
+	return ((eb->a_bits + eb->b_bits + eb->c_bits + eb->d_bits) >=
+		lrng_get_seed_entropy_osr());
+}
+
+/* Policy to enable LRNG operational mode */
+static inline void lrng_set_operational(u32 external_es)
+{
+	if (lrng_state.lrng_fully_seeded &&
+	    (lrng_sp80090b_startup_complete() ||
+	     (lrng_get_seed_entropy_osr() <= external_es))) {
+		lrng_state.lrng_operational = true;
+		lrng_process_ready_list();
+		lrng_init_wakeup();
+		pr_info("LRNG fully operational\n");
+	}
+}
+
 /* Set entropy content in user-space controllable aux pool */
 void lrng_pool_set_entropy(u32 entropy_bits)
 {
@@ -201,11 +221,19 @@ void lrng_pool_set_entropy(u32 entropy_bits)
 /* Available entropy in the entire LRNG considering all entropy sources */
 u32 lrng_avail_entropy(void)
 {
-	u32 ent_thres = atomic_read_u32(&lrng_state.boot_entropy_thresh);
+	u32 ent_thresh = lrng_security_strength();
+
+	/*
+	 * Apply oversampling during initialization according to SP800-90C as
+	 * we request a larger buffer from the ES.
+	 */
+	if (lrng_sp80090c_compliant() &&
+	    !lrng_state.all_online_numa_node_seeded)
+		ent_thresh += CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS;
 
 	return lrng_pcpu_avail_entropy() + lrng_avail_aux_entropy() +
-	       lrng_archrandom_entropylevel(ent_thres) +
-	       lrng_jent_entropylevel(ent_thres);
+	       lrng_archrandom_entropylevel(ent_thresh) +
+	       lrng_jent_entropylevel(ent_thresh);
 }
 
 /**
@@ -226,9 +254,7 @@ void lrng_init_ops(struct entropy_buf *eb)
 	if (state->lrng_operational)
 		return;
 
-	requested_bits = lrng_security_strength();
-	if (lrng_sp80090c_compliant())
-		requested_bits += CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS;
+	requested_bits = lrng_get_seed_entropy_osr();
 
 	/*
 	 * Entropy provided by external entropy sources - if they provide
@@ -239,24 +265,18 @@ void lrng_init_ops(struct entropy_buf *eb)
 
 	/* DRNG is seeded with full security strength */
 	if (state->lrng_fully_seeded) {
-		state->lrng_operational = lrng_sp80090b_startup_complete();
-		state->lrng_operational |= (requested_bits <= external_es);
-		lrng_process_ready_list();
-		lrng_init_wakeup();
-	} else if (seed_bits >= requested_bits) {
+		lrng_set_operational(external_es);
+		lrng_set_entropy_thresh(requested_bits);
+	} else if (lrng_fully_seeded(eb)) {
 		if (state->can_invalidate)
 			invalidate_batched_entropy();
 
 		state->lrng_fully_seeded = true;
-		state->lrng_operational = lrng_sp80090b_startup_complete();
-		state->lrng_operational |= (requested_bits <= external_es);
+		lrng_set_operational(external_es);
 		state->lrng_min_seeded = true;
 		pr_info("LRNG fully seeded with %u bits of entropy\n",
 			seed_bits);
 		lrng_set_entropy_thresh(requested_bits);
-		lrng_process_ready_list();
-		lrng_init_wakeup();
-
 	} else if (!state->lrng_min_seeded) {
 
 		/* DRNG is seeded with at least 128 bits of entropy */
@@ -332,8 +352,7 @@ lrng_pool_insert_aux_locked(const u8 *inbuf, u32 inbuflen, u32 entropy_bits)
 	u32 digestsize;
 	int ret;
 
-	if (entropy_bits > (inbuflen << 3))
-		entropy_bits = (inbuflen << 3);
+	entropy_bits = min_t(u32, entropy_bits, inbuflen << 3);
 
 	read_lock_irqsave(&drng->hash_lock, flags);
 
@@ -356,9 +375,8 @@ lrng_pool_insert_aux_locked(const u8 *inbuf, u32 inbuflen, u32 entropy_bits)
 	 * SP800-90B section 3.1.5.1 table 1.
 	 */
 	entropy_bits += atomic_read_u32(&pool->aux_entropy_bits);
-	if (entropy_bits > digestsize << 3)
-		entropy_bits = digestsize << 3;
-	atomic_set(&pool->aux_entropy_bits, entropy_bits);
+	atomic_set(&pool->aux_entropy_bits,
+		   min_t(u32, entropy_bits, digestsize << 3));
 
 out:
 	crypto_cb->lrng_hash_desc_zero(shash);
@@ -396,7 +414,7 @@ void lrng_pool_add_entropy(void)
 	if (!lrng_get_available())
 		return;
 
-	/* Only trigger the DRNG reseed if we have collected enough IRQs. */
+	/* Only trigger the DRNG reseed if we have collected entropy. */
 	if (lrng_avail_entropy() <
 	    atomic_read_u32(&lrng_state.boot_entropy_thresh))
 		return;
@@ -464,7 +482,8 @@ void lrng_fill_seed_buffer(struct entropy_buf *entropy_buf, u32 requested_bits)
 	struct lrng_pool *pool = &lrng_pool;
 	struct lrng_state *state = &lrng_state;
 	unsigned long flags;
-	u32 pcpu_request;
+	u32 pcpu_request, req_ent = lrng_sp80090c_compliant() ?
+			  lrng_security_strength() : LRNG_MIN_SEED_ENTROPY_BITS;
 
 	/* Guarantee that requested bits is a multiple of bytes */
 	BUILD_BUG_ON(LRNG_DRNG_SECURITY_STRENGTH_BITS % 8);
@@ -472,9 +491,12 @@ void lrng_fill_seed_buffer(struct entropy_buf *entropy_buf, u32 requested_bits)
 	/* always reseed the DRNG with the current time stamp */
 	entropy_buf->now = random_get_entropy();
 
-	/* Require at least 128 bits of entropy for any reseed. */
-	if (state->lrng_fully_seeded &&
-	    (lrng_avail_entropy() < LRNG_MIN_SEED_ENTROPY_BITS)) {
+	/*
+	 * Require at least 128 bits of entropy for any reseed. If the LRNG is
+	 * operated SP800-90C compliant we want to comply with SP800-90A section
+	 * 9.2 mandating that DRNG is reseeded with the security strength.
+	 */
+	if (state->lrng_fully_seeded && (lrng_avail_entropy() < req_ent)) {
 		entropy_buf->a_bits = entropy_buf->b_bits = 0;
 		entropy_buf->c_bits = entropy_buf->d_bits = 0;
 		goto wakeup;
@@ -490,8 +512,8 @@ void lrng_fill_seed_buffer(struct entropy_buf *entropy_buf, u32 requested_bits)
 	 * If the aux pool returned entropy, pull respective less from per-CPU
 	 * pool, but attempt to at least get LRNG_MIN_SEED_ENTROPY_BITS entropy.
 	 */
-	pcpu_request = max_t(u32, requested_bits -
-			     entropy_buf->a_bits, LRNG_MIN_SEED_ENTROPY_BITS);
+	pcpu_request = max_t(u32, requested_bits - entropy_buf->a_bits,
+			     LRNG_MIN_SEED_ENTROPY_BITS);
 	entropy_buf->b_bits = lrng_pcpu_pool_hash(entropy_buf->b, pcpu_request,
 						  state->lrng_fully_seeded);
 

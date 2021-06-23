@@ -152,8 +152,7 @@ static int lrng_proc_type_show(struct seq_file *m, void *v)
 		 "LRNG security strength in bits: %d\n"
 		 "per-CPU interrupt collection size: %u\n"
 		 "number of DRNG instances: %u\n"
-		 "SP800-90B compliance: %s\n"
-		 "SP800-90C compliance: %s\n"
+		 "Standards compliance: %s%s\n"
 		 "High-resolution timer: %s\n"
 		 "LRNG minimally seeded: %s\n"
 		 "LRNG fully seeded: %s\n"
@@ -164,8 +163,8 @@ static int lrng_proc_type_show(struct seq_file *m, void *v)
 		 lrng_security_strength(),
 		 LRNG_DATA_NUM_VALUES,
 		 numa_drngs,
-		 lrng_sp80090b_compliant() ? "true" : "false",
-		 lrng_sp80090c_compliant() ? "true" : "false",
+		 lrng_sp80090b_compliant() ? "SP800-90B " : "",
+		 lrng_sp80090c_compliant() ? "SP800-90C " : "",
 		 lrng_pool_highres_timer() ? "true" : "false",
 		 lrng_state_min_seeded() ? "true" : "false",
 		 lrng_state_fully_seeded() ? "true" : "false",

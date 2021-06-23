@@ -14,6 +14,8 @@ menuconfig LRNG
 
 if LRNG
 
+menu "Specific DRNG seeding strategies"
+
 config LRNG_OVERSAMPLE_ENTROPY_SOURCES
 	bool "Oversample entropy sources"
 	default n
@@ -50,6 +52,8 @@ config LRNG_SEED_BUFFER_INIT_ADD_BITS
 	int
 	default 0 if !LRNG_OVERSAMPLE_ENTROPY_SOURCES
 	default 128 if LRNG_OVERSAMPLE_ENTROPY_SOURCES
+
+endmenu # "Specific DRNG seeding strategies"
 
 choice
 	prompt "Continuous entropy compression boot time setting"

@@ -285,6 +285,16 @@ static inline u32 lrng_security_strength(void)
 	return min_t(u32, LRNG_FULL_SEED_ENTROPY_BITS, lrng_get_digestsize());
 }
 
+static inline u32 lrng_get_seed_entropy_osr(void)
+{
+	u32 requested_bits = lrng_security_strength();
+
+	/* Apply oversampling during initialization according to SP800-90C */
+	if (lrng_sp80090c_compliant())
+		requested_bits += CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS;
+	return requested_bits;
+}
+
 void lrng_set_entropy_thresh(u32 new);
 u32 lrng_avail_entropy(void);
 void lrng_reset_state(void);
@@ -315,6 +325,7 @@ struct entropy_buf {
 	u32 now, a_bits, b_bits, c_bits, d_bits;
 };
 
+bool lrng_fully_seeded(struct entropy_buf *eb);
 void lrng_fill_seed_buffer(struct entropy_buf *entropy_buf, u32 requested_bits);
 void lrng_init_ops(struct entropy_buf *eb);
 

@@ -179,25 +179,18 @@ static void lrng_drng_inject(struct lrng_drng *drng,
 static inline void _lrng_drng_seed(struct lrng_drng *drng)
 {
 	struct entropy_buf seedbuf __aligned(LRNG_KCAPI_ALIGN);
-	u32 total_entropy_bits, requested_bits = lrng_security_strength();
 
-	/* Apply oversampling during initialization according to SP800-90C */
-	if (lrng_sp80090c_compliant() && !drng->fully_seeded)
-		requested_bits += CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS;
-
-	lrng_fill_seed_buffer(&seedbuf, requested_bits);
+	lrng_fill_seed_buffer(&seedbuf, lrng_get_seed_entropy_osr());
 
 	/* Allow the seeding operation to be called again */
 	lrng_pool_unlock();
 	lrng_init_ops(&seedbuf);
 
 	lrng_drng_inject(drng, (u8 *)&seedbuf, sizeof(seedbuf));
-	total_entropy_bits = seedbuf.a_bits + seedbuf.b_bits + seedbuf.c_bits +
-			     seedbuf.d_bits;
-	memzero_explicit(&seedbuf, sizeof(seedbuf));
 
-	if (total_entropy_bits >= requested_bits)
-		drng->fully_seeded = true;
+	if (!drng->fully_seeded)
+		drng->fully_seeded = lrng_fully_seeded(&seedbuf);
+	memzero_explicit(&seedbuf, sizeof(seedbuf));
 }
 
 static int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen);

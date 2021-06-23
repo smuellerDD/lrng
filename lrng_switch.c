@@ -94,8 +94,6 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 	/* Trigger the switch of the per-CPU entropy pools for current node. */
 	ret = lrng_pcpu_switch_hash(node, cb, new_hash, drng_store->crypto_cb);
 	if (!ret) {
-		u32 additional = 0;
-
 		if (reset_drng)
 			lrng_drng_reset(drng_store);
 
@@ -110,11 +108,8 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 			node);
 
 		lrng_set_digestsize(cb->lrng_hash_digestsize(new_hash));
-		if (lrng_sp80090c_compliant())
-			additional = CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS;
 		if (lrng_state_min_seeded()) {
-			lrng_set_entropy_thresh(lrng_security_strength() +
-						additional);
+			lrng_set_entropy_thresh(lrng_get_seed_entropy_osr());
 		}
 
 		/* Reseed if previous LRNG security strength was insufficient */
