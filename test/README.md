@@ -10,6 +10,9 @@ The following description of the different tests apply
   particular interest when the lrng_drbg.ko module is loaded and the
   kernel crypto API DRBG is used which may sleep.
 
+* `automation`: This directory contains an automated regression test.
+  All tests verify various configurations and associated LRNG behavior.
+
 * `sp80090b`: This directory contains the raw noise data gathering test
   compliant to SP800-90B section 3.1.3. In addition, the restart test
   defined by SP800-90B section 3.1.4. Please read the README in this directory.

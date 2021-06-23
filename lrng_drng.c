@@ -188,8 +188,10 @@ static inline void _lrng_drng_seed(struct lrng_drng *drng)
 
 	lrng_drng_inject(drng, (u8 *)&seedbuf, sizeof(seedbuf));
 
-	if (!drng->fully_seeded)
+	if (!drng->fully_seeded) {
 		drng->fully_seeded = lrng_fully_seeded(&seedbuf);
+		pr_debug("DRNG fully seeded\n");
+	}
 	memzero_explicit(&seedbuf, sizeof(seedbuf));
 }
 
