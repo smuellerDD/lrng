@@ -100,6 +100,12 @@
 /* Alignmask that is intended to be identical to CRYPTO_MINALIGN */
 #define LRNG_KCAPI_ALIGN		ARCH_KMALLOC_MINALIGN
 
+/*
+ * This definition must provide a buffer that is equal to SHASH_DESC_ON_STACK
+ * as it will be casted into a struct shash_desc.
+ */
+#define LRNG_POOL_SIZE	(sizeof(struct shash_desc) + HASH_MAX_DESCSIZE)
+
 /************************ Default DRNG implementation *************************/
 
 extern struct chacha20_state chacha20;
@@ -268,7 +274,6 @@ enum lrng_external_noise_source {
 };
 
 u32 lrng_avail_aux_entropy(void);
-void lrng_set_digestsize(u32 digestsize);
 u32 lrng_get_digestsize(void);
 
 /* Obtain the security strength of the LRNG in bits */
@@ -310,6 +315,8 @@ void lrng_pool_unlock(void);
 void lrng_pool_all_numa_nodes_seeded(bool set);
 bool lrng_pool_highres_timer(void);
 void lrng_pool_set_entropy(u32 entropy_bits);
+int lrng_aux_switch_hash(const struct lrng_crypto_cb *new_cb, void *new_hash,
+			 const struct lrng_crypto_cb *old_cb);
 int lrng_pool_insert_aux(const u8 *inbuf, u32 inbuflen, u32 entropy_bits);
 void lrng_pool_add_entropy(void);
 

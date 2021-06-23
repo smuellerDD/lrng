@@ -73,12 +73,8 @@ MODULE_PARM_DESC(lrng_pcpu_continuous_compression,
  * To read the entropy pool, a hash final must be invoked. However, before
  * the entropy pool is released again after a hash final, the hash init must
  * be performed.
- *
- * This definition must provide a buffer that is equal to SHASH_DESC_ON_STACK
- * as it will be casted into a struct shash_desc.
  */
-#define LRNG_PCPU_POOL_SIZE	(sizeof(struct shash_desc) + HASH_MAX_DESCSIZE)
-static DEFINE_PER_CPU(u8 [LRNG_PCPU_POOL_SIZE], lrng_pcpu_pool)
+static DEFINE_PER_CPU(u8 [LRNG_POOL_SIZE], lrng_pcpu_pool)
 						__aligned(LRNG_KCAPI_ALIGN);
 /*
  * Lock to allow other CPUs to read the pool - as this is only done during
@@ -228,7 +224,7 @@ int lrng_pcpu_switch_hash(int node,
 {
 	u8 digest[LRNG_MAX_DIGESTSIZE];
 	u32 digestsize_irqs, found_irqs;
-	int ret, cpu;
+	int ret = 0, cpu;
 
 	for_each_online_cpu(cpu) {
 		struct shash_desc *pcpu_shash;
@@ -448,8 +444,7 @@ u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded)
 	 * During boot time, we read requested_bits data with
 	 * returned_ent_bits entropy. In case our conservative entropy
 	 * estimate underestimates the available entropy we can transport as
-	 * much available entropy as possible. The entropy pool does not
-	 * operate compliant to the German AIS 21/31 NTG.1 yet.
+	 * much available entropy as possible.
 	 */
 	memcpy(outbuf, digest, fully_seeded ? returned_ent_bits >> 3 :
 					      requested_bits >> 3);

@@ -91,9 +91,20 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 		__acquire(&drng_store->spin_lock);
 	}
 
+	/* Trigger the switch of the aux entropy pool for current node. */
+	if (drng_store == lrng_drng_init_instance()) {
+		ret = lrng_aux_switch_hash(cb, new_hash, drng_store->crypto_cb);
+		if (ret)
+			goto err;
+	}
+
 	/* Trigger the switch of the per-CPU entropy pools for current node. */
 	ret = lrng_pcpu_switch_hash(node, cb, new_hash, drng_store->crypto_cb);
-	if (!ret) {
+	if (ret) {
+		/* Switch the crypto operation back to be consistent */
+		WARN_ON(lrng_aux_switch_hash(drng_store->crypto_cb,
+					     drng_store->hash, cb));
+	} else {
 		if (reset_drng)
 			lrng_drng_reset(drng_store);
 
@@ -107,7 +118,6 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 		pr_info("Entropy pool read-hash allocated for DRNG for NUMA node %d\n",
 			node);
 
-		lrng_set_digestsize(cb->lrng_hash_digestsize(new_hash));
 		if (lrng_state_min_seeded()) {
 			lrng_set_entropy_thresh(lrng_get_seed_entropy_osr());
 		}
@@ -131,6 +141,7 @@ static int lrng_drng_switch(struct lrng_drng *drng_store,
 		pr_info("DRNG of NUMA node %d switched\n", node);
 	}
 
+err:
 	if (sl)
 		spin_unlock_irqrestore(&drng_store->spin_lock, flags);
 	else
