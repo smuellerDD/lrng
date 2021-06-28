@@ -66,6 +66,22 @@ static inline unsigned int lrng_data_slot_val(unsigned int val,
 	return val << lrng_data_slot2bitindex(slot);
 }
 
+/*
+ * Return the pointers for the previous and current units to inject a u32 into.
+ * Also return the mask which which the u32 word is to be processed.
+ */
+static inline void lrng_pcpu_split_u32(uint32_t *ptr, uint32_t *pre_ptr,
+				       uint32_t *mask)
+{
+	/* ptr to previous unit */
+	*pre_ptr = (*ptr - LRNG_DATA_SLOTS_PER_UINT) & LRNG_DATA_WORD_MASK;
+	*ptr &= LRNG_DATA_WORD_MASK;
+
+	/* mask to split data into the two parts for the two units */
+	*mask = ((1 << (*pre_ptr & (LRNG_DATA_SLOTS_PER_UINT - 1)) *
+			LRNG_DATA_SLOTSIZE_BITS)) - 1;
+}
+
 static inline void lrng_data_process(uint32_t time)
 {
 	uint32_t ptr = lrng_data_ptr++ & LRNG_DATA_WORD_MASK;
@@ -73,7 +89,6 @@ static inline void lrng_data_process(uint32_t time)
 	unsigned int slot = lrng_data_idx2slot(ptr);
 
 	BUILD_BUG_ON(LRNG_DATA_ARRAY_MEMBER_BITS % LRNG_DATA_SLOTSIZE_BITS);
-
 	/* zeroization of slot to ensure the following OR adds the data */
 	lrng_data[array] &=
 		~(lrng_data_slot_val(0xffffffff & LRNG_DATA_SLOTSIZE_MASK,
@@ -100,17 +115,9 @@ static inline void lrng_data_process_u32(uint32_t data)
 
 	/* Increment pointer by number of slots taken for input value */
 	lrng_data_ptr += LRNG_DATA_SLOTS_PER_UINT;
-
-	/* ptr to current unit */
 	ptr = lrng_data_ptr;
-	/* ptr to previous unit */
-	pre_ptr = (lrng_data_ptr - LRNG_DATA_SLOTS_PER_UINT) &
-		  LRNG_DATA_WORD_MASK;
-	ptr &= LRNG_DATA_WORD_MASK;
 
-	/* mask to split data into the two parts for the two units */
-	mask = ((1 << (pre_ptr & (LRNG_DATA_SLOTS_PER_UINT - 1)) *
-		       LRNG_DATA_SLOTSIZE_BITS )) - 1;
+	lrng_pcpu_split_u32(&ptr, &pre_ptr, &mask);
 
 	/* MSB of data go into previous unit */
 	pre_array = lrng_data_idx2array(pre_ptr);
@@ -143,16 +150,27 @@ static void check_res(uint32_t actual1, uint32_t exp1,
 int main(int argc, char *argv[])
 {
 	uint32_t time;
-// 	uint32_t idx_zero_compare_4 =
-// 		(0 << 0)  | (1 << 4)  | (2 << 8)  | (3 << 12) |
-// 		(4 << 16) | (5 << 20) | (6 << 24) | (7 << 28);
-// 	uint32_t idx_one_compare_4 =
-// 		(8 << 0)   | (9 << 4)   | (10 << 8)  | (11 << 12) |
-// 		(12 << 16) | (13 << 20) | (14 << 24) | (15 << 28);
+
+#if (LRNG_DATA_SLOTSIZE_BITS == 4)
+	uint32_t idx_zero_compare =
+		(0 << 0)  | (1 << 4)  | (2 << 8)  | (3 << 12) |
+		(4 << 16) | (5 << 20) | (6 << 24) | (7 << 28);
+	uint32_t idx_one_compare =
+		(8 << 0)   | (9 << 4)   | (10 << 8)  | (11 << 12) |
+		(12 << 16) | (13 << 20) | (14 << 24) | (15 << 28);
+#elif (LRNG_DATA_SLOTSIZE_BITS == 8)
 	uint32_t idx_zero_compare =
 		(0 << 0) | (1 << 8) | (2 << 16) | (3 << 24);
 	uint32_t idx_one_compare =
 		(4 << 0) | (5 << 8) | (6 << 16) | (7 << 24);
+#elif (LRNG_DATA_SLOTSIZE_BITS == 16)
+	uint32_t idx_zero_compare =
+		(0 << 0) | (1 << 16);
+	uint32_t idx_one_compare =
+		(2 << 0) | (3 << 16);
+#else
+# error "Unknown LRNG_DATA_SLOTSIZE_BITS"
+#endif
 
 	(void)argc;
 	(void)argv;
@@ -166,8 +184,18 @@ int main(int argc, char *argv[])
 	/* aligned writing of 2 32 words including the check of zeroization */
 	lrng_data[0] = 0xffffffff;
 	lrng_data[1] = 0xffffffff;
+#if (LRNG_DATA_SLOTSIZE_BITS == 4)
+	lrng_data_process_u32((0 << 0)  | (1 << 4)  | (2 << 8)  | (3 << 12) |
+			      (4 << 16) | (5 << 20) | (6 << 24) | (7 << 28));
+	lrng_data_process_u32((8 << 0)   | (9 << 4)   | (10 << 8)  | (11 << 12) |
+			      (12 << 16) | (13 << 20) | (14 << 24) | (15 << 28));
+#elif (LRNG_DATA_SLOTSIZE_BITS == 8)
 	lrng_data_process_u32((0 << 0) | (1 << 8) | (2 << 16) | (3 << 24));
 	lrng_data_process_u32((4 << 0) | (5 << 8) | (6 << 16) | (7 << 24));
+#elif (LRNG_DATA_SLOTSIZE_BITS == 16)
+	lrng_data_process_u32((0 << 0) | (1 << 16));
+	lrng_data_process_u32((2 << 0) | (3 << 16));
+#endif
 	check_res(lrng_data[0], idx_zero_compare, lrng_data[1], idx_one_compare);
 //	lrng_data[0] = 0;
 //	lrng_data[1] = 0;
@@ -179,62 +207,168 @@ int main(int argc, char *argv[])
 	 */
 	lrng_data[2] = 0xffffffff;
 	lrng_data[3] = 0xffffffff;
+#if (LRNG_DATA_SLOTSIZE_BITS == 4)
+	lrng_data_process(0);
+	lrng_data_process_u32((8 << 0)  | (1 << 4)  | (2 << 8)  | (3 << 12) |
+			      (4 << 16) | (5 << 20) | (6 << 24) | (7 << 28) );
+	lrng_data_process(9);
+	lrng_data_process(10);
+	lrng_data_process(11);
+	lrng_data_process(12);
+	lrng_data_process(13);
+	lrng_data_process(14);
+	lrng_data_process(15);
+#elif (LRNG_DATA_SLOTSIZE_BITS == 8)
 	lrng_data_process(0);
 	lrng_data_process_u32( (4 << 0) | (1 << 8) | (2 << 16) | (3 << 24) );
 	lrng_data_process(5);
 	lrng_data_process(6);
 	lrng_data_process(7);
+#elif (LRNG_DATA_SLOTSIZE_BITS == 16)
+	lrng_data_process(0);
+	lrng_data_process_u32( (2 << 0) | (1 << 16));
+	lrng_data_process(3);
+#endif
 	check_res(lrng_data[2], idx_zero_compare, lrng_data[3], idx_one_compare);
 //	lrng_data[0] = 0;
 //	lrng_data[1] = 0;
 //	lrng_data_ptr = 0;
 
 	/* non-aligned writing of on 32 word shifted by two slots */
+#if (LRNG_DATA_SLOTSIZE_BITS == 4)
+	lrng_data_process(0);
+	lrng_data_process(1);
+	lrng_data_process_u32((8 << 0)  | (9 << 4)  | (2 << 8)  | (3 << 12) |
+			      (4 << 16) | (5 << 20) | (6 << 24) | (7 << 28));
+	lrng_data_process(10);
+	lrng_data_process(11);
+	lrng_data_process(12);
+	lrng_data_process(13);
+	lrng_data_process(14);
+	lrng_data_process(15);
+#elif (LRNG_DATA_SLOTSIZE_BITS == 8)
 	lrng_data_process(0);
 	lrng_data_process(1);
 	lrng_data_process_u32( (4 << 0) | (5 << 8) | (2 << 16) | (3 << 24) );
 	lrng_data_process(6);
 	lrng_data_process(7);
+#elif (LRNG_DATA_SLOTSIZE_BITS == 16)
+	lrng_data_process(0);
+	lrng_data_process(1);
+	lrng_data_process_u32((2 << 0) | (3 << 16));
+#endif
 	check_res(lrng_data[4], idx_zero_compare, lrng_data[5], idx_one_compare);
 //	lrng_data[1] = 0;
 //	lrng_data[1] = 0;
 //	lrng_data_ptr = 0;
 
 	/* non-aligned writing of on 32 word shifted by three slots */
+#if (LRNG_DATA_SLOTSIZE_BITS == 8)
 	lrng_data_process(0);
 	lrng_data_process(1);
 	lrng_data_process(2);
 	lrng_data_process_u32( (4 << 0) | (5 << 8) | (6 << 16) | (3 << 24) );
 	lrng_data_process(7);
 	check_res(lrng_data[6], idx_zero_compare, lrng_data[7], idx_one_compare);
+#elif (LRNG_DATA_SLOTSIZE_BITS == 16)
+	lrng_data_process(0);
+	lrng_data_process(1);
+	lrng_data_process_u32((2 << 0) | (3 << 16));
+	check_res(lrng_data[6], idx_zero_compare, lrng_data[7], idx_one_compare);
+#endif
 
 	/* The following tests simply are used to advance the ptr */
+#if (LRNG_DATA_SLOTSIZE_BITS == 8)
 	lrng_data_process(0);
 	lrng_data_process_u32( (4 << 0) | (1 << 8) | (2 << 16) | (3 << 24) );
 	lrng_data_process(5);
 	lrng_data_process(6);
 	lrng_data_process(7);
 	check_res(lrng_data[8], idx_zero_compare, lrng_data[9], idx_one_compare);
+#elif (LRNG_DATA_SLOTSIZE_BITS == 16)
+	lrng_data_process(0);
+	lrng_data_process_u32( (2 << 0) | (1 << 16));
+	lrng_data_process(3);
+	check_res(lrng_data[8], idx_zero_compare, lrng_data[9], idx_one_compare);
+#endif
+
 //	lrng_data[0] = 0;
 //	lrng_data[1] = 0;
 //	lrng_data_ptr = 0;
 
+#if (LRNG_DATA_SLOTSIZE_BITS == 8)
 	lrng_data_process(0);
 	lrng_data_process_u32( (4 << 0) | (1 << 8) | (2 << 16) | (3 << 24) );
 	lrng_data_process(5);
 	lrng_data_process(6);
 	lrng_data_process(7);
 	check_res(lrng_data[10], idx_zero_compare, lrng_data[11], idx_one_compare);
+#elif (LRNG_DATA_SLOTSIZE_BITS == 16)
+	lrng_data_process(0);
+	lrng_data_process_u32( (2 << 0) | (1 << 16));
+	lrng_data_process(3);
+	check_res(lrng_data[10], idx_zero_compare, lrng_data[11], idx_one_compare);
+#endif
+
 //	lrng_data[0] = 0;
 //	lrng_data[1] = 0;
 //	lrng_data_ptr = 0;
 
+#if (LRNG_DATA_SLOTSIZE_BITS == 8)
 	lrng_data_process(0);
 	lrng_data_process_u32( (4 << 0) | (1 << 8) | (2 << 16) | (3 << 24) );
 	lrng_data_process(5);
 	lrng_data_process(6);
 	lrng_data_process(7);
 	check_res(lrng_data[12], idx_zero_compare, lrng_data[13], idx_one_compare);
+#elif (LRNG_DATA_SLOTSIZE_BITS == 16)
+	lrng_data_process(0);
+	lrng_data_process_u32( (2 << 0) | (1 << 16));
+	lrng_data_process(3);
+	check_res(lrng_data[12], idx_zero_compare, lrng_data[13], idx_one_compare);
+#endif
+
+#if (LRNG_DATA_SLOTSIZE_BITS == 16)
+	lrng_data_process(0);
+	lrng_data_process_u32( (2 << 0) | (1 << 16));
+	lrng_data_process(3);
+	check_res(lrng_data[14], idx_zero_compare, lrng_data[15], idx_one_compare);
+
+	lrng_data_process(0);
+	lrng_data_process_u32( (2 << 0) | (1 << 16));
+	lrng_data_process(3);
+	check_res(lrng_data[16], idx_zero_compare, lrng_data[17], idx_one_compare);
+
+	lrng_data_process(0);
+	lrng_data_process_u32( (2 << 0) | (1 << 16));
+	lrng_data_process(3);
+	check_res(lrng_data[18], idx_zero_compare, lrng_data[19], idx_one_compare);
+
+	lrng_data_process(0);
+	lrng_data_process_u32( (2 << 0) | (1 << 16));
+	lrng_data_process(3);
+	check_res(lrng_data[20], idx_zero_compare, lrng_data[21], idx_one_compare);
+
+	lrng_data_process(0);
+	lrng_data_process_u32( (2 << 0) | (1 << 16));
+	lrng_data_process(3);
+	check_res(lrng_data[22], idx_zero_compare, lrng_data[23], idx_one_compare);
+
+	lrng_data_process(0);
+	lrng_data_process_u32( (2 << 0) | (1 << 16));
+	lrng_data_process(3);
+	check_res(lrng_data[24], idx_zero_compare, lrng_data[25], idx_one_compare);
+
+	lrng_data_process(0);
+	lrng_data_process_u32( (2 << 0) | (1 << 16));
+	lrng_data_process(3);
+	check_res(lrng_data[26], idx_zero_compare, lrng_data[27], idx_one_compare);
+
+	lrng_data_process(0);
+	lrng_data_process_u32( (2 << 0) | (1 << 16));
+	lrng_data_process(3);
+	check_res(lrng_data[28], idx_zero_compare, lrng_data[29], idx_one_compare);
+#endif
 
 	/*
 	 * Clear the first words without resetting ptr to check for proper wrap.
@@ -242,7 +376,29 @@ int main(int argc, char *argv[])
 	lrng_data[0] = 0;
 	lrng_data[1] = 0;
 //	lrng_data_ptr = 0;
+#if (LRNG_DATA_SLOTSIZE_BITS == 4)
+	lrng_data_process(0);
+	lrng_data_process_u32((8 << 0)  | (1 << 4)  | (2 << 8)  | (3 << 12) |
+			      (4 << 16) | (5 << 20) | (6 << 24) | (7 << 28) );
+	/*
+	 * Test proper handling of ptr wrap where one slot of the following
+	 * insertion goes into first slot of lrng_data[0].
+	 */
+	lrng_data_process_u32((0 << 0) | (9 << 4) | (10 << 8) | (11 << 12) |
+			      (12 << 16) | (13 << 20) | (14 << 24) | (15 << 28));
 
+	/* We modify lrng_data[0] and lrng_data[1] */
+	lrng_data_process_u32((8 << 0)  | (1 << 4)  | (2 << 8)  | (3 << 12) |
+			      (4 << 16) | (5 << 20) | (6 << 24) | (7 << 28));
+	lrng_data_process(9);
+	lrng_data_process(10);
+	lrng_data_process(11);
+	lrng_data_process(12);
+	lrng_data_process(13);
+	lrng_data_process(14);
+	lrng_data_process(15);
+	check_res(lrng_data[6], idx_zero_compare, lrng_data[7], idx_one_compare);
+#elif (LRNG_DATA_SLOTSIZE_BITS == 8)
 	lrng_data_process(0);
 	lrng_data_process_u32( (4 << 0) | (1 << 8) | (2 << 16) | (3 << 24) );
 	/*
@@ -257,6 +413,20 @@ int main(int argc, char *argv[])
 	lrng_data_process(6);
 	lrng_data_process(7);
 	check_res(lrng_data[14], idx_zero_compare, lrng_data[15], idx_one_compare);
+#elif (LRNG_DATA_SLOTSIZE_BITS == 16)
+	lrng_data_process(0);
+	lrng_data_process_u32((2 << 0) | (1 << 16));
+	/*
+	 * Test proper handling of ptr wrap where one slot of the following
+	 * insertion goes into first slot of lrng_data[0].
+	 */
+	lrng_data_process_u32((0 << 0) | (3 << 16));
+
+	/* We modify lrng_data[0] and lrng_data[1] */
+	lrng_data_process_u32((2 << 0) | (1 << 16));
+	lrng_data_process(3);
+	check_res(lrng_data[30], idx_zero_compare, lrng_data[31], idx_one_compare);
+#endif
 	check_res(lrng_data[0], idx_zero_compare, lrng_data[1], idx_one_compare);
 
 	lrng_data[0] = 0xffffffff;
@@ -264,7 +434,7 @@ int main(int argc, char *argv[])
 	lrng_data_ptr = 0;
 
 	/* Individual writing of slot */
-	for (time = 0; time < 64; time++) {
+	for (time = 0; time < LRNG_DATA_NUM_VALUES; time++) {
 		lrng_data_process(time);
 	}
 
