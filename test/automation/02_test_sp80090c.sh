@@ -283,12 +283,12 @@ else
 		exit
 	fi
 
-	$(check_kernel_config "CONFIG_LRNG_AIS2031_NTG1_SEEDING_STRATEGY=y")
-	if [ $? -ne 0 ]
-	then
-		echo_deact "SP800-90C: tests skipped"
-		exit
-	fi
+#	$(check_kernel_config "CONFIG_LRNG_AIS2031_NTG1_SEEDING_STRATEGY=y")
+#	if [ $? -ne 0 ]
+#	then
+#		echo_deact "SP800-90C: tests skipped"
+#		exit
+#	fi
 
 	$(check_kernel_config "CONFIG_CRYPTO_FIPS=y")
 	if [ $? -ne 0 ]
