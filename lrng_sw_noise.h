@@ -57,7 +57,7 @@ static inline unsigned int lrng_data_slot_val(unsigned int val,
 
 /*
  * Return the pointers for the previous and current units to inject a u32 into.
- * Also return the mask which which the u32 word is to be processed.
+ * Also return the mask which the u32 word is to be processed.
  */
 static inline void lrng_pcpu_split_u32(u32 *ptr, u32 *pre_ptr, u32 *mask)
 {
