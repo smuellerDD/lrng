@@ -1,0 +1,10 @@
+--- linux-4.10/drivers/char/lrng/lrng_testing.c.orig	2020-08-21 17:44:52.013220501 +0200
++++ linux-4.10/drivers/char/lrng/lrng_testing.c	2020-08-21 17:45:03.064351358 +0200
+@@ -12,7 +12,6 @@
+ #include <linux/debugfs.h>
+ #include <linux/module.h>
+ #include <linux/sched.h>
+-#include <linux/sched/signal.h>
+ #include <linux/slab.h>
+ #include <linux/string.h>
+ #include <linux/types.h>
