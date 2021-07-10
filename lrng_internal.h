@@ -40,6 +40,20 @@
 #define LRNG_DRNG_RESEED_THRESH		(1<<20)
 
 /*
+ * Maximum DRNG generation operations without reseed having full entropy
+ * This value defines the absolute maximum value of DRNG generation operations
+ * without a reseed holding full entropy. LRNG_DRNG_RESEED_THRESH is the
+ * threshold when a new reseed is attempted. But it is possible that this fails
+ * to deliver full entropy. In this case the DRNG will continue to provide data
+ * even though it was not reseeded with full entropy. To avoid in the extreme
+ * case that no reseed is performed for too long, this threshold is enforced.
+ * If that absolute low value is reached, the LRNG is marked as not operational.
+ *
+ * This value is allowed to be changed.
+ */
+#define LRNG_DRNG_MAX_WITHOUT_RESEED	(1<<30)
+
+/*
  * Number of interrupts to be recorded to assume that DRNG security strength
  * bits of entropy are received.
  * Note: a value below the DRNG security strength should not be defined as this
@@ -177,6 +191,8 @@ struct lrng_drng {
 	void *hash;				/* Hash handle */
 	const struct lrng_crypto_cb *crypto_cb;	/* Crypto callbacks */
 	atomic_t requests;			/* Number of DRNG requests */
+	atomic_t requests_since_fully_seeded;	/* Number DRNG requests since
+						   last fully seeded */
 	unsigned long last_seeded;		/* Last time it was seeded */
 	bool fully_seeded;			/* Is DRNG fully seeded? */
 	bool force_reseed;			/* Force a reseed */

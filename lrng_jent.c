@@ -88,4 +88,3 @@ u32 lrng_jent_entropylevel(u32 requested_bits)
 	return lrng_fast_noise_entropylevel((lrng_jent_initialized) ?
 					    jitterrng : 0, requested_bits);
 }
-

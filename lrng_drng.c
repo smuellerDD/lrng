@@ -74,6 +74,7 @@ struct lrng_drng *lrng_drng_atomic_instance(void)
 void lrng_drng_reset(struct lrng_drng *drng)
 {
 	atomic_set(&drng->requests, LRNG_DRNG_RESEED_THRESH);
+	atomic_set(&drng->requests_since_fully_seeded, 0);
 	drng->last_seeded = jiffies;
 	drng->fully_seeded = false;
 	drng->force_reseed = true;
@@ -140,7 +141,7 @@ bool lrng_sp80090c_compliant(void)
 
 /* Inject a data buffer into the DRNG */
 static void lrng_drng_inject(struct lrng_drng *drng,
-			     const u8 *inbuf, u32 inbuflen)
+			     const u8 *inbuf, u32 inbuflen, bool fully_seeded)
 {
 	const char *drng_type = unlikely(drng == &lrng_drng_atomic) ?
 				"atomic" : "regular";
@@ -152,17 +153,30 @@ static void lrng_drng_inject(struct lrng_drng *drng,
 	if (drng->crypto_cb->lrng_drng_seed_helper(drng->drng,
 						   inbuf, inbuflen) < 0) {
 		pr_warn("seeding of %s DRNG failed\n", drng_type);
-		atomic_set(&drng->requests, 1);
+		drng->force_reseed = true;
 	} else {
+		int gc = LRNG_DRNG_RESEED_THRESH - atomic_read(&drng->requests);
+
 		pr_debug("%s DRNG stats since last seeding: %lu secs; generate calls: %d\n",
 			 drng_type,
 			 (time_after(jiffies, drng->last_seeded) ?
-			  (jiffies - drng->last_seeded) : 0) / HZ,
-			 (LRNG_DRNG_RESEED_THRESH -
-			  atomic_read(&drng->requests)));
+			  (jiffies - drng->last_seeded) : 0) / HZ, gc);
+
+		/* Count the numbers of generate ops since last fully seeded */
+		if (fully_seeded)
+			atomic_set(&drng->requests_since_fully_seeded, 0);
+		else
+			atomic_add(gc, &drng->requests_since_fully_seeded);
+
 		drng->last_seeded = jiffies;
 		atomic_set(&drng->requests, LRNG_DRNG_RESEED_THRESH);
 		drng->force_reseed = false;
+
+		if (!drng->fully_seeded) {
+			drng->fully_seeded = fully_seeded;
+			if (drng->fully_seeded)
+				pr_debug("DRNG fully seeded\n");
+		}
 
 		if (drng->drng == lrng_drng_atomic.drng) {
 			lrng_drng_atomic.last_seeded = jiffies;
@@ -183,13 +197,8 @@ static inline void _lrng_drng_seed(struct lrng_drng *drng)
 
 	lrng_fill_seed_buffer(&seedbuf, lrng_get_seed_entropy_osr());
 	lrng_init_ops(&seedbuf);
-	lrng_drng_inject(drng, (u8 *)&seedbuf, sizeof(seedbuf));
-
-	if (!drng->fully_seeded) {
-		drng->fully_seeded = lrng_fully_seeded(&seedbuf);
-		if (drng->fully_seeded)
-			pr_debug("DRNG fully seeded\n");
-	}
+	lrng_drng_inject(drng, (u8 *)&seedbuf, sizeof(seedbuf),
+			 lrng_fully_seeded(&seedbuf));
 	memzero_explicit(&seedbuf, sizeof(seedbuf));
 }
 
@@ -220,7 +229,7 @@ static void lrng_drng_seed(struct lrng_drng *drng)
 			pr_warn("Error generating random numbers for atomic DRNG: %d\n",
 				ret);
 		} else {
-			lrng_drng_inject(&lrng_drng_atomic, seedbuf, ret);
+			lrng_drng_inject(&lrng_drng_atomic, seedbuf, ret, true);
 		}
 		memzero_explicit(&seedbuf, sizeof(seedbuf));
 	}
@@ -316,6 +325,16 @@ static int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen)
 
 	lrng_drngs_init_cc20(false);
 
+	/* If DRNG operated without proper reseed for too long, block LRNG */
+	BUILD_BUG_ON(LRNG_DRNG_MAX_WITHOUT_RESEED < LRNG_DRNG_RESEED_THRESH);
+	if (atomic_read_u32(&drng->requests_since_fully_seeded) >
+		            LRNG_DRNG_MAX_WITHOUT_RESEED) {
+		pr_debug("LRNG ran too long without proper reseed\n");
+		drng->fully_seeded = false;
+		lrng_unset_operational();
+		return 0;
+	}
+
 	while (outbuflen) {
 		u32 todo = min_t(u32, outbuflen, LRNG_DRNG_MAX_REQSIZE);
 		int ret;
@@ -327,7 +346,7 @@ static int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen)
 			       lrng_drng_reseed_max_time * HZ)) {
 			if (likely(drng != &lrng_drng_atomic)) {
 				if (lrng_pool_trylock()) {
-					atomic_set(&drng->requests, 1);
+					drng->force_reseed = true;
 				} else {
 					lrng_drng_seed(drng);
 					lrng_pool_unlock();
