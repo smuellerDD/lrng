@@ -330,7 +330,7 @@ static int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen)
 	if (atomic_read_u32(&drng->requests_since_fully_seeded) >
 		            LRNG_DRNG_MAX_WITHOUT_RESEED) {
 		drng->fully_seeded = false;
-		lrng_pool_all_numa_nodes_seeded(true);
+		lrng_pool_all_numa_nodes_seeded(false);
 
 		/*
 		 * The init DRNG instance must always be fully seeded as this
