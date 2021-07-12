@@ -329,9 +329,20 @@ static int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen)
 	BUILD_BUG_ON(LRNG_DRNG_MAX_WITHOUT_RESEED < LRNG_DRNG_RESEED_THRESH);
 	if (atomic_read_u32(&drng->requests_since_fully_seeded) >
 		            LRNG_DRNG_MAX_WITHOUT_RESEED) {
-		pr_debug("LRNG ran too long without proper reseed\n");
 		drng->fully_seeded = false;
-		lrng_unset_operational();
+
+		/*
+		 * The init DRNG instance must always be fully seeded as this
+		 * instance is the fall-back if any of the per-NUMA node DRNG
+		 * instances is insufficiently seeded. Thus, we mark the
+		 * entire LRNG as non-operational if the initial DRNG
+		 * becomes not fully seeded.
+		 */
+		if (drng == lrng_drng_init_instance()) {
+			pr_debug("LRNG ran too long without proper reseed\n");
+			lrng_unset_operational();
+		}
+
 		return 0;
 	}
 
