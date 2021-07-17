@@ -112,7 +112,7 @@ static void bytes2string(uint64_t bytes, uint64_t ns, char *str, size_t strlen)
 		return;
 	}
 	snprintf(str, strlen, "%Lf B", bytes_per_second);
-	str[strlen] = '\0';
+	str[strlen - 1] = '\0';
 }
 
 static int print_status(struct opts *opts,

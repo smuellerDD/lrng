@@ -176,12 +176,6 @@ else
 		echo_log "DRNG: FIPS mode not present - not all code paths tested"
 		exit
 	fi
-	$(check_kernel_config "CONFIG_LRNG_AIS2031_NTG1_SEEDING_STRATEGY=y")
-	if [ $? -ne 0 ]
-	then
-		echo_log "DRNG: NTG mode not present - not all code paths tested"
-		exit
-	fi
 
 	#
 	# Validating FIPS mode
@@ -194,6 +188,13 @@ else
 	#
 	write_cmd "test1"
 	execvirt $(full_scriptname $0) "lrng_jent.jitterrng=256 lrng_archrandom.archrandom=256"
+
+	$(check_kernel_config "CONFIG_LRNG_AIS2031_NTG1_SEEDING_STRATEGY=y")
+	if [ $? -ne 0 ]
+	then
+		echo_log "DRNG: NTG mode not present - not all code paths tested"
+		exit
+	fi
 
 	#
 	# Validating NTG mode

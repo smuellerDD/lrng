@@ -27,7 +27,6 @@ create_irqs()
 	dd if=/bin/bash of=$HOMEDIR/sp80090b.tmp oflag=sync
 	rm -f $HOMEDIR/sp80090b.tmp
 	sync
-	dd if=/dev/urandom of=/dev/null bs=32 count=1
 
 	local i=0
 	while [ $i -lt 256 ]
@@ -35,6 +34,8 @@ create_irqs()
 		echo "Test message - ignore" >&2
 		i=$(($i+1))
 	done
+
+	dd if=/dev/urandom of=/dev/null bs=32 count=1
 }
 
 load_drbg()
@@ -56,7 +57,7 @@ load_drbg()
 
 	# Check that LRNG is re-set to fully operational
 	local op=$(dmesg | grep "LRNG fully operational")
-	if [ -z "$op" -o "$op" -eq "$oldop" ]
+	if [ -z "$op" -o "$op" = "$oldop" ]
 	then
 		echo_fail "SP800-90C: LRNG is not re-initialized for SP800-90C compliance"
 	else
