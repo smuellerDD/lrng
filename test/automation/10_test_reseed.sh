@@ -46,7 +46,44 @@ cause_reseed()
 	dd if=/dev/urandom of=/dev/null bs=32 count=1 > /dev/null 2>&1
 }
 
-drain_drng()
+# Drain DRNG and check that getrandom blocks
+drain_drng2()
+{
+	local data=0
+	local max_attempts=30
+	local fetch=32
+
+	while [ $max_attempts -gt 0 ]
+	do
+		echo > /dev/random
+		dd if=/dev/urandom of=/dev/null bs=$fetch count=1 > /dev/null 2>&1
+
+		max_attempts=$(($max_attempts-1))
+
+		if (cat /proc/lrng_type  | grep -q "LRNG fully seeded: false")
+		then
+			break
+		fi
+	done
+
+	if [ $max_attempts -le 0 ]
+	then
+		echo_fail "$TESTNAME: LRNG reports it is fully seeded after draining and reseeding"
+		exit
+	fi
+
+	$(dirname $0)/syscall_test -s > /dev/null 2>&1
+	local ret=$?
+	if [ $ret -eq 11 ]
+	then
+		echo_pass "$TESTNAME: LRNG blocked reading of blocking interface"
+	else
+		echo_fail "$TESTNAME: LRNG did not block reading of blocking interface - error code $ret"
+	fi
+}
+
+# Drain DRNG and check that LRNG turns to non-operational
+drain_drng1()
 {
 	local data=0
 	local max_attempts=30
@@ -80,8 +117,21 @@ drain_drng()
 		echo_fail "$TESTNAME: LRNG blocked reading /dev/urandom when entering non-operational"
 	fi
 
-	# TODO add an app calling getrandom(GRND_NONBLOCK) which should return
-	# EAGAIN here.
+	if (cat /proc/lrng_type  | grep -q "LRNG fully seeded: false")
+	then
+		echo_pass "$TESTNAME: LRNG proc status indicates not fully seeded after draining and reseeding"
+	else
+		echo_fail "$TESTNAME: LRNG proc status indicates fully seeded after draining and reseeding"
+	fi
+
+	$(dirname $0)/syscall_test -s > /dev/null 2>&1
+	local ret=$?
+	if [ $ret -eq 11 ]
+	then
+		echo_pass "$TESTNAME: LRNG blocked reading of blocking interface"
+	else
+		echo_fail "$TESTNAME: LRNG did not block reading of blocking interface - error code $ret"
+	fi
 }
 
 check_reseed()
@@ -119,14 +169,7 @@ check_reseed()
 	#    second generate operation
 	#
 
-	drain_drng
-
-	if (cat /proc/lrng_type  | grep -q "LRNG fully seeded: false")
-	then
-		echo_pass "$TESTNAME: LRNG proc status indicates not fully seeded after draining and reseeding"
-	else
-		echo_fail "$TESTNAME: LRNG proc status indicates fully seeded after draining and reseeding"
-	fi
+	drain_drng1
 
 	create_irqs
 
@@ -150,11 +193,23 @@ check_reseed()
 	else
 		echo_pass "$TESTNAME: LRNG is re-seeded after new reseed with full entropy"
 	fi
+
+	drain_drng2
 }
 
 exec_test1()
 {
 	check_reseed
+}
+
+exec_test2()
+{
+	if (dmesg | grep "ChaCha20 core initialized with first seeding")
+	then
+		echo_pass "$TESTNAME: Initial seeding performed"
+	else
+		echo_fail "$TESTNAME: Initial seeding not performed"
+	fi
 }
 
 $(in_hypervisor)
@@ -163,6 +218,9 @@ then
 	case $(read_cmd) in
 		"test1")
 			exec_test1
+			;;
+		"test2")
+			exec_test2
 			;;
 		*)
 			echo_fail "Test $1 not found"
@@ -176,9 +234,25 @@ else
 		exit
 	fi
 
+	gcc -DTEST -Wall -pedantic -Wextra -o syscall_test ../syscall_test.c
+	if [ $? -ne 0 ]
+	then
+		echo_fail "$TESTNAME: syscall_test application cannot be compiled"
+		exit
+	fi
+
+
 	#
 	# Validating LRNG_DRNG_MAX_WITHOUT_RESEED enforced after two reseeds
 	#
 	write_cmd "test1"
 	execvirt $(full_scriptname $0) "lrng_drng.max_wo_reseed=2"
+
+	#
+	# Verify first seed operation during initialization
+	#
+	write_cmd "test2"
+	execvirt $(full_scriptname $0)
+
+	rm -f syscall_test
 fi

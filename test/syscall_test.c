@@ -88,6 +88,12 @@ static inline ssize_t getrandom_random(uint8_t *buffer, size_t bufferlen)
 	return __getrandom(buffer, bufferlen, GRND_RANDOM);
 }
 
+static inline ssize_t getrandom_random_noblock(uint8_t *buffer,
+					       size_t bufferlen)
+{
+	return __getrandom(buffer, bufferlen, GRND_RANDOM | GRND_NONBLOCK);
+}
+
 static inline ssize_t getrandom_insecure(uint8_t *buffer, size_t bufferlen)
 {
 	return __getrandom(buffer, bufferlen, GRND_INSECURE);
@@ -319,11 +325,12 @@ int main(int argc, char *argv[])
 			{"urandom", 0, 0, 'u'},
 			{"insecure", 0, 0, 'i'},
 			{"random", 0, 0, 'r'},
+			{"random_noblock", 0, 0, 's'},
 			{"ntg1", 0, 0, 'n'},
 			{"buflen", 1, 0, 'b'},
 			{0, 0, 0, 0}
 		};
-		c = getopt_long(argc, argv, "uirnb:", options, &opt_index);
+		c = getopt_long(argc, argv, "uirsnb:", options, &opt_index);
 		if (c == -1)
 			break;
 		switch (c)
@@ -336,6 +343,9 @@ int main(int argc, char *argv[])
 				break;
 			case 'r':
 				rnd = &getrandom_random;
+				break;
+			case 's':
+				rnd = &getrandom_random_noblock;
 				break;
 			case 'n':
 				rnd = &__getrandom_ntg1;
