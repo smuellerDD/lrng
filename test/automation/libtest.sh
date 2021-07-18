@@ -323,7 +323,10 @@ write_cmd()
 
 read_cmd()
 {
-	cat $TESTCASEFILE
+	local cmd=$(cat $TESTCASEFILE)
+
+	echo_log $(color "blue")[INFO]$(color off) "Executing test $cmd"
+	echo $cmd
 }
 
 full_scriptname()
