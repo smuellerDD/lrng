@@ -480,6 +480,14 @@ config LRNG_RUNTIME_ES_CONFIG
 	  lrng_jent.jitterrng for the Jitter RNG entropy source, and
 	  lrng_sw_noise.irq_entropy for the interrupt entropy source.
 
+config LRNG_RUNTIME_MAX_WO_RESEED_CONFIG
+	bool "Enable runtime configuration of max reseed threshold"
+	help
+	  When enabling this option, the LRNG provides an interface
+	  allowing the setting of the maximum number of DRNG generate
+	  operations without a reseed that has full entropy. The
+	  interface is lrng_drng.max_wo_reseed.
+
 config LRNG_TESTING
 	bool
 	default y if (LRNG_RAW_HIRES_ENTROPY || LRNG_RAW_JIFFIES_ENTROPY ||LRNG_RAW_IRQ_ENTROPY || LRNG_RAW_IRQFLAGS_ENTROPY || LRNG_RAW_RETIP_ENTROPY || LRNG_RAW_REGS_ENTROPY || LRNG_RAW_ARRAY || LRNG_IRQ_PERF || LRNG_ACVT_HASH)
