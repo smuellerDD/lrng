@@ -35,6 +35,8 @@ TESTMOD="getrandom.ko"
 
 load_testmod()
 {
+	modprobe lrng_drbg
+
 	if [ ! -d "$TESTMODDIR" ]
 	then
 		echo_deact "Atomic: Kernel module directory $TESTMODDIR not found"
@@ -47,10 +49,36 @@ load_testmod()
 	if [ $? -ne 1 ]
 	then
 		echo_fail "Atomic: Kernel module remains in kernel"
-		return
+	else
+		echo_pass "Atomic: LRNG executing in atomic contexts"
 	fi
 
-	echo_pass "Atomic: LRNG executing in atomic contexts"
+	local atomic=$(dmesg | grep "seeding atomic DRNG with")
+
+	if [ -z "$atomic" ]
+	then
+		atomic=""
+	fi
+
+	# Check that the atomic DRNG is automatically reseeded
+	# This only happens if the atomic DRNG != the initial DRNG
+	# which happens if, say, lrng_drbg is loaded
+	echo > /dev/random
+	dd if=/dev/urandom of=/dev/null bs=32 count=1 > /dev/null 2>&1
+	sleep 1
+	local atomic2=$(dmesg | grep "seeding atomic DRNG with")
+
+	if [ -z "$atomic2" ]
+	then
+		atomic2=""
+	fi
+
+	if [ "$atomic" != "$atomic2" ]
+	then
+		echo_pass "Atomic: seeding of atomic DRNG performed"
+	else
+		echo_fail "Atomic: seeding of atomic DRNG not performed"
+	fi
 }
 
 $(in_hypervisor)

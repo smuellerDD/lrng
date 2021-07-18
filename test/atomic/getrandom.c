@@ -31,7 +31,7 @@ static int __init getrandom_init(void)
 	unsigned int i;
 	u8 buf[16];
 
-	for (i = 0; i < 100000; i++) {
+	for (i = 0; i < 1500000; i++) {
 		spin_lock_irqsave(&lock, flags);
 		get_random_bytes(buf, sizeof(buf));
 		spin_unlock_irqrestore(&lock, flags);
