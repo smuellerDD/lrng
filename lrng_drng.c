@@ -334,8 +334,8 @@ static int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen)
 
 	/* If DRNG operated without proper reseed for too long, block LRNG */
 	BUILD_BUG_ON(LRNG_DRNG_MAX_WITHOUT_RESEED < LRNG_DRNG_RESEED_THRESH);
-	if (atomic_read_u32(&drng->requests_since_fully_seeded) >
-		            max_wo_reseed) {
+	if ((atomic_read_u32(&drng->requests_since_fully_seeded) >
+			     max_wo_reseed)) {
 		drng->fully_seeded = false;
 		lrng_pool_all_numa_nodes_seeded(false);
 
@@ -346,12 +346,11 @@ static int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen)
 		 * entire LRNG as non-operational if the initial DRNG
 		 * becomes not fully seeded.
 		 */
-		if (drng == lrng_drng_init_instance()) {
+		if (drng == lrng_drng_init_instance() &&
+		    lrng_state_operational()) {
 			pr_debug("LRNG ran too long without proper reseed\n");
 			lrng_unset_operational();
 		}
-
-		return 0;
 	}
 
 	while (outbuflen) {

@@ -48,22 +48,40 @@ cause_reseed()
 
 drain_drng()
 {
-	local data=1
+	local data=0
 	local max_attempts=30
+	local fetch=32
 
-	while [ $data -gt 0 -a $max_attempts -gt 0 ]
+	while [ $max_attempts -gt 0 ]
 	do
 		echo > /dev/random
-		data=$(dd if=/dev/urandom of=/dev/null bs=32 count=1 2>&1 | grep "bytes copied" | cut -d " " -f 1)
+		data=$(dd if=/dev/urandom of=/dev/null bs=$fetch count=1 2>&1 | grep "bytes copied" | cut -d " " -f 1)
 
 		max_attempts=$(($max_attempts-1))
+
+		if (dmesg | grep "LRNG ran too long without proper reseed")
+		then
+			break
+		fi
 	done
 
-	if [ $data -gt 0 ]
+	if [ $max_attempts -le 0 ]
 	then
-		echo_fail "$TESTNAME: cannot drain entropy"
+		echo_fail "$TESTNAME: LRNG reports it is fully seeded after draining and reseeding"
 		exit
+	else
+		echo_pass "$TESTNAME: LRNG reports it is not seeded any more after draining and reseeding"
 	fi
+
+	if [ $data -eq $fetch ]
+	then
+		echo_pass "$TESTNAME: LRNG does not block reading /dev/urandom when entering non-operational"
+	else
+		echo_fail "$TESTNAME: LRNG blocked reading /dev/urandom when entering non-operational"
+	fi
+
+	# TODO add an app calling getrandom(GRND_NONBLOCK) which should return
+	# EAGAIN here.
 }
 
 check_reseed()
@@ -111,15 +129,6 @@ check_reseed()
 	fi
 
 	create_irqs
-
-	local nonop=$(dmesg | grep "LRNG ran too long without proper reseed")
-
-	if (dmesg | grep "LRNG ran too long without proper reseed")
-	then
-		echo_pass "$TESTNAME: LRNG reports it is not seeded any more after draining and reseeding"
-	else
-		echo_fail "$TESTNAME: LRNG reports it is fully seeded after draining and reseeding"
-	fi
 
 	op=$(dmesg | grep "LRNG fully operational" | tail -n 1)
 	newseed=$(dmesg | grep "lrng_drng: DRNG fully seeded" | tail -n 1)
