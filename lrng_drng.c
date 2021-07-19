@@ -53,7 +53,7 @@ static u32 max_wo_reseed = LRNG_DRNG_MAX_WITHOUT_RESEED;
 #ifdef CONFIG_LRNG_RUNTIME_MAX_WO_RESEED_CONFIG
 module_param(max_wo_reseed, uint, 0444);
 MODULE_PARM_DESC(max_wo_reseed,
-		 "Maximum number of DRNG generate operation withtout full reseed\n");
+		 "Maximum number of DRNG generate operation without full reseed\n");
 #endif
 
 /********************************** Helper ************************************/
@@ -334,24 +334,8 @@ static int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen)
 
 	/* If DRNG operated without proper reseed for too long, block LRNG */
 	BUILD_BUG_ON(LRNG_DRNG_MAX_WITHOUT_RESEED < LRNG_DRNG_RESEED_THRESH);
-	if ((atomic_read_u32(&drng->requests_since_fully_seeded) >
-			     max_wo_reseed)) {
-		drng->fully_seeded = false;
-		lrng_pool_all_numa_nodes_seeded(false);
-
-		/*
-		 * The init DRNG instance must always be fully seeded as this
-		 * instance is the fall-back if any of the per-NUMA node DRNG
-		 * instances is insufficiently seeded. Thus, we mark the
-		 * entire LRNG as non-operational if the initial DRNG
-		 * becomes not fully seeded.
-		 */
-		if (drng == lrng_drng_init_instance() &&
-		    lrng_state_operational()) {
-			pr_debug("LRNG ran too long without proper reseed\n");
-			lrng_unset_operational();
-		}
-	}
+	if (atomic_read_u32(&drng->requests_since_fully_seeded) > max_wo_reseed)
+		lrng_unset_fully_seeded(drng);
 
 	while (outbuflen) {
 		u32 todo = min_t(u32, outbuflen, LRNG_DRNG_MAX_REQSIZE);

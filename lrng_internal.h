@@ -349,7 +349,7 @@ struct entropy_buf {
 };
 
 bool lrng_fully_seeded(struct entropy_buf *eb);
-void lrng_unset_operational(void);
+void lrng_unset_fully_seeded(struct lrng_drng *drng);
 void lrng_fill_seed_buffer(struct entropy_buf *entropy_buf, u32 requested_bits);
 void lrng_init_ops(struct entropy_buf *eb);
 

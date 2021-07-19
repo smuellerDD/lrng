@@ -201,12 +201,26 @@ bool lrng_fully_seeded(struct entropy_buf *eb)
 		lrng_get_seed_entropy_osr());
 }
 
-/* Disable the fully seeded and operational mode */
-void lrng_unset_operational(void)
+/* Mark one DRNG as not fully seeded */
+void lrng_unset_fully_seeded(struct lrng_drng *drng)
 {
+	drng->fully_seeded = false;
 	lrng_pool_all_numa_nodes_seeded(false);
-	lrng_state.lrng_operational = false;
-	lrng_state.lrng_fully_seeded = false;
+
+	/*
+	 * The init DRNG instance must always be fully seeded as this instance
+	 * is the fall-back if any of the per-NUMA node DRNG instances is
+	 * insufficiently seeded. Thus, we mark the entire LRNG as
+	 * non-operational if the initial DRNG becomes not fully seeded.
+	 */
+	if (drng == lrng_drng_init_instance() && lrng_state_operational()) {
+		pr_debug("LRNG set to non-operational\n");
+		lrng_state.lrng_operational = false;
+		lrng_state.lrng_fully_seeded = false;
+
+		/* If sufficient entropy is available, reseed now. */
+		lrng_pool_add_entropy();
+	}
 }
 
 /* Policy to enable LRNG operational mode */

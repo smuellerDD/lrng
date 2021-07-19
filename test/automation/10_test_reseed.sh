@@ -66,14 +66,15 @@ drain_drng2()
 		fi
 	done
 
+	$(dirname $0)/syscall_test -s > /dev/null 2>&1
+	local ret=$?
+
 	if [ $max_attempts -le 0 ]
 	then
 		echo_fail "$TESTNAME: LRNG reports it is fully seeded after draining and reseeding"
 		exit
 	fi
 
-	$(dirname $0)/syscall_test -s > /dev/null 2>&1
-	local ret=$?
 	if [ $ret -eq 11 ]
 	then
 		echo_pass "$TESTNAME: LRNG blocked reading of blocking interface"
@@ -96,11 +97,15 @@ drain_drng1()
 
 		max_attempts=$(($max_attempts-1))
 
-		if (dmesg | grep "LRNG ran too long without proper reseed")
+		if (dmesg | grep "LRNG set to non-operational")
 		then
 			break
 		fi
 	done
+
+	local state=$(cat /proc/lrng_type)
+	$(dirname $0)/syscall_test -s > /dev/null 2>&1
+	local ret=$?
 
 	if [ $max_attempts -le 0 ]
 	then
@@ -117,15 +122,13 @@ drain_drng1()
 		echo_fail "$TESTNAME: LRNG blocked reading /dev/urandom when entering non-operational"
 	fi
 
-	if (cat /proc/lrng_type  | grep -q "LRNG fully seeded: false")
+	if (echo $state  | grep -q "LRNG fully seeded: false")
 	then
 		echo_pass "$TESTNAME: LRNG proc status indicates not fully seeded after draining and reseeding"
 	else
 		echo_fail "$TESTNAME: LRNG proc status indicates fully seeded after draining and reseeding"
 	fi
 
-	$(dirname $0)/syscall_test -s > /dev/null 2>&1
-	local ret=$?
 	if [ $ret -eq 11 ]
 	then
 		echo_pass "$TESTNAME: LRNG blocked reading of blocking interface"
