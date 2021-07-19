@@ -71,7 +71,6 @@ verify_entropyrate_boot()
 		if (echo $i | grep -q archrandom)
 		then
 			rate=$(echo $i | cut -d"=" -f 2)
-			last
 		fi
 	done
 

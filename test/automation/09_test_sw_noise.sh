@@ -80,7 +80,7 @@ verify_entropyrate_boot()
 		if (echo $i | grep -q irq_entropy)
 		then
 			rate=$(echo $i | cut -d"=" -f 2)
-			last
+			break
 		fi
 	done
 
@@ -96,7 +96,7 @@ verify_entropyrate_boot_underflow()
 		if (echo $i | grep -q irq_entropy)
 		then
 			rate=$(echo $i | cut -d"=" -f 2)
-			last
+			break
 		fi
 	done
 

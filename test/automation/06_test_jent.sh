@@ -71,7 +71,7 @@ verify_entropyrate_boot()
 		if (echo $i | grep -q jitterrng)
 		then
 			rate=$(echo $i | cut -d"=" -f 2)
-			last
+			break
 		fi
 	done
 
