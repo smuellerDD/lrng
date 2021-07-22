@@ -38,6 +38,49 @@ create_irqs()
 	dd if=/dev/urandom of=/dev/null bs=32 count=1
 }
 
+# This function assumes that either the Jitter RNG or the CPU entropy source
+# provides full entropy. It returns therefore the maximum of both values.
+check_normal_seed()
+{
+	modprobe lrng_drbg
+	if [ $? -ne 0 ]
+	then
+		echo_fail "SP800-90C: Cannot load lrng_drbg.ko"
+	fi
+
+	create_irqs
+
+	echo > /dev/urandom
+	dd if=/dev/urandom of=/dev/null bs=32 count=1
+
+	create_irqs
+
+	# Starting with the second seeding, we revert back to normal seeding
+	# strategy by requiring only security strength bits of entropy
+	echo > /dev/urandom
+	dd if=/dev/urandom of=/dev/null bs=32 count=1
+
+	local cpu=$(dmesg | grep "lrng_archrandom: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
+	local jent=$(dmesg | grep "lrng_jent: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
+
+	local secstrength=$(grep "LRNG security strength in bits:" /proc/lrng_type  | cut -d ":" -f2)
+	local seed=0
+
+	if [ $cpu -gt $jent ]
+	then
+		seed=$cpu
+	else
+		seed=$jent
+	fi
+
+	if [ $seed -eq 256 ]
+	then
+		echo_pass "SP800-90C: Second seeding after initial seeding pulls only security strength bits of entropy"
+	else
+		echo_fail "SP800-90C: Second seeding after initial seeding does not pull security strength bits of entropy - pulled: $seed bits"
+	fi
+}
+
 load_drbg()
 {
 	local lastseed=$(dmesg | grep "lrng_drng: DRNG fully seeded" | tail -n 1)
@@ -184,7 +227,6 @@ check_oversampling_es()
 	echo_log "Auxiliary ES obtained seed bits: $aux_obtained_bits"
 	echo_log "Auxiliary ES collected seed bits: $aux_collected_bits"
 
-
 	if [ $irq_collected_bits -ge 64 ]
 	then
 		req_bits=$(($irq_obtained_bits+64))
@@ -224,6 +266,10 @@ check_oversampling_es()
 
 sp80090c_compliance()
 {
+	#
+	# Test purpose: Check that after loading the DRBG, the DRBG is fully
+	#		seeded gain.
+	#
 	$(check_fully_seeded)
 	if [ $? -ne 0 ]
 	then
@@ -231,6 +277,10 @@ sp80090c_compliance()
 		return
 	fi
 
+	#
+	# Test purpose: Check that DRBG extension of LRNG can be loaded
+	#		successfully
+	#
 	$(load_drbg)
 	if [ $? -eq 0 ]
 	then
@@ -239,6 +289,9 @@ sp80090c_compliance()
 		echo_fail "SP800-90C: Loading and seeding DRBG failed"
 	fi
 
+	#
+	# Test purpose: Check that SP800-90C flag is show in /proc/lrng_type
+	#
 	$(check_90c_flag)
 	if [ $? -eq 0 ]
 	then
@@ -247,6 +300,11 @@ sp80090c_compliance()
 		echo_fail "SP800-90C: standards flag not present"
 	fi
 
+	#
+	# Test purpose: Check that 1st seed after initializing an SP800-90C
+	#		compliant LRNG pulls at least security strength bits
+	#		plus 128 bits of entropy
+	#
 	$(check_oversampling_seed)
 	if [ $? -eq 0 ]
 	then
@@ -255,6 +313,17 @@ sp80090c_compliance()
 		echo_fail "SP800-90C: Total seed does not contain 128 more bits than security strength"
 	fi
 
+	#
+	# Test purpose: Check that 2nd seed after initializing an SP800-90C
+	#		compliant LRNG pulls exactly security strength bits
+	#		of entropy
+	#
+	check_normal_seed
+
+	#
+	# Test purpose: Check that a conditioning operation pulls 64 more bits
+	#		of entropy than returned to the caller
+	#
 	$(check_oversampling_es)
 	if [ $? -eq 0 ]
 	then
@@ -262,7 +331,6 @@ sp80090c_compliance()
 	else
 		echo_fail "SP800-90C: Conditioning does not obtain 64 more bits of entropy"
 	fi
-
 }
 
 $(in_hypervisor)

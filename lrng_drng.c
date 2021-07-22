@@ -202,10 +202,11 @@ static inline void _lrng_drng_seed(struct lrng_drng *drng)
 {
 	struct entropy_buf seedbuf __aligned(LRNG_KCAPI_ALIGN);
 
-	lrng_fill_seed_buffer(&seedbuf, lrng_get_seed_entropy_osr());
+	lrng_fill_seed_buffer(&seedbuf,
+			      lrng_get_seed_entropy_osr(drng->fully_seeded));
 	lrng_init_ops(&seedbuf);
 	lrng_drng_inject(drng, (u8 *)&seedbuf, sizeof(seedbuf),
-			 lrng_fully_seeded(&seedbuf));
+			 lrng_fully_seeded(drng->fully_seeded, &seedbuf));
 	memzero_explicit(&seedbuf, sizeof(seedbuf));
 }
 
