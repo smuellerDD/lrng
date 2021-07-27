@@ -22,7 +22,7 @@
 
 . $(dirname $0)/libtest.sh
 
-SYSFS="/sys/module/lrng_jent/parameters/jitterrng"
+SYSFS="/sys/module/lrng_es_jent/parameters/jitterrng"
 
 verify_entropyrate()
 {
@@ -31,7 +31,7 @@ verify_entropyrate()
 	# Force reseed
 	echo >/dev/random; dd if=/dev/random of=/dev/null bs=32 count=1
 
-	local found=$(dmesg | grep "lrng_jent: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
+	local found=$(dmesg | grep "lrng_es_jent: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 
 	if [ -z "$found" ]
 	then
@@ -96,7 +96,7 @@ verify_set_entropyrate_overflow()
 
 verify_jent()
 {
-	if (dmesg | grep -q "lrng_jent: Jitter RNG working on current system")
+	if (dmesg | grep -q "lrng_es_jent: Jitter RNG working on current system")
 	then
 		echo_pass "Jitter RNG: Jitter RNG working on system"
 	else
@@ -107,7 +107,7 @@ verify_jent()
 	# Force reseed
 	echo >/dev/random; dd if=/dev/random of=/dev/null bs=32 count=1
 
-	if (dmesg | grep -q "lrng_jent: obtained")
+	if (dmesg | grep -q "lrng_es_jent: obtained")
 	then
 		echo_pass "Jitter RNG: used for seeding"
 	else
@@ -155,23 +155,23 @@ else
 	# Validating FIPS mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_jent.jitterrng=256 lrng_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jitterrng=256 lrng_archrandom.archrandom=256"
 
 	#
 	# Validating non-FIPS mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "lrng_jent.jitterrng=256 lrng_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "lrng_es_jent.jitterrng=256 lrng_archrandom.archrandom=256"
 
 	#
 	# Validating NTG mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "lrng_es_mgr.ntg1=1 lrng_jent.jitterrng=256 lrng_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_archrandom.archrandom=256"
 
 	#
 	# Validating NTG and FIPS mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_jent.jitterrng=256 lrng_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_archrandom.archrandom=256"
 fi
