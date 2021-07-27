@@ -15,7 +15,7 @@
 #include <linux/workqueue.h>
 
 #include "lrng_internal.h"
-#include "lrng_sw_noise.h"
+#include "lrng_es_irq.h"
 
 struct lrng_state {
 	bool can_invalidate;		/* Can invalidate batched entropy? */

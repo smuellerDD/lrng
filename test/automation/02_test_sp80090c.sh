@@ -180,7 +180,7 @@ check_fully_seeded()
 check_oversampling_seed()
 {
 	jent_bits=$(dmesg | grep "lrng_jent: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
-	irq_bits=$(dmesg | grep "lrng_sw_noise: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
+	irq_bits=$(dmesg | grep "lrng_es_irq: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 	cpu_bits=$(dmesg | grep "lrng_archrandom: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 	aux_bits=$(dmesg | grep "lrng_es_aux: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 
@@ -217,8 +217,8 @@ check_oversampling_es()
 {
 	# Only check ES which the LRNG conditions
 
-	irq_obtained_bits=$(dmesg | grep "lrng_sw_noise: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
-	irq_collected_bits=$(dmesg | grep "lrng_sw_noise: obtained" | tail -n 1 | sed 's/^.* collecting \([0-9]\+\) bits.*$/\1/')
+	irq_obtained_bits=$(dmesg | grep "lrng_es_irq: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
+	irq_collected_bits=$(dmesg | grep "lrng_es_irq: obtained" | tail -n 1 | sed 's/^.* collecting \([0-9]\+\) bits.*$/\1/')
 	aux_obtained_bits=$(dmesg | grep "lrng_es_aux: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 	aux_collected_bits=$(dmesg | grep "lrng_es_aux: obtained" | tail -n 1 | sed 's/^.* collecting \([0-9]\+\) bits.*$/\1/')
 

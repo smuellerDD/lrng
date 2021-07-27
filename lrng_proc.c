@@ -12,7 +12,7 @@
 #include <linux/uuid.h>
 
 #include "lrng_internal.h"
-#include "lrng_sw_noise.h"
+#include "lrng_es_irq.h"
 
 /*
  * This function is used to return both the bootid UUID, and random

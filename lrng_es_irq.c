@@ -14,7 +14,7 @@
 #include <linux/random.h>
 
 #include "lrng_internal.h"
-#include "lrng_sw_noise.h"
+#include "lrng_es_irq.h"
 
 /* Number of interrupts required for LRNG_DRNG_SECURITY_STRENGTH_BITS entropy */
 static u32 lrng_irq_entropy_bits = LRNG_IRQ_ENTROPY_BITS;

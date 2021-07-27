@@ -30,7 +30,7 @@
 
 #include "lrng_chacha20.h"
 #include "lrng_internal.h"
-#include "lrng_sw_noise.h"
+#include "lrng_es_irq.h"
 
 #define LRNG_SELFTEST_PASSED		0
 #define LRNG_SEFLTEST_ERROR_TIME	(1 << 0)
