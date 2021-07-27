@@ -199,9 +199,9 @@ showstatus()
 	echo "=========================================================="
 	if [ $failures -gt 0 ]
 	then
-		echo $(color "red")[FAILED]$(color off) $@ "$local_failures failures for module $0 $module"
+		echo $(color "red")[FAILED]$(color off) $@ "$local_failures failures for module $0"
 	else
-		echo_pass "no failures"
+		echo_pass "no failures for module $0"
 	fi
 }
 

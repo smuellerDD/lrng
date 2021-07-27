@@ -289,8 +289,49 @@ enum lrng_external_noise_source {
 	lrng_noise_source_user
 };
 
+void lrng_set_entropy_thresh(u32 new);
+u32 lrng_avail_entropy(void);
+void lrng_reset_state(void);
+
+bool lrng_state_exseed_allow(enum lrng_external_noise_source source);
+void lrng_state_exseed_set(enum lrng_external_noise_source source, bool type);
+bool lrng_state_min_seeded(void);
+bool lrng_state_fully_seeded(void);
+bool lrng_state_operational(void);
+
+int lrng_pool_trylock(void);
+void lrng_pool_unlock(void);
+void lrng_pool_all_numa_nodes_seeded(bool set);
+bool lrng_pool_highres_timer(void);
+void lrng_pool_add_entropy(void);
+
+struct entropy_buf {
+	u8 a[LRNG_DRNG_SECURITY_STRENGTH_BYTES +
+	     (CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS >> 3)];
+	u8 b[LRNG_DRNG_SECURITY_STRENGTH_BYTES +
+	     (CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS >> 3)];
+	u8 c[LRNG_DRNG_SECURITY_STRENGTH_BYTES +
+	     (CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS >> 3)];
+	u8 d[LRNG_DRNG_SECURITY_STRENGTH_BYTES +
+	     (CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS >> 3)];
+	u32 now, a_bits, b_bits, c_bits, d_bits;
+};
+
+bool lrng_fully_seeded(bool fully_seeded, struct entropy_buf *eb);
+void lrng_unset_fully_seeded(struct lrng_drng *drng);
+void lrng_fill_seed_buffer(struct entropy_buf *entropy_buf, u32 requested_bits);
+void lrng_init_ops(struct entropy_buf *eb);
+
+/*********************** Auxiliary Pool Entropy Source ************************/
+
 u32 lrng_avail_aux_entropy(void);
 u32 lrng_get_digestsize(void);
+void lrng_pool_set_entropy(u32 entropy_bits);
+int lrng_aux_switch_hash(const struct lrng_crypto_cb *new_cb, void *new_hash,
+			 const struct lrng_crypto_cb *old_cb);
+int lrng_pool_insert_aux(const u8 *inbuf, u32 inbuflen, u32 entropy_bits);
+void lrng_get_backtrack_aux(struct entropy_buf *entropy_buf,
+			    u32 requested_bits);
 
 /* Obtain the security strength of the LRNG in bits */
 static inline u32 lrng_security_strength(void)
@@ -315,43 +356,6 @@ static inline u32 lrng_get_seed_entropy_osr(bool fully_seeded)
 		requested_bits += CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS;
 	return requested_bits;
 }
-
-void lrng_set_entropy_thresh(u32 new);
-u32 lrng_avail_entropy(void);
-void lrng_reset_state(void);
-
-bool lrng_state_exseed_allow(enum lrng_external_noise_source source);
-void lrng_state_exseed_set(enum lrng_external_noise_source source, bool type);
-bool lrng_state_min_seeded(void);
-bool lrng_state_fully_seeded(void);
-bool lrng_state_operational(void);
-
-int lrng_pool_trylock(void);
-void lrng_pool_unlock(void);
-void lrng_pool_all_numa_nodes_seeded(bool set);
-bool lrng_pool_highres_timer(void);
-void lrng_pool_set_entropy(u32 entropy_bits);
-int lrng_aux_switch_hash(const struct lrng_crypto_cb *new_cb, void *new_hash,
-			 const struct lrng_crypto_cb *old_cb);
-int lrng_pool_insert_aux(const u8 *inbuf, u32 inbuflen, u32 entropy_bits);
-void lrng_pool_add_entropy(void);
-
-struct entropy_buf {
-	u8 a[LRNG_DRNG_SECURITY_STRENGTH_BYTES +
-	     (CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS >> 3)];
-	u8 b[LRNG_DRNG_SECURITY_STRENGTH_BYTES +
-	     (CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS >> 3)];
-	u8 c[LRNG_DRNG_SECURITY_STRENGTH_BYTES +
-	     (CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS >> 3)];
-	u8 d[LRNG_DRNG_SECURITY_STRENGTH_BYTES +
-	     (CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS >> 3)];
-	u32 now, a_bits, b_bits, c_bits, d_bits;
-};
-
-bool lrng_fully_seeded(bool fully_seeded, struct entropy_buf *eb);
-void lrng_unset_fully_seeded(struct lrng_drng *drng);
-void lrng_fill_seed_buffer(struct entropy_buf *entropy_buf, u32 requested_bits);
-void lrng_init_ops(struct entropy_buf *eb);
 
 /************************** Health Test linking code **************************/
 
