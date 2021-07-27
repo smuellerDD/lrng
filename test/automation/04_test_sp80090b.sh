@@ -96,7 +96,7 @@ else
 	# Note: Check that NTG.1 setup does not interfere
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_jent.jitterrng=256 lrng_pool.ntg1=1"
+	execvirt $(full_scriptname $0) "fips=1 lrng_jent.jitterrng=256 lrng_es_mgr.ntg1=1"
 
 	#
 	# Validating Jitter RNG, CPU and IRQ ES providing sufficient seed
@@ -109,7 +109,7 @@ else
 	# Note: Check that NTG.1 setup does not interfere
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_archrandom.archrandom=256 lrng_jent.jitterrng=256 lrng_pool.ntg1=1"
+	execvirt $(full_scriptname $0) "fips=1 lrng_archrandom.archrandom=256 lrng_jent.jitterrng=256 lrng_es_mgr.ntg1=1"
 
 	#
 	# Validating Jitter RNG, CPU and IRQ ES providing sufficient seed
@@ -125,7 +125,7 @@ else
 	# Note: Check that NTG.1 setup does not interfere
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 random.trust_cpu=1 lrng_jent.jitterrng=256 lrng_pool.ntg1=1"
+	execvirt $(full_scriptname $0) "fips=1 random.trust_cpu=1 lrng_jent.jitterrng=256 lrng_es_mgr.ntg1=1"
 
 	#
 	# Validating CPU and IRQ ES providing sufficient seed

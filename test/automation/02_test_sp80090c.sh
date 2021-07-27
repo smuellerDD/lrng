@@ -143,7 +143,7 @@ check_fully_post_completed()
 
 check_fully_seeded()
 {
-	if (dmesg | grep -q "lrng_pool: LRNG fully seeded with")
+	if (dmesg | grep -q "lrng_es_mgr: LRNG fully seeded with")
 	then
 
 		# It may be possible that the DRNG is seeded so early in the
@@ -182,7 +182,7 @@ check_oversampling_seed()
 	jent_bits=$(dmesg | grep "lrng_jent: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 	irq_bits=$(dmesg | grep "lrng_sw_noise: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 	cpu_bits=$(dmesg | grep "lrng_archrandom: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
-	aux_bits=$(dmesg | grep "lrng_pool: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
+	aux_bits=$(dmesg | grep "lrng_es_aux: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 
 	sec_strength=$(grep "LRNG security strength in bits" /proc/lrng_type | cut -d":" -f2)
 
@@ -219,8 +219,8 @@ check_oversampling_es()
 
 	irq_obtained_bits=$(dmesg | grep "lrng_sw_noise: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 	irq_collected_bits=$(dmesg | grep "lrng_sw_noise: obtained" | tail -n 1 | sed 's/^.* collecting \([0-9]\+\) bits.*$/\1/')
-	aux_obtained_bits=$(dmesg | grep "lrng_pool: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
-	aux_collected_bits=$(dmesg | grep "lrng_pool: obtained" | tail -n 1 | sed 's/^.* collecting \([0-9]\+\) bits.*$/\1/')
+	aux_obtained_bits=$(dmesg | grep "lrng_es_aux: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
+	aux_collected_bits=$(dmesg | grep "lrng_es_aux: obtained" | tail -n 1 | sed 's/^.* collecting \([0-9]\+\) bits.*$/\1/')
 
 	echo_log "Interrupt ES obtained seed bits: $irq_obtained_bits"
 	echo_log "Interrupt ES collected seed bits: $irq_collected_bits"
@@ -384,7 +384,7 @@ else
 	# Note: Check that NTG.1 setup does not interfere
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_jent.jitterrng=256 lrng_pool.ntg1=1"
+	execvirt $(full_scriptname $0) "fips=1 lrng_jent.jitterrng=256 lrng_es_mgr.ntg1=1"
 
 	#
 	# Validating Jitter RNG, CPU and IRQ ES providing sufficient seed
@@ -397,7 +397,7 @@ else
 	# Note: Check that NTG.1 setup does not interfere
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_archrandom.archrandom=256 lrng_jent.jitterrng=256 lrng_pool.ntg1=1"
+	execvirt $(full_scriptname $0) "fips=1 lrng_archrandom.archrandom=256 lrng_jent.jitterrng=256 lrng_es_mgr.ntg1=1"
 
 	#
 	# Validating Jitter RNG, CPU and IRQ ES providing sufficient seed
@@ -413,7 +413,7 @@ else
 	# Note: Check that NTG.1 setup does not interfere
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 random.trust_cpu=1 lrng_jent.jitterrng=256 lrng_pool.ntg1=1"
+	execvirt $(full_scriptname $0) "fips=1 random.trust_cpu=1 lrng_jent.jitterrng=256 lrng_es_mgr.ntg1=1"
 
 	#
 	# Validating CPU and IRQ ES providing sufficient seed

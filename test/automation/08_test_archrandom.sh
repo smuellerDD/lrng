@@ -158,11 +158,11 @@ else
 	# Validating NTG mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "lrng_pool.ntg1=1 lrng_jent.jitterrng=256 lrng_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "lrng_es_mgr.ntg1=1 lrng_jent.jitterrng=256 lrng_archrandom.archrandom=256"
 
 	#
 	# Validating NTG and FIPS mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_pool.ntg1=1 lrng_jent.jitterrng=256 lrng_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_jent.jitterrng=256 lrng_archrandom.archrandom=256"
 fi
