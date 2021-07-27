@@ -22,7 +22,7 @@
 
 . $(dirname $0)/libtest.sh
 
-SYSFS="/sys/module/lrng_archrandom/parameters/archrandom"
+SYSFS="/sys/module/lrng_es_archrandom/parameters/archrandom"
 
 verify_entropyrate()
 {
@@ -31,7 +31,7 @@ verify_entropyrate()
 	# Force reseed
 	echo >/dev/random; dd if=/dev/random of=/dev/null bs=32 count=1
 
-	local found=$(dmesg | grep "lrng_archrandom: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
+	local found=$(dmesg | grep "lrng_es_archrandom: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 
 	if [ -z "$found" ]
 	then
@@ -98,7 +98,7 @@ verify_cpu()
 	# Force reseed
 	echo >/dev/random; dd if=/dev/random of=/dev/null bs=32 count=1
 
-	if (dmesg | grep -q "lrng_archrandom: obtained")
+	if (dmesg | grep -q "lrng_es_archrandom: obtained")
 	then
 		echo_pass "CPU RNG: used for seeding"
 	else
@@ -146,23 +146,23 @@ else
 	# Validating FIPS mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jitterrng=256 lrng_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256"
 
 	#
 	# Validating non-FIPS mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "lrng_es_jent.jitterrng=256 lrng_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256"
 
 	#
 	# Validating NTG mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256"
 
 	#
 	# Validating NTG and FIPS mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256"
 fi

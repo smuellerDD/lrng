@@ -60,7 +60,7 @@ check_normal_seed()
 	echo > /dev/urandom
 	dd if=/dev/urandom of=/dev/null bs=32 count=1
 
-	local cpu=$(dmesg | grep "lrng_archrandom: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
+	local cpu=$(dmesg | grep "lrng_es_archrandom: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 	local jent=$(dmesg | grep "lrng_es_jent: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 
 	local secstrength=$(grep "LRNG security strength in bits:" /proc/lrng_type  | cut -d ":" -f2)
@@ -181,7 +181,7 @@ check_oversampling_seed()
 {
 	jent_bits=$(dmesg | grep "lrng_es_jent: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 	irq_bits=$(dmesg | grep "lrng_es_irq: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
-	cpu_bits=$(dmesg | grep "lrng_archrandom: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
+	cpu_bits=$(dmesg | grep "lrng_es_archrandom: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 	aux_bits=$(dmesg | grep "lrng_es_aux: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 
 	sec_strength=$(grep "LRNG security strength in bits" /proc/lrng_type | cut -d":" -f2)
@@ -390,14 +390,14 @@ else
 	# Validating Jitter RNG, CPU and IRQ ES providing sufficient seed
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_archrandom.archrandom=256 lrng_es_jent.jitterrng=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_archrandom.archrandom=256 lrng_es_jent.jitterrng=256"
 
 	#
 	# Validating Jitter RNG, CPU and IRQ ES providing sufficient seed
 	# Note: Check that NTG.1 setup does not interfere
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_archrandom.archrandom=256 lrng_es_jent.jitterrng=256 lrng_es_mgr.ntg1=1"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_archrandom.archrandom=256 lrng_es_jent.jitterrng=256 lrng_es_mgr.ntg1=1"
 
 	#
 	# Validating Jitter RNG, CPU and IRQ ES providing sufficient seed
@@ -419,7 +419,7 @@ else
 	# Validating CPU and IRQ ES providing sufficient seed
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_archrandom.archrandom=256"
 
 	#
 	# Validating CPU and IRQ ES providing sufficient seed
