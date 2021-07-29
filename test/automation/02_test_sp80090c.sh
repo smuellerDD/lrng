@@ -380,6 +380,15 @@ else
 	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jitterrng=256"
 
 	#
+	# Validating that the lower entropy rate of the IRQ ES
+	# implies that more IRQ events are collected to obtain 64 bits of
+	# oversampling entropy for SP800-90C
+	#
+	write_cmd "test1"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jitterrng=256 lrng_es_irq.irq_entropy=1024"
+
+
+	#
 	# Validating Jitter RNG and IRQ ES providing sufficient seed
 	# Note: Check that NTG.1 setup does not interfere
 	#

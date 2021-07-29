@@ -372,8 +372,8 @@ u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded)
 	if (ret)
 		goto err;
 
-	requested_irqs = lrng_entropy_to_data(requested_bits) +
-			 lrng_compress_osr();
+	requested_irqs = lrng_entropy_to_data(requested_bits +
+					      lrng_compress_osr());
 
 	/*
 	 * Harvest entropy from each per-CPU hash state - even though we may
