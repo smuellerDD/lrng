@@ -36,6 +36,7 @@
 #define LRNG_SEFLTEST_ERROR_TIME	(1 << 0)
 #define LRNG_SEFLTEST_ERROR_CHACHA20	(1 << 1)
 #define LRNG_SEFLTEST_ERROR_HASH	(1 << 2)
+#define LRNG_SEFLTEST_ERROR_GCD		(1 << 3)
 #define LRNG_SELFTEST_NOT_EXECUTED	0xffffffff
 
 static u32 lrng_data_selftest_ptr = 0;
@@ -306,12 +307,29 @@ err:
 	return LRNG_SEFLTEST_ERROR_CHACHA20;
 }
 
+static unsigned int lrng_gcd_selftest(void)
+{
+	u32 history[10];
+	unsigned int i;
+
+#define LRNG_GCD_SELFTEST 3
+	for (i = 0; i < ARRAY_SIZE(history); i++)
+		history[i] = i * LRNG_GCD_SELFTEST;
+
+	if (lrng_gcd_analyze(history, ARRAY_SIZE(history)) == LRNG_GCD_SELFTEST)
+		return LRNG_SELFTEST_PASSED;
+
+	pr_err("LRNG GCD self-test FAILED\n");
+	return LRNG_SEFLTEST_ERROR_GCD;
+}
+
 static int lrng_selftest(void)
 {
 	unsigned int ret = lrng_data_process_selftest();
 
 	ret |= lrng_chacha20_drng_selftest();
 	ret |= lrng_hash_selftest();
+	ret |= lrng_gcd_selftest();
 
 	if (ret) {
 		if (IS_ENABLED(CONFIG_LRNG_SELFTEST_PANIC))

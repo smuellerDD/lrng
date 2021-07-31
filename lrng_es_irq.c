@@ -83,6 +83,29 @@ static DEFINE_PER_CPU(u8 [LRNG_POOL_SIZE], lrng_pcpu_pool)
 static DEFINE_PER_CPU(spinlock_t, lrng_pcpu_lock);
 static DEFINE_PER_CPU(bool, lrng_pcpu_lock_init) = false;
 
+/* The common divisor for all timestamps */
+static u32 lrng_gcd_timer = 0;
+
+static inline bool lrng_gcd_tested(void)
+{
+	return (lrng_gcd_timer != 0);
+}
+
+/* Set the GCD for use in IRQ ES - if 0, the GCD calculation is restarted. */
+static inline void _lrng_gcd_set(u32 running_gcd)
+{
+	lrng_gcd_timer = running_gcd;
+	mb();
+}
+
+void lrng_gcd_set(u32 running_gcd)
+{
+	if (!lrng_gcd_tested()) {
+		_lrng_gcd_set(running_gcd);
+		pr_debug("Setting GCD to %u\n", running_gcd);
+	}
+}
+
 /* Return boolean whether LRNG identified presence of high-resolution timer */
 bool lrng_pool_highres_timer(void)
 {
@@ -161,6 +184,9 @@ core_initcall(lrng_init_time_source);
 void lrng_pcpu_reset(void)
 {
 	int cpu;
+
+	/* Trigger GCD calculation anew. */
+	_lrng_gcd_set(0);
 
 	for_each_online_cpu(cpu)
 		atomic_set(per_cpu_ptr(&lrng_pcpu_array_irqs, cpu), 0);
@@ -647,12 +673,14 @@ static inline void lrng_time_process(void)
 {
 	u32 now_time = random_get_entropy();
 
-	if (unlikely(!lrng_state_fully_seeded())) {
-		/* During boot time, we process the full time stamp */
+	if (unlikely(!lrng_gcd_tested())) {
+		/* When GCD is unknown, we process the full time stamp */
 		lrng_time_process_common(now_time, _lrng_pcpu_array_add_u32);
+		jent_gcd_add_value(now_time);
 	} else {
-		/* Runtime operation */
-		lrng_time_process_common(now_time & LRNG_DATA_SLOTSIZE_MASK,
+		/* GCD is known and applied */
+		lrng_time_process_common((now_time / lrng_gcd_timer) &
+					 LRNG_DATA_SLOTSIZE_MASK,
 					 lrng_pcpu_array_add_slot);
 	}
 
