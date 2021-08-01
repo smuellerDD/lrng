@@ -83,6 +83,9 @@ void jent_gcd_add_value(u32 time)
 		u32 gcd = lrng_gcd_analyze(lrng_gcd_history,
 					   LRNG_GCD_WINDOW_SIZE);
 
+		if (!gcd)
+			gcd = 1;
+
 		/*
 		 * Ensure that we have variations in the time stamp below the
 		 * given value. This is just a safety measure to prevent the GCD
