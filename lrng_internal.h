@@ -183,8 +183,6 @@ int lrng_pcpu_switch_hash(int node,
 u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded);
 void lrng_pcpu_array_add_u32(u32 data);
 u32 lrng_gcd_analyze(u32 *history, size_t nelem);
-void lrng_gcd_set(u32 running_gcd);
-void jent_gcd_add_value(u32 time);
 
 /****************************** DRNG processing *******************************/
 
