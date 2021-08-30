@@ -31,8 +31,8 @@ static struct rand_data *lrng_jent_state;
 static int __init lrng_jent_initialize(void)
 {
 	/* Initialize the Jitter RNG after the clocksources are initialized. */
-	lrng_jent_state = jent_lrng_entropy_collector();
-	if (!lrng_jent_state) {
+	if (jent_entropy_init() ||
+	    (lrng_jent_state = jent_entropy_collector_alloc(1, 0)) == NULL) {
 		jitterrng = 0;
 		pr_info("Jitter RNG unusable on current system\n");
 		return 0;
