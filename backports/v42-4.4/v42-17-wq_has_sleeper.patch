@@ -1,0 +1,11 @@
+--- linux-4.4.268/drivers/char/lrng/lrng_interfaces.c.orig	2021-05-13 10:53:09.223272033 -0400
++++ linux-4.4.268/drivers/char/lrng/lrng_interfaces.c	2021-05-13 10:53:26.766641031 -0400
+@@ -49,7 +49,7 @@ static inline bool lrng_need_entropy(voi
+ 
+ void lrng_writer_wakeup(void)
+ {
+-	if (lrng_need_entropy() && wq_has_sleeper(&lrng_write_wait)) {
++	if (lrng_need_entropy()) {
+ 		wake_up_interruptible(&lrng_write_wait);
+ 		kill_fasync(&fasync, SIGIO, POLL_OUT);
+ 	}

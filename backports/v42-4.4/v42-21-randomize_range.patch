@@ -1,0 +1,25 @@
+--- linux-4.4.268/drivers/char/lrng/lrng_aux.c.orig	2021-05-13 11:39:05.876107326 -0400
++++ linux-4.4.268/drivers/char/lrng/lrng_aux.c	2021-05-13 11:39:44.539917985 -0400
+@@ -134,3 +134,22 @@ unsigned long randomize_page(unsigned lo
+ 
+ 	return start + (get_random_long() % range << PAGE_SHIFT);
+ }
++
++/*
++ * randomize_range() returns a start address such that
++ *
++ *    [...... <range> .....]
++ *  start                  end
++ *
++ * a <range> with size "len" starting at the return value is inside in the
++ * area defined by [start, end], but is otherwise randomized.
++ */
++unsigned long
++randomize_range(unsigned long start, unsigned long end, unsigned long len)
++{
++	unsigned long range = end - len - start;
++
++	if (end <= start + len)
++		return 0;
++	return PAGE_ALIGN(get_random_int() % range + start);
++}

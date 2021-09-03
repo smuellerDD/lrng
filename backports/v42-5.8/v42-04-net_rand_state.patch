@@ -1,0 +1,95 @@
+--- linux-5.8/drivers/char/lrng/lrng_es_irq.c.orig	2021-08-20 21:33:26.410033651 +0200
++++ linux-5.8/drivers/char/lrng/lrng_es_irq.c	2021-08-20 21:43:46.581547248 +0200
+@@ -13,6 +13,7 @@
+ #include <linux/gcd.h>
+ #include <linux/lrng.h>
+ #include <linux/random.h>
++#include <linux/ratelimit.h>
+ 
+ #include "lrng_internal.h"
+ #include "lrng_es_irq.h"
+@@ -715,10 +716,13 @@ static inline void lrng_pcpu_array_add_s
+ }
+ 
+ static inline void
+-lrng_time_process_common(u32 time, void(*add_time)(u32 data))
++lrng_time_process_common(u32 time, u32 random32_data, void(*add_time)(u32 data))
+ {
+ 	enum lrng_health_res health_test;
+ 
++	/* Seed random32 PRNG with data not used by LRNG. */
++	this_cpu_add(net_rand_state.s1, random32_data);
++
+ 	if (lrng_raw_hires_entropy_store(time))
+ 		return;
+ 
+@@ -734,19 +738,23 @@ lrng_time_process_common(u32 time, void(
+ 
+ /*
+  * Batching up of entropy in per-CPU array before injecting into entropy pool.
++ *
++ * The random32_data is solely to be used for the external random32 PRNG.
+  */
+-static inline void lrng_time_process(void)
++static inline void lrng_time_process(u32 random32_data)
+ {
+ 	u32 now_time = random_get_entropy();
+ 
+ 	if (unlikely(!lrng_gcd_tested())) {
+ 		/* When GCD is unknown, we process the full time stamp */
+-		lrng_time_process_common(now_time, _lrng_pcpu_array_add_u32);
++		lrng_time_process_common(now_time, random32_data, _lrng_pcpu_array_add_u32);
+ 		jent_gcd_add_value(now_time);
+ 	} else {
++		now_time /= lrng_gcd_timer;
+ 		/* GCD is known and applied */
+-		lrng_time_process_common((now_time / lrng_gcd_timer) &
+-					 LRNG_DATA_SLOTSIZE_MASK,
++		lrng_time_process_common(now_time & LRNG_DATA_SLOTSIZE_MASK,
++					 (now_time & ~LRNG_DATA_SLOTSIZE_MASK) ^
++								random32_data,
+ 					 lrng_pcpu_array_add_slot);
+ 	}
+ 
+@@ -756,13 +764,17 @@ static inline void lrng_time_process(voi
+ /* Hot code path - Callback for interrupt handler */
+ void add_interrupt_randomness(int irq, int irq_flg)
+ {
++	u32 tmp;
++
+ 	if (lrng_pool_highres_timer()) {
+-		lrng_time_process();
++		tmp = lrng_raw_irq_entropy_store(irq) ? 0 : irq;
++		tmp ^= lrng_raw_irqflags_entropy_store(irq_flg) ? 0 : irq_flg;
++		tmp ^= lrng_raw_retip_entropy_store(_RET_IP_) ? 0 : _RET_IP_;
++		lrng_time_process(tmp);
+ 	} else {
+ 		struct pt_regs *regs = get_irq_regs();
+ 		static atomic_t reg_idx = ATOMIC_INIT(0);
+ 		u64 ip;
+-		u32 tmp;
+ 
+ 		if (regs) {
+ 			u32 *ptr = (u32 *)regs;
+@@ -777,7 +789,7 @@ void add_interrupt_randomness(int irq, i
+ 			ip = _RET_IP_;
+ 		}
+ 
+-		lrng_time_process();
++		lrng_time_process(lrng_raw_retip_entropy_store(ip) ? 0 : ip);
+ 
+ 		/*
+ 		 * The XOR operation combining the different values is not
+@@ -785,11 +797,11 @@ void add_interrupt_randomness(int irq, i
+ 		 * processed values delivers the entropy (and not each
+ 		 * value separately of the other values).
+ 		 */
++		ip >>= 32;
+ 		tmp = lrng_raw_jiffies_entropy_store(jiffies) ? 0 : jiffies;
+ 		tmp ^= lrng_raw_irq_entropy_store(irq) ? 0 : irq;
+ 		tmp ^= lrng_raw_irqflags_entropy_store(irq_flg) ? 0 : irq_flg;
+ 		tmp ^= lrng_raw_retip_entropy_store(ip) ? 0 : ip;
+-		tmp ^= ip >> 32;
+ 		_lrng_pcpu_array_add_u32(tmp);
+ 	}
+ }

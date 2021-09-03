@@ -1,0 +1,35 @@
+In 4.x kernels, #include <asm/irq_regs.h> needs #include <linux/preempt.h>
+
+./arch/x86/include/asm/irq_regs.h: In function ‘get_irq_regs’:
+./arch/x86/include/asm/irq_regs.h:18: error: implicit declaration of function ‘preempt_disable’
+./arch/x86/include/asm/irq_regs.h:18: error: implicit declaration of function ‘preempt_enable’
+./arch/x86/include/asm/irq_regs.h:18: error: implicit declaration of function ‘raw_local_irq_save’
+./arch/x86/include/asm/irq_regs.h:18: error: implicit declaration of function ‘raw_local_irq_restore’
+
+diff --git a/drivers/char/lrng/lrng_es_mgr.c b/drivers/char/lrng/lrng_es_mgr.c
+index 7485efd..df5e0a0 100644
+--- a/drivers/char/lrng/lrng_es_mgr.c
++++ b/drivers/char/lrng/lrng_es_mgr.c
+@@ -7,6 +7,7 @@
+ 
+ #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+ 
++#include <linux/preempt.h>
+ #include <asm/irq_regs.h>
+ #include <linux/lrng.h>
+ #include <linux/percpu.h>
+diff --git a/drivers/char/lrng/lrng_es_irq.c b/drivers/char/lrng/lrng_es_irq.c
+index a5c884e..4b575ad 100644
+--- a/drivers/char/lrng/lrng_es_irq.c
++++ b/drivers/char/lrng/lrng_es_irq.c
+@@ -7,6 +7,7 @@
+ 
+ #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+ 
++#include <linux/preempt.h>
+ #include <asm/irq_regs.h>
+ #include <asm/ptrace.h>
+ #include <crypto/hash.h>
+-- 
+1.7.1
+

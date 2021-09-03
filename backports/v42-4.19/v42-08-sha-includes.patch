@@ -1,0 +1,31 @@
+--- linux-4.19/drivers/char/lrng/lrng_internal.h.orig	2021-06-21 05:02:10.847175962 -0400
++++ linux-4.19/drivers/char/lrng/lrng_internal.h	2021-06-21 05:02:27.028330112 -0400
+@@ -6,8 +6,7 @@
+ #ifndef _LRNG_INTERNAL_H
+ #define _LRNG_INTERNAL_H
+ 
+-#include <crypto/sha1.h>
+-#include <crypto/sha2.h>
++#include <crypto/sha.h>
+ #include <linux/init.h>
+ #include <linux/module.h>
+ #include <linux/mutex.h>
+--- linux-4.19/drivers/char/lrng/lrng_chacha20.c.orig	2021-06-21 05:02:38.719441488 -0400
++++ linux-4.19/drivers/char/lrng/lrng_chacha20.c	2021-06-21 05:03:22.244856127 -0400
+@@ -189,6 +189,7 @@ static void lrng_cc20_drng_dealloc(void
+ 
+ #ifdef CONFIG_CRYPTO_LIB_SHA256
+ 
++#include <crypto/sha.h>
+ #include <linux/sha256.h>
+ 
+ static u32 lrng_cc20_hash_digestsize(void *hash)
+@@ -231,7 +232,7 @@ static void lrng_cc20_hash_desc_zero(str
+ 
+ #else /* CONFIG_CRYPTO_LIB_SHA256 */
+ 
+-#include <crypto/sha1.h>
++#include <crypto/sha.h>
+ #include <crypto/sha1_base.h>
+ 
+ /*

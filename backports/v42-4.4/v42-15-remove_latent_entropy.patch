@@ -1,0 +1,11 @@
+--- linux-4.4.268/drivers/char/lrng/lrng_chacha20.c.orig	2021-05-08 16:15:03.604441255 -0400
++++ linux-4.4.268/drivers/char/lrng/lrng_chacha20.c	2021-05-08 16:15:15.626690620 -0400
+@@ -29,7 +29,7 @@ struct chacha20_state {
+  * kmalloc too early in the boot cycle. For subsequent allocation requests,
+  * such as per-NUMA-node DRNG instances, kmalloc will be used.
+  */
+-struct chacha20_state chacha20 __latent_entropy;
++struct chacha20_state chacha20;
+ 
+ /**
+  * Update of the ChaCha20 state by either using an unused buffer part or by
