@@ -58,3 +58,17 @@ The addition of a fast entropy source requires the following steps:
 provide the data right from the start of the kernel, you may want to invoke
 the `lrng_update_entropy_thresh` function during the entropy source
 initialization to inform the LRNG that new entropy is available.
+
+### Adding a Slow Entropy Source
+
+The auxiliary entropy pool maintained in `lrng_es_aux.c` is intended to
+collect data from slow noise sources. To fill it with data from your slow
+entropy source, please use the following provided interfaces:
+
+* `RNDADDENTROPY` IOCTL for user space entropy sources, or
+
+* the `add_hwgenerator_randomness` for kernel space entropy sources.
+
+The LRNG will process the auxiliary entropy pool appropriately as documented
+in the LRNG design documentation.
+
