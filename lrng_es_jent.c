@@ -64,7 +64,7 @@ u32 lrng_get_jent(u8 *outbuf, u32 requested_bits)
 
 	spin_lock_irqsave(&lrng_jent_lock, flags);
 
-	if (!ent_bits || !lrng_jent_initialized) {
+	if (!lrng_jent_initialized) {
 		spin_unlock_irqrestore(&lrng_jent_lock, flags);
 		return 0;
 	}
