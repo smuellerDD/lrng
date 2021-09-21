@@ -45,7 +45,7 @@ static int __init lrng_jent_initialize(void)
 }
 device_initcall(lrng_jent_initialize);
 
-/**
+/*
  * lrng_get_jent() - Get Jitter RNG entropy
  *
  * @outbuf: buffer to store entropy

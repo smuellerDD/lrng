@@ -142,7 +142,7 @@ u32 lrng_gcd_analyze(u32 *history, size_t nelem)
 	return running_gcd;
 }
 
-static void jent_gcd_add_value(u32 time)
+static void lrng_gcd_add_value(u32 time)
 {
 	u32 ptr = (u32)atomic_inc_return_relaxed(&lrng_gcd_history_ptr);
 
@@ -300,7 +300,7 @@ u32 lrng_pcpu_avail_entropy(void)
 	return lrng_reduce_by_osr(lrng_data_to_entropy(irq));
 }
 
-/**
+/*
  * Trigger a switch of the hash implementation for the per-CPU pool.
  *
  * For each per-CPU pool, obtain the message digest with the old hash
@@ -422,7 +422,7 @@ lrng_pcpu_pool_hash_one(const struct lrng_crypto_cb *pcpu_crypto_cb,
 	return found_irqs;
 }
 
-/**
+/*
  * Hash all per-CPU pools and return the digest to be used as seed data for
  * seeding a DRNG. The caller must guarantee backtracking resistance.
  * The function will only copy as much data as entropy is available into the
@@ -742,7 +742,7 @@ static inline void lrng_time_process(void)
 	if (unlikely(!lrng_gcd_tested())) {
 		/* When GCD is unknown, we process the full time stamp */
 		lrng_time_process_common(now_time, _lrng_pcpu_array_add_u32);
-		jent_gcd_add_value(now_time);
+		lrng_gcd_add_value(now_time);
 	} else {
 		/* GCD is known and applied */
 		lrng_time_process_common((now_time / lrng_gcd_timer) &

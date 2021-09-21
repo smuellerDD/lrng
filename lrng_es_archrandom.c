@@ -53,7 +53,7 @@ u32 lrng_archrandom_entropylevel(u32 requested_bits)
 	return lrng_fast_noise_entropylevel(archrandom, requested_bits);
 }
 
-/**
+/*
  * lrng_get_arch() - Get CPU noise source entropy
  *
  * @outbuf: buffer to store entropy of size LRNG_DRNG_SECURITY_STRENGTH_BYTES

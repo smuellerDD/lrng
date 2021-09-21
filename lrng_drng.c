@@ -310,7 +310,7 @@ void lrng_drng_force_reseed(void)
 	lrng_drng_atomic.force_reseed = lrng_drng_atomic.fully_seeded;
 }
 
-/**
+/*
  * lrng_drng_get() - Get random data out of the DRNG which is reseeded
  * frequently.
  *

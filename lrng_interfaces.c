@@ -108,7 +108,7 @@ void lrng_debug_report_seedlevel(const char *name)
 
 /************************ LRNG kernel input interfaces ************************/
 
-/**
+/*
  * add_hwgenerator_randomness() - Interface for in-kernel drivers of true
  * hardware RNGs.
  *
@@ -137,7 +137,7 @@ void add_hwgenerator_randomness(const char *buffer, size_t count,
 }
 EXPORT_SYMBOL_GPL(add_hwgenerator_randomness);
 
-/**
+/*
  * add_bootloader_randomness() - Handle random seed passed by bootloader.
  *
  * If the seed is trustworthy, it would be regarded as hardware RNGs. Otherwise
@@ -174,7 +174,7 @@ void add_input_randomness(unsigned int type, unsigned int code,
 }
 EXPORT_SYMBOL_GPL(add_input_randomness);
 
-/**
+/*
  * add_device_randomness() - Add device- or boot-specific data to the entropy
  * pool to help initialize it.
  *
@@ -198,7 +198,7 @@ void add_disk_randomness(struct gendisk *disk) { }
 EXPORT_SYMBOL(add_disk_randomness);
 #endif
 
-/**
+/*
  * del_random_ready_callback() - Delete a previously registered readiness
  * callback function.
  *
@@ -220,7 +220,7 @@ void del_random_ready_callback(struct random_ready_callback *rdy)
 }
 EXPORT_SYMBOL(del_random_ready_callback);
 
-/**
+/*
  * add_random_ready_callback() - Add a callback function that will be invoked
  * when the DRNG is fully initialized and seeded.
  *
@@ -264,7 +264,7 @@ EXPORT_SYMBOL(add_random_ready_callback);
 
 /*********************** LRNG kernel output interfaces ************************/
 
-/**
+/*
  * get_random_bytes() - Provider of cryptographic strong random numbers for
  * kernel-internal usage.
  *
@@ -281,7 +281,7 @@ void get_random_bytes(void *buf, int nbytes)
 }
 EXPORT_SYMBOL(get_random_bytes);
 
-/**
+/*
  * get_random_bytes_full() - Provider of cryptographic strong random numbers
  * for kernel-internal usage.
  *
@@ -300,7 +300,7 @@ void get_random_bytes_full(void *buf, int nbytes)
 }
 EXPORT_SYMBOL(get_random_bytes_full);
 
-/**
+/*
  * wait_for_random_bytes() - Wait for the LRNG to be seeded and thus
  * guaranteed to supply cryptographically secure random numbers.
  *
@@ -322,7 +322,7 @@ int wait_for_random_bytes(void)
 }
 EXPORT_SYMBOL(wait_for_random_bytes);
 
-/**
+/*
  * get_random_bytes_arch() - This function will use the architecture-specific
  * hardware random number generator if it is available.
  *

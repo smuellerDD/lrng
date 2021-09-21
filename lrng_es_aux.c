@@ -181,7 +181,7 @@ int lrng_pool_insert_aux(const u8 *inbuf, u32 inbuflen, u32 entropy_bits)
 
 /************************* Get data from entropy pool *************************/
 
-/**
+/*
  * Get auxiliary entropy pool and its entropy content for seed buffer.
  * Caller must hold lrng_pool.pool->lock.
  * @outbuf: buffer to store data in with size requested_bits

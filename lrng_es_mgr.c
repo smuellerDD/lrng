@@ -197,7 +197,7 @@ u32 lrng_avail_entropy(void)
 	       lrng_jent_entropylevel(ent_thresh);
 }
 
-/**
+/*
  * lrng_init_ops() - Set seed stages of LRNG
  *
  * Set the slow noise source reseed trigger threshold. The initial threshold
@@ -320,7 +320,7 @@ void lrng_pool_add_entropy(void)
 	if (lrng_pool_trylock())
 		return;
 
-	/* Seed the DRNG with IRQ noise. */
+	/* Seed the DRNG with any available noise. */
 	if (lrng_state.perform_seedwork)
 		schedule_work(&lrng_state.lrng_seed_work);
 	else
