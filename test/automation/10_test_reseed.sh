@@ -230,6 +230,13 @@ then
 			;;
 	esac
 else
+	$(check_kernel_config "CONFIG_LRNG_IRQ=y")
+	if [ $? -ne 0 ]
+	then
+		echo_deact "$TESTNAME: tests skipped"
+		exit
+	fi
+
 	$(check_kernel_config "LRNG_RUNTIME_MAX_WO_RESEED_CONFIG=y")
 	if [ $? -ne 0 ]
 	then

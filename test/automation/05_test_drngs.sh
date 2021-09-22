@@ -28,8 +28,8 @@ verify_crypto()
 	local expected_hash=$2
 
 	local drng_name=$(cat /proc/lrng_type  | grep "DRNG name" | cut -d ":" -f2)
-	local hash_ent_name=$(cat /proc/lrng_type  | grep "Hash for reading" | cut -d ":" -f2)
-	local hash_aux_name=$(cat /proc/lrng_type  | grep "Hash for operating aux entropy" | cut -d ":" -f2)
+	local hash_ent_name=$(cat /proc/lrng_type | grep -A1 "Auxiliary ES properties" | grep "Hash for operating entropy" | cut -d ":" -f2)
+	local hash_aux_name=$(cat /proc/lrng_type | grep -A1 "IRQ ES properties" | grep "Hash for operating entropy" | cut -d ":" -f2)
 
 	drng_name=$(echo $drng_name)
 	hash_ent_name=$(echo $hash_ent_name)
@@ -163,6 +163,20 @@ then
 			;;
 	esac
 else
+	$(check_kernel_config "CONFIG_LRNG_CPU=y")
+	if [ $? -ne 0 ]
+	then
+		echo_deact "DRNG: tests skipped"
+		exit
+	fi
+
+	$(check_kernel_config "CONFIG_LRNG_JENT=y")
+	if [ $? -ne 0 ]
+	then
+		echo_deact "DRNG: tests skipped"
+		exit
+	fi
+
 	$(check_kernel_config "CONFIG_LRNG_RUNTIME_ES_CONFIG=y")
 	if [ $? -ne 0 ]
 	then

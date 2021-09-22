@@ -47,6 +47,13 @@ then
 			;;
 	esac
 else
+	$(check_kernel_config "CONFIG_LRNG_IRQ=y")
+	if [ $? -ne 0 ]
+	then
+		echo_deact "$TESTNAME: tests skipped"
+		exit
+	fi
+
 	#
 	# Validating the operation of the GCD
 	#
