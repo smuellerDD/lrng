@@ -141,10 +141,10 @@ void get_random_bytes_full(void *buf, int nbytes);
 #ifdef CONFIG_LRNG_JENT
 u32 lrng_get_jent(u8 *outbuf, u32 requested_bits);
 u32 lrng_jent_entropylevel(u32 requested_bits);
-#else /* CONFIG_CRYPTO_JITTERENTROPY */
+#else /* CONFIG_LRNG_JENT */
 static inline u32 lrng_get_jent(u8 *outbuf, u32 requested_bits) { return 0; }
 static inline u32 lrng_jent_entropylevel(u32 requested_bits) { return 0; }
-#endif /* CONFIG_CRYPTO_JITTERENTROPY */
+#endif /* CONFIG_LRNG_JENT */
 
 /************************** CPU-based Entropy Source **************************/
 
