@@ -168,8 +168,13 @@ static inline u32 lrng_fast_noise_entropylevel(u32 ent_bits, u32 requested_bits)
 	return ent_bits;
 }
 
+#ifdef CONFIG_LRNG_CPU
 u32 lrng_get_arch(u8 *outbuf, u32 requested_bits);
 u32 lrng_archrandom_entropylevel(u32 requested_bits);
+#else /* CONFIG_LRNG_CPU */
+static inline u32 lrng_get_arch(u8 *outbuf, u32 requested_bits) { return 0; }
+static inline u32 lrng_archrandom_entropylevel(u32 requested_bits) { return 0; }
+#endif /* CONFIG_LRNG_CPU */
 
 /************************** Interrupt Entropy Source **************************/
 

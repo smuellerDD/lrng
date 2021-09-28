@@ -73,9 +73,6 @@ u32 lrng_get_arch(u8 *outbuf, u32 requested_bits)
 	/* ensure we have aligned buffers */
 	BUILD_BUG_ON(LRNG_KCAPI_ALIGN % sizeof(unsigned long));
 
-	if (!ent_bits)
-		return 0;
-
 	for (i = 0; i < (requested_bits >> 3);
 	     i += sizeof(unsigned long)) {
 		if (!arch_get_random_seed_long((unsigned long *)(outbuf + i)) &&
