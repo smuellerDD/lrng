@@ -30,7 +30,6 @@
 
 #include "lrng_chacha20.h"
 #include "lrng_internal.h"
-#include "lrng_es_irq.h"
 
 #define LRNG_SELFTEST_PASSED		0
 #define LRNG_SEFLTEST_ERROR_TIME	(1 << 0)
@@ -39,22 +38,9 @@
 #define LRNG_SEFLTEST_ERROR_GCD		(1 << 3)
 #define LRNG_SELFTEST_NOT_EXECUTED	0xffffffff
 
-static unsigned int lrng_selftest_status = LRNG_SELFTEST_NOT_EXECUTED;
-
-static inline void lrng_selftest_bswap32(u32 *ptr, u32 words)
-{
-	u32 i;
-
-	/* Byte-swap data which is an LE representation */
-	for (i = 0; i < words; i++) {
-		__le32 *p = (__le32 *)ptr;
-
-		*p = cpu_to_le32(*ptr);
-		ptr++;
-	}
-}
-
 #ifdef CONFIG_LRNG_IRQ
+
+#include "lrng_es_irq.h"
 
 static u32 lrng_data_selftest_ptr = 0;
 static u32 lrng_data_selftest[LRNG_DATA_ARRAY_SIZE];
@@ -178,6 +164,19 @@ static unsigned int lrng_gcd_selftest(void)
 }
 
 #endif /* CONFIG_LRNG_IRQ */
+
+static inline void lrng_selftest_bswap32(u32 *ptr, u32 words)
+{
+	u32 i;
+
+	/* Byte-swap data which is an LE representation */
+	for (i = 0; i < words; i++) {
+		__le32 *p = (__le32 *)ptr;
+
+		*p = cpu_to_le32(*ptr);
+		ptr++;
+	}
+}
 
 /* The test vectors are taken from crypto/testmgr.h */
 static unsigned int lrng_hash_selftest(void)
@@ -338,6 +337,8 @@ err:
 	pr_err("LRNG ChaCha20 DRNG self-test FAILED\n");
 	return LRNG_SEFLTEST_ERROR_CHACHA20;
 }
+
+static unsigned int lrng_selftest_status = LRNG_SELFTEST_NOT_EXECUTED;
 
 static int lrng_selftest(void)
 {
