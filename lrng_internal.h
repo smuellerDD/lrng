@@ -54,17 +54,6 @@
 #define LRNG_DRNG_MAX_WITHOUT_RESEED	(1<<30)
 
 /*
- * Number of interrupts to be recorded to assume that DRNG security strength
- * bits of entropy are received.
- * Note: a value below the DRNG security strength should not be defined as this
- *	 may imply the DRNG can never be fully seeded in case other noise
- *	 sources are unavailable.
- *
- * This value is allowed to be changed.
- */
-#define LRNG_IRQ_ENTROPY_BITS		CONFIG_LRNG_IRQ_ENTROPY_RATE
-
-/*
  * Min required seed entropy is 128 bits covering the minimum entropy
  * requirement of SP800-131A and the German BSI's TR02102.
  *
@@ -178,6 +167,8 @@ static inline u32 lrng_archrandom_entropylevel(u32 requested_bits) { return 0; }
 
 /************************** Interrupt Entropy Source **************************/
 
+#ifdef CONFIG_LRNG_IRQ
+bool lrng_pool_highres_timer(void);
 bool lrng_pcpu_continuous_compression_state(void);
 void lrng_pcpu_reset(void);
 u32 lrng_pcpu_avail_pool_size(void);
@@ -188,6 +179,25 @@ int lrng_pcpu_switch_hash(int node,
 u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded);
 void lrng_pcpu_array_add_u32(u32 data);
 u32 lrng_gcd_analyze(u32 *history, size_t nelem);
+#else /* CONFIG_LRNG_IRQ */
+static inline bool lrng_pool_highres_timer(void) { return false; }
+static inline bool lrng_pcpu_continuous_compression_state(void) { return false;}
+static inline void lrng_pcpu_reset(void) { }
+static inline u32 lrng_pcpu_avail_pool_size(void) { return 0; }
+static inline u32 lrng_pcpu_avail_entropy(void) { return 0; }
+static inline int lrng_pcpu_switch_hash(int node,
+			  const struct lrng_crypto_cb *new_cb, void *new_hash,
+			  const struct lrng_crypto_cb *old_cb)
+{
+	return 0;
+}
+static inline u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits,
+				      bool fully_seeded)
+{
+	return 0;
+}
+static inline void lrng_pcpu_array_add_u32(u32 data) { }
+#endif /* CONFIG_LRNG_IRQ */
 
 /****************************** DRNG processing *******************************/
 
@@ -308,7 +318,6 @@ bool lrng_state_operational(void);
 int lrng_pool_trylock(void);
 void lrng_pool_unlock(void);
 void lrng_pool_all_numa_nodes_seeded(bool set);
-bool lrng_pool_highres_timer(void);
 void lrng_pool_add_entropy(void);
 
 struct entropy_buf {

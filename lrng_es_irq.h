@@ -22,6 +22,9 @@
  * Number of time values to store in the array - in small environments
  * only one atomic_t variable per CPU is used.
  */
+#ifndef CONFIG_LRNG_COLLECTION_SIZE
+#define CONFIG_LRNG_COLLECTION_SIZE	0
+#endif
 #define LRNG_DATA_NUM_VALUES		(CONFIG_LRNG_COLLECTION_SIZE)
 /* Mask of LSB of time stamp to store */
 #define LRNG_DATA_WORD_MASK		(LRNG_DATA_NUM_VALUES - 1)

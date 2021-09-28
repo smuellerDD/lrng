@@ -17,6 +17,16 @@
 #include "lrng_internal.h"
 #include "lrng_es_irq.h"
 
+/*
+ * Number of interrupts to be recorded to assume that DRNG security strength
+ * bits of entropy are received.
+ * Note: a value below the DRNG security strength should not be defined as this
+ *	 may imply the DRNG can never be fully seeded in case other noise
+ *	 sources are unavailable.
+ */
+#define LRNG_IRQ_ENTROPY_BITS		CONFIG_LRNG_IRQ_ENTROPY_RATE
+
+
 /* Number of interrupts required for LRNG_DRNG_SECURITY_STRENGTH_BITS entropy */
 static u32 lrng_irq_entropy_bits = LRNG_IRQ_ENTROPY_BITS;
 /* Is high-resolution timer present? */

@@ -198,6 +198,11 @@ void add_disk_randomness(struct gendisk *disk) { }
 EXPORT_SYMBOL(add_disk_randomness);
 #endif
 
+#ifndef CONFIG_LRNG_IRQ
+void add_interrupt_randomness(int irq, int irq_flg) { }
+EXPORT_SYMBOL(add_interrupt_randomness);
+#endif
+
 /*
  * del_random_ready_callback() - Delete a previously registered readiness
  * callback function.

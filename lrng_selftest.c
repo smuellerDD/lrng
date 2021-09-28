@@ -39,9 +39,6 @@
 #define LRNG_SEFLTEST_ERROR_GCD		(1 << 3)
 #define LRNG_SELFTEST_NOT_EXECUTED	0xffffffff
 
-static u32 lrng_data_selftest_ptr = 0;
-static u32 lrng_data_selftest[LRNG_DATA_ARRAY_SIZE];
-
 static unsigned int lrng_selftest_status = LRNG_SELFTEST_NOT_EXECUTED;
 
 static inline void lrng_selftest_bswap32(u32 *ptr, u32 words)
@@ -56,6 +53,11 @@ static inline void lrng_selftest_bswap32(u32 *ptr, u32 words)
 		ptr++;
 	}
 }
+
+#ifdef CONFIG_LRNG_IRQ
+
+static u32 lrng_data_selftest_ptr = 0;
+static u32 lrng_data_selftest[LRNG_DATA_ARRAY_SIZE];
 
 static inline void lrng_data_process_selftest_insert(u32 time)
 {
@@ -146,6 +148,36 @@ err:
 	pr_err("LRNG data array self-test FAILED\n");
 	return LRNG_SEFLTEST_ERROR_TIME;
 }
+
+static unsigned int lrng_gcd_selftest(void)
+{
+	u32 history[10];
+	unsigned int i;
+
+#define LRNG_GCD_SELFTEST 3
+	for (i = 0; i < ARRAY_SIZE(history); i++)
+		history[i] = i * LRNG_GCD_SELFTEST;
+
+	if (lrng_gcd_analyze(history, ARRAY_SIZE(history)) == LRNG_GCD_SELFTEST)
+		return LRNG_SELFTEST_PASSED;
+
+	pr_err("LRNG GCD self-test FAILED\n");
+	return LRNG_SEFLTEST_ERROR_GCD;
+}
+
+#else /* CONFIG_LRNG_IRQ */
+
+static unsigned int lrng_data_process_selftest(void)
+{
+	return LRNG_SELFTEST_PASSED;
+}
+
+static unsigned int lrng_gcd_selftest(void)
+{
+	return LRNG_SELFTEST_PASSED;
+}
+
+#endif /* CONFIG_LRNG_IRQ */
 
 /* The test vectors are taken from crypto/testmgr.h */
 static unsigned int lrng_hash_selftest(void)
@@ -305,22 +337,6 @@ static unsigned int lrng_chacha20_drng_selftest(void)
 err:
 	pr_err("LRNG ChaCha20 DRNG self-test FAILED\n");
 	return LRNG_SEFLTEST_ERROR_CHACHA20;
-}
-
-static unsigned int lrng_gcd_selftest(void)
-{
-	u32 history[10];
-	unsigned int i;
-
-#define LRNG_GCD_SELFTEST 3
-	for (i = 0; i < ARRAY_SIZE(history); i++)
-		history[i] = i * LRNG_GCD_SELFTEST;
-
-	if (lrng_gcd_analyze(history, ARRAY_SIZE(history)) == LRNG_GCD_SELFTEST)
-		return LRNG_SELFTEST_PASSED;
-
-	pr_err("LRNG GCD self-test FAILED\n");
-	return LRNG_SEFLTEST_ERROR_GCD;
 }
 
 static int lrng_selftest(void)

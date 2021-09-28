@@ -59,9 +59,39 @@ menu "Entropy Source Configuration"
 
 comment "Interrupt Entropy Source"
 
+config LRNG_IRQ
+	bool "Enable Interrupt Entropy Source as LRNG Seed Source"
+	default y
+	help
+	  The LRNG models an entropy source based on the timing of the
+	  occurrence of interrupts. Enable this option to enable this
+	  IRQ entropy source.
+
+	  The IRQ entropy source is triggered every time an interrupt
+	  arrives and thus causes the interrupt handler to execute
+	  slightly longer. Disabling the IRQ entropy source implies
+	  that the performance penalty on the interrupt handler added
+	  by the LRNG is eliminated. Yet, this entropy source is
+	  considered to be the internal entropy source of the LRNG.
+	  Thus, only disable it if you ensured that other entropy
+	  sources are available that supply the LRNG with entropy.
+
+	  If you disable the IRQ entropy source, you MUST ensure
+	  one or more entropy sources collectively have the
+	  capability to deliver sufficient entropy with one invocation
+	  at a rate compliant to the security strength of the DRNG
+	  (usually 256 bits of entropy). In addition, if those
+	  entropy sources do not deliver sufficient entropy during
+	  first request, the reseed must be triggered from user
+	  space or kernel space when sufficient entropy is considered
+	  to be present.
+
+	  If unsure, say Y.
+
 choice
 	prompt "Continuous entropy compression boot time setting"
 	default LRNG_CONTINUOUS_COMPRESSION_ENABLED
+	depends on LRNG_IRQ
 	help
 	  Select the default behavior of the interrupt entropy source
 	  continuous compression operation.
@@ -97,6 +127,7 @@ config LRNG_ENABLE_CONTINUOUS_COMPRESSION
 
 config LRNG_SWITCHABLE_CONTINUOUS_COMPRESSION
 	bool "Runtime-switchable continuous entropy compression"
+	depends on LRNG_IRQ
 	help
 	  Per default, the interrupt entropy source continuous
 	  compression operation behavior is hard-wired into the kernel.
@@ -111,6 +142,7 @@ config LRNG_SWITCHABLE_CONTINUOUS_COMPRESSION
 choice
 	prompt "LRNG Entropy Collection Pool Size"
 	default LRNG_COLLECTION_SIZE_1024
+	depends on LRNG_IRQ
 	help
 	  Select the size of the LRNG entropy collection pool
 	  storing data for the interrupt entropy source without
@@ -166,6 +198,7 @@ config LRNG_COLLECTION_SIZE
 
 config LRNG_HEALTH_TESTS
 	bool "Enable interrupt entropy source online health tests"
+	depends on LRNG_IRQ
 	help
 	  The online health tests applied to the interrupt entropy
 	  source validate the noise source at runtime for fatal
@@ -181,6 +214,7 @@ config LRNG_HEALTH_TESTS
 config LRNG_RCT_BROKEN
 	bool "SP800-90B RCT with dangerous low cutoff value"
 	depends on LRNG_HEALTH_TESTS
+	depends on LRNG_IRQ
 	depends on BROKEN
 	default n
 	help
@@ -196,6 +230,7 @@ config LRNG_RCT_BROKEN
 config LRNG_APT_BROKEN
 	bool "SP800-90B APT with dangerous low cutoff value"
 	depends on LRNG_HEALTH_TESTS
+	depends on LRNG_IRQ
 	depends on BROKEN
 	default n
 	help
@@ -223,6 +258,7 @@ config LRNG_APT_CUTOFF
 
 config LRNG_IRQ_ENTROPY_RATE
 	int "Interrupt Entropy Source Entropy Rate"
+	depends on LRNG_IRQ
 	range 256 4294967295
 	default 256
 	help

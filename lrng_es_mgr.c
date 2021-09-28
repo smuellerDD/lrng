@@ -15,7 +15,6 @@
 #include <linux/workqueue.h>
 
 #include "lrng_internal.h"
-#include "lrng_es_irq.h"
 
 struct lrng_state {
 	bool can_invalidate;		/* Can invalidate batched entropy? */
@@ -297,7 +296,7 @@ int __init rand_initialize(void)
 	return 0;
 }
 
-/* Hot code path during boot - mix data into entropy pool during boot */
+/* Interface requesting a reseed of the DRNG */
 void lrng_pool_add_entropy(void)
 {
 	/*
