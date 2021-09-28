@@ -183,7 +183,7 @@ static void lrng_gcd_add_value(u32 time)
 }
 
 /* Return boolean whether LRNG identified presence of high-resolution timer */
-bool lrng_pool_highres_timer(void)
+static bool lrng_pool_highres_timer(void)
 {
 	return lrng_irq_highres_timer;
 }
@@ -205,11 +205,6 @@ static inline u32 lrng_data_to_entropy(u32 irqnum)
 static inline bool lrng_pcpu_pool_online(int cpu)
 {
 	return per_cpu(lrng_pcpu_lock_init, cpu);
-}
-
-bool lrng_pcpu_continuous_compression_state(void)
-{
-	return lrng_pcpu_continuous_compression;
 }
 
 static void lrng_pcpu_check_compression_state(void)
@@ -804,3 +799,22 @@ void add_interrupt_randomness(int irq, int irq_flg)
 	}
 }
 EXPORT_SYMBOL(add_interrupt_randomness);
+
+void lrng_irq_es_state(unsigned char *buf, size_t buflen)
+{
+	const struct lrng_drng *lrng_drng_init = lrng_drng_init_instance();
+
+	/* Assume the lrng_drng_init lock is taken by caller */
+	snprintf(buf, buflen,
+		 "IRQ ES properties:\n"
+		 " Hash for operating entropy pool: %s\n"
+		 " per-CPU interrupt collection size: %u\n"
+		 " Standards compliance: %s\n"
+		 " High-resolution timer: %s\n"
+		 " Continuous compression: %s\n",
+		 lrng_drng_init->crypto_cb->lrng_hash_name(),
+		 LRNG_DATA_NUM_VALUES,
+		 lrng_sp80090b_compliant() ? "SP800-90B " : "",
+		 lrng_pool_highres_timer() ? "true" : "false",
+		 lrng_pcpu_continuous_compression ? "true" : "false");
+}

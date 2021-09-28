@@ -168,8 +168,6 @@ static inline u32 lrng_archrandom_entropylevel(u32 requested_bits) { return 0; }
 /************************** Interrupt Entropy Source **************************/
 
 #ifdef CONFIG_LRNG_IRQ
-bool lrng_pool_highres_timer(void);
-bool lrng_pcpu_continuous_compression_state(void);
 void lrng_pcpu_reset(void);
 u32 lrng_pcpu_avail_pool_size(void);
 u32 lrng_pcpu_avail_entropy(void);
@@ -179,9 +177,8 @@ int lrng_pcpu_switch_hash(int node,
 u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded);
 void lrng_pcpu_array_add_u32(u32 data);
 u32 lrng_gcd_analyze(u32 *history, size_t nelem);
+void lrng_irq_es_state(unsigned char *buf, size_t buflen);
 #else /* CONFIG_LRNG_IRQ */
-static inline bool lrng_pool_highres_timer(void) { return false; }
-static inline bool lrng_pcpu_continuous_compression_state(void) { return false;}
 static inline void lrng_pcpu_reset(void) { }
 static inline u32 lrng_pcpu_avail_pool_size(void) { return 0; }
 static inline u32 lrng_pcpu_avail_entropy(void) { return 0; }
@@ -197,6 +194,7 @@ static inline u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits,
 	return 0;
 }
 static inline void lrng_pcpu_array_add_u32(u32 data) { }
+static inline void lrng_irq_es_state(unsigned char *buf, size_t buflen) { }
 #endif /* CONFIG_LRNG_IRQ */
 
 /****************************** DRNG processing *******************************/
@@ -340,6 +338,7 @@ void lrng_init_ops(struct entropy_buf *eb);
 /*********************** Auxiliary Pool Entropy Source ************************/
 
 u32 lrng_avail_aux_entropy(void);
+void lrng_aux_es_state(unsigned char *buf, size_t buflen);
 u32 lrng_get_digestsize(void);
 void lrng_pool_set_entropy(u32 entropy_bits);
 int lrng_aux_switch_hash(const struct lrng_crypto_cb *new_cb, void *new_hash,

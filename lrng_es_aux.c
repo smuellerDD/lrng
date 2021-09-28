@@ -272,3 +272,14 @@ void lrng_get_backtrack_aux(struct entropy_buf *entropy_buf, u32 requested_bits)
 
 	spin_unlock_irqrestore(&pool->lock, flags);
 }
+
+void lrng_aux_es_state(unsigned char *buf, size_t buflen)
+{
+	const struct lrng_drng *lrng_drng_init = lrng_drng_init_instance();
+
+	/* Assume the lrng_drng_init lock is taken by caller */
+	snprintf(buf, buflen,
+		 "Auxiliary ES properties:\n"
+		 " Hash for operating entropy pool: %s\n",
+		 lrng_drng_init->crypto_cb->lrng_hash_name());
+}
