@@ -75,7 +75,7 @@ static inline void lrng_data_process_selftest_u32(u32 data)
 	/* MSB of data go into previous unit */
 	pre_array = lrng_data_idx2array(pre_ptr);
 	/* zeroization of slot to ensure the following OR adds the data */
-	lrng_data_selftest[pre_array] &= ~(0xffffffff &~ mask);
+	lrng_data_selftest[pre_array] &= ~(0xffffffff & ~mask);
 	lrng_data_selftest[pre_array] |= data & ~mask;
 
 	/* LSB of data go into current unit */

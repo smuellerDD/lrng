@@ -669,7 +669,7 @@ static inline void _lrng_pcpu_array_add_u32(u32 data)
 	/* MSB of data go into previous unit */
 	pre_array = lrng_data_idx2array(pre_ptr);
 	/* zeroization of slot to ensure the following OR adds the data */
-	this_cpu_and(lrng_pcpu_array[pre_array], ~(0xffffffff &~ mask));
+	this_cpu_and(lrng_pcpu_array[pre_array], ~(0xffffffff & ~mask));
 	this_cpu_or(lrng_pcpu_array[pre_array], data & ~mask);
 
 	/* Invoke compression as we just filled data array completely */
