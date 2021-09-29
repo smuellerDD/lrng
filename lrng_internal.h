@@ -11,6 +11,7 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
+#include <linux/rwlock.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 
@@ -401,6 +402,26 @@ static inline u32 atomic_read_u32(atomic_t *v)
 {
 	return (u32)atomic_read(v);
 }
+
+/******************** Crypto Primitive Switching Support **********************/
+
+#ifdef CONFIG_LRNG_DRNG_SWITCH
+static inline void lrng_hash_lock(struct lrng_drng *drng, unsigned long *flags)
+{
+	read_lock_irqsave(&drng->hash_lock, *flags);
+}
+
+static inline void lrng_hash_unlock(struct lrng_drng *drng, unsigned long flags)
+{
+	read_unlock_irqrestore(&drng->hash_lock, flags);
+}
+#else /* CONFIG_LRNG_DRNG_SWITCH */
+static inline void lrng_hash_lock(struct lrng_drng *drng, unsigned long *flags)
+{ }
+
+static inline void lrng_hash_unlock(struct lrng_drng *drng, unsigned long flags)
+{ }
+#endif /* CONFIG_LRNG_DRNG_SWITCH */
 
 /*************************** Auxiliary functions ******************************/
 

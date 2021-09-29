@@ -459,7 +459,7 @@ u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded)
 	void *hash;
 
 	/* Lock guarding replacement of per-NUMA hash */
-	read_lock_irqsave(&drng->hash_lock, flags);
+	lrng_hash_lock(drng, &flags);
 
 	crypto_cb = drng->crypto_cb;
 	hash = drng->hash;
@@ -493,12 +493,12 @@ u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded)
 							     cpu, digest,
 							     &digestsize);
 		} else {
-			read_lock_irqsave(&pcpu_drng->hash_lock, flags2);
+			lrng_hash_lock(pcpu_drng, &flags2);
 			found_irqs =
 				lrng_pcpu_pool_hash_one(pcpu_drng->crypto_cb,
 							pcpu_drng->hash, cpu,
 							digest, &digestsize);
-			read_unlock_irqrestore(&pcpu_drng->hash_lock, flags2);
+			lrng_hash_unlock(pcpu_drng, flags2);
 		}
 
 		/* Inject the digest into the state of all per-CPU pools */
@@ -546,7 +546,7 @@ u32 lrng_pcpu_pool_hash(u8 *outbuf, u32 requested_bits, bool fully_seeded)
 
 out:
 	crypto_cb->lrng_hash_desc_zero(shash);
-	read_unlock_irqrestore(&drng->hash_lock, flags);
+	lrng_hash_unlock(drng, flags);
 	memzero_explicit(digest, sizeof(digest));
 	return returned_ent_bits;
 
@@ -573,7 +573,7 @@ static inline void lrng_pcpu_array_compress(void)
 	if (lrng_drng && lrng_drng[node])
 		drng = lrng_drng[node];
 
-	read_lock_irqsave(&drng->hash_lock, flags);
+	lrng_hash_lock(drng, &flags);
 	crypto_cb = drng->crypto_cb;
 	hash = drng->hash;
 
@@ -600,7 +600,7 @@ static inline void lrng_pcpu_array_compress(void)
 	}
 
 	spin_unlock_irqrestore(lock, flags2);
-	read_unlock_irqrestore(&drng->hash_lock, flags);
+	lrng_hash_unlock(drng, flags);
 }
 
 /* Compress data array into hash */

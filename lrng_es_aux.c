@@ -134,7 +134,7 @@ lrng_pool_insert_aux_locked(const u8 *inbuf, u32 inbuflen, u32 entropy_bits)
 
 	entropy_bits = min_t(u32, entropy_bits, inbuflen << 3);
 
-	read_lock_irqsave(&drng->hash_lock, flags);
+	lrng_hash_lock(drng, &flags);
 
 	crypto_cb = drng->crypto_cb;
 	hash = drng->hash;
@@ -160,7 +160,7 @@ lrng_pool_insert_aux_locked(const u8 *inbuf, u32 inbuflen, u32 entropy_bits)
 			 crypto_cb->lrng_hash_digestsize(hash) << 3));
 
 out:
-	read_unlock_irqrestore(&drng->hash_lock, flags);
+	lrng_hash_unlock(drng, flags);
 	return ret;
 }
 
@@ -203,7 +203,7 @@ static inline u32 lrng_get_aux_pool(u8 *outbuf, u32 requested_bits)
 	if (unlikely(!pool->initialized))
 		return 0;
 
-	read_lock_irqsave(&drng->hash_lock, flags);
+	lrng_hash_lock(drng, &flags);
 
 	crypto_cb = drng->crypto_cb;
 	hash = drng->hash;
@@ -250,7 +250,7 @@ static inline u32 lrng_get_aux_pool(u8 *outbuf, u32 requested_bits)
 		memcpy(outbuf, aux_output, requested_bits >> 3);
 	}
 
-	read_unlock_irqrestore(&drng->hash_lock, flags);
+	lrng_hash_unlock(drng, flags);
 	memzero_explicit(aux_output, digestsize);
 	return returned_ent_bits;
 }
