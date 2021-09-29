@@ -214,7 +214,6 @@ config LRNG_HEALTH_TESTS
 config LRNG_RCT_BROKEN
 	bool "SP800-90B RCT with dangerous low cutoff value"
 	depends on LRNG_HEALTH_TESTS
-	depends on LRNG_IRQ
 	depends on BROKEN
 	default n
 	help
@@ -230,7 +229,6 @@ config LRNG_RCT_BROKEN
 config LRNG_APT_BROKEN
 	bool "SP800-90B APT with dangerous low cutoff value"
 	depends on LRNG_HEALTH_TESTS
-	depends on LRNG_IRQ
 	depends on BROKEN
 	default n
 	help
