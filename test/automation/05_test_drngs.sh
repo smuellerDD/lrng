@@ -112,7 +112,7 @@ check_drbgs()
 	$(check_kernel_config "CONFIG_LRNG_DRBG=m")
 	if [ $? -ne 0 ]
 	then
-		echo_deact "DRNG: testing KCAPI DRNG skipped"
+		echo_deact "DRNG: testing DRBG skipped"
 		return
 	fi
 
