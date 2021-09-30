@@ -480,8 +480,10 @@ static __poll_t lrng_random_poll(struct file *file, poll_table *wait)
 	if (lrng_state_operational())
 		mask |= EPOLLIN | EPOLLRDNORM;
 	if (lrng_need_entropy() ||
-	    lrng_state_exseed_allow(lrng_noise_source_user))
+	    lrng_state_exseed_allow(lrng_noise_source_user)) {
+		lrng_state_exseed_set(lrng_noise_source_user, false);
 		mask |= EPOLLOUT | EPOLLWRNORM;
+	}
 	return mask;
 }
 
@@ -576,7 +578,6 @@ static long lrng_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 			return -EFAULT;
 		if (size < 0)
 			return -EINVAL;
-		lrng_state_exseed_set(lrng_noise_source_user, false);
 		/* there cannot be more entropy than data */
 		ent_count_bits = min(ent_count_bits, size<<3);
 		return lrng_drng_write_common((const char __user *)p, size,
