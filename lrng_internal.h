@@ -120,8 +120,10 @@ void lrng_cc20_init_state(struct chacha20_state *state);
 
 #ifdef CONFIG_SYSCTL
 void lrng_pool_inc_numa_node(void);
+void lrng_proc_update_max_write_thresh(u32 new_digestsize);
 #else
 static inline void lrng_pool_inc_numa_node(void) { }
+static inline void lrng_proc_update_max_write_thresh(u32 new_digestsize) { }
 #endif
 
 /****************************** LRNG interfaces *******************************/

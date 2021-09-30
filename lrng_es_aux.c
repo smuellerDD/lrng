@@ -60,6 +60,15 @@ static inline void lrng_set_digestsize(u32 digestsize)
 	atomic_set(&lrng_pool.digestsize, digestsize);
 
 	/*
+	 * Update the /proc/.../write_wakeup_threshold which must not be larger
+	 * than the digest size of the curent conditioning hash.
+	 */
+	digestsize <<= 3;
+	lrng_proc_update_max_write_thresh(digestsize);
+	if (lrng_write_wakeup_bits > digestsize)
+		lrng_write_wakeup_bits = digestsize;
+
+	/*
 	 * In case the new digest is larger than the old one, cap the available
 	 * entropy to the old message digest used to process the existing data.
 	 */

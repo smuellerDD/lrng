@@ -79,9 +79,15 @@ static int lrng_proc_do_poolsize(struct ctl_table *table, int write,
 }
 
 static int lrng_min_write_thresh;
-static int lrng_max_write_thresh = LRNG_MAX_DIGESTSIZE;
+static int lrng_max_write_thresh = (LRNG_WRITE_WAKEUP_ENTROPY << 3);
 static char lrng_sysctl_bootid[16];
 static int lrng_drng_reseed_max_min;
+
+void lrng_proc_update_max_write_thresh(u32 new_digestsize)
+{
+	lrng_max_write_thresh = (int)new_digestsize;
+	mb();
+}
 
 struct ctl_table random_table[] = {
 	{

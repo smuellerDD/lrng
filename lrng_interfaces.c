@@ -29,7 +29,7 @@
  * should wake up processes which are selecting or polling on write
  * access to /dev/random.
  */
-u32 lrng_write_wakeup_bits = LRNG_WRITE_WAKEUP_ENTROPY;
+u32 lrng_write_wakeup_bits = (LRNG_WRITE_WAKEUP_ENTROPY << 3);
 
 static LIST_HEAD(lrng_ready_list);
 static DEFINE_SPINLOCK(lrng_ready_list_lock);
