@@ -8,7 +8,6 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <asm/irq_regs.h>
-#include <linux/lrng.h>
 #include <linux/percpu.h>
 #include <linux/random.h>
 #include <linux/utsname.h>
