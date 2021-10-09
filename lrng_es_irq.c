@@ -235,14 +235,17 @@ static int __init lrng_init_time_source(void)
 		lrng_irq_highres_timer = true;
 		lrng_irq_entropy_bits = irq_entropy;
 	} else {
+		u32 new_entropy = irq_entropy * LRNG_IRQ_OVERSAMPLING_FACTOR;
+
 		lrng_health_disable();
 		lrng_irq_highres_timer = false;
-		lrng_irq_entropy_bits = irq_entropy *
-					LRNG_IRQ_OVERSAMPLING_FACTOR;
+		lrng_irq_entropy_bits = (irq_entropy < new_entropy) ?
+					 new_entropy : irq_entropy;
 		pr_warn("operating without high-resolution timer and applying IRQ oversampling factor %u\n",
 			LRNG_IRQ_OVERSAMPLING_FACTOR);
 		lrng_pcpu_check_compression_state();
 	}
+	mb();
 
 	return 0;
 }
