@@ -19,13 +19,15 @@
 #define LRNG_ARCHRANDOM_DEFAULT_STRENGTH CONFIG_LRNG_CPU_ENTROPY_RATE
 #define LRNG_ARCHRANDOM_TRUST_CPU_STRENGTH LRNG_DRNG_SECURITY_STRENGTH_BITS
 #ifdef CONFIG_RANDOM_TRUST_CPU
-static u32 archrandom = LRNG_ARCHRANDOM_TRUST_CPU_STRENGTH;
+/* PowerISA defines DARN to deliver at least 0.5 bits of entropy per data bit */
+static u32 archrandom = LRNG_ARCHRANDOM_TRUST_CPU_STRENGTH /
+			IS_ENABLED(CONFIG_PPC) ? 2 : 1;
 #else
 static u32 archrandom = LRNG_ARCHRANDOM_DEFAULT_STRENGTH;
 #endif
 #ifdef CONFIG_LRNG_RUNTIME_ES_CONFIG
 module_param(archrandom, uint, 0644);
-MODULE_PARM_DESC(archrandom, "Entropy in bits of 256 data bits from CPU noise source (e.g. RDRAND)");
+MODULE_PARM_DESC(archrandom, "Entropy in bits of 256 data bits from CPU noise source (e.g. RDSEED)");
 #endif
 
 static int __init lrng_parse_trust_cpu(char *arg)
