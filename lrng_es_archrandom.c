@@ -21,7 +21,7 @@
 #ifdef CONFIG_RANDOM_TRUST_CPU
 /* PowerISA defines DARN to deliver at least 0.5 bits of entropy per data bit */
 static u32 archrandom = LRNG_ARCHRANDOM_TRUST_CPU_STRENGTH /
-			IS_ENABLED(CONFIG_PPC) ? 2 : 1;
+			(IS_ENABLED(CONFIG_PPC) ? 2 : 1);
 #else
 static u32 archrandom = LRNG_ARCHRANDOM_DEFAULT_STRENGTH;
 #endif
