@@ -88,3 +88,10 @@ u32 lrng_jent_entropylevel(u32 requested_bits)
 	return lrng_fast_noise_entropylevel((lrng_jent_initialized) ?
 					    jitterrng : 0, requested_bits);
 }
+
+void lrng_jent_es_state(unsigned char *buf, size_t buflen)
+{
+	snprintf(buf, buflen,
+		 "Jitter RNG ES properties:\n"
+		 " Enabled: %s\n", lrng_jent_initialized ? "true" : "false");
+}

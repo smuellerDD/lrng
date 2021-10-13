@@ -147,7 +147,7 @@ static int lrng_proc_type_show(struct seq_file *m, void *v)
 {
 	struct lrng_drng *lrng_drng_init = lrng_drng_init_instance();
 	unsigned long flags = 0;
-	unsigned char buf[250], irq[200], aux[100], cpu[90];
+	unsigned char buf[250], irq[200], aux[100], cpu[90], jent[45];
 
 	lrng_drng_lock(lrng_drng_init, &flags);
 	snprintf(buf, sizeof(buf),
@@ -173,6 +173,9 @@ static int lrng_proc_type_show(struct seq_file *m, void *v)
 	irq[0] = '\0';
 	lrng_irq_es_state(irq, sizeof(irq));
 
+	jent[0] = '\0';
+	lrng_jent_es_state(jent, sizeof(jent));
+
 	cpu[0] = '\0';
 	lrng_arch_es_state(cpu, sizeof(cpu));
 
@@ -181,6 +184,7 @@ static int lrng_proc_type_show(struct seq_file *m, void *v)
 	seq_write(m, buf, strlen(buf));
 	seq_write(m, aux, strlen(aux));
 	seq_write(m, irq, strlen(irq));
+	seq_write(m, jent, strlen(jent));
 	seq_write(m, cpu, strlen(cpu));
 
 	return 0;
