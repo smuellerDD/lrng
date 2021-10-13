@@ -21,6 +21,9 @@
 #define LRNG_DRNG_SECURITY_STRENGTH_BYTES 32
 #define LRNG_DRNG_SECURITY_STRENGTH_BITS (LRNG_DRNG_SECURITY_STRENGTH_BYTES * 8)
 #define LRNG_DRNG_BLOCKSIZE 64		/* Maximum of DRNG block sizes */
+#define LRNG_DRNG_INIT_SEED_SIZE_BITS (LRNG_DRNG_SECURITY_STRENGTH_BITS +      \
+				       CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS)
+#define LRNG_DRNG_INIT_SEED_SIZE_BYTES (LRNG_DRNG_INIT_SEED_SIZE_BITS >> 3)
 
 /*
  * SP800-90A defines a maximum request size of 1<<16 bytes. The given value is
@@ -163,9 +166,11 @@ static inline u32 lrng_fast_noise_entropylevel(u32 ent_bits, u32 requested_bits)
 #ifdef CONFIG_LRNG_CPU
 u32 lrng_get_arch(u8 *outbuf, u32 requested_bits);
 u32 lrng_archrandom_entropylevel(u32 requested_bits);
+void lrng_arch_es_state(unsigned char *buf, size_t buflen);
 #else /* CONFIG_LRNG_CPU */
 static inline u32 lrng_get_arch(u8 *outbuf, u32 requested_bits) { return 0; }
 static inline u32 lrng_archrandom_entropylevel(u32 requested_bits) { return 0; }
+static inline void lrng_arch_es_state(unsigned char *buf, size_t buflen) { }
 #endif /* CONFIG_LRNG_CPU */
 
 /************************** Interrupt Entropy Source **************************/
@@ -322,14 +327,10 @@ void lrng_pool_all_numa_nodes_seeded(bool set);
 void lrng_pool_add_entropy(void);
 
 struct entropy_buf {
-	u8 a[LRNG_DRNG_SECURITY_STRENGTH_BYTES +
-	     (CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS >> 3)];
-	u8 b[LRNG_DRNG_SECURITY_STRENGTH_BYTES +
-	     (CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS >> 3)];
-	u8 c[LRNG_DRNG_SECURITY_STRENGTH_BYTES +
-	     (CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS >> 3)];
-	u8 d[LRNG_DRNG_SECURITY_STRENGTH_BYTES +
-	     (CONFIG_LRNG_SEED_BUFFER_INIT_ADD_BITS >> 3)];
+	u8 a[LRNG_DRNG_INIT_SEED_SIZE_BYTES];
+	u8 b[LRNG_DRNG_INIT_SEED_SIZE_BYTES];
+	u8 c[LRNG_DRNG_INIT_SEED_SIZE_BYTES];
+	u8 d[LRNG_DRNG_INIT_SEED_SIZE_BYTES];
 	u32 now, a_bits, b_bits, c_bits, d_bits;
 };
 

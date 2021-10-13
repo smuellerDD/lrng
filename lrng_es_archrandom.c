@@ -7,6 +7,8 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <crypto/hash.h>
+#include <linux/lrng.h>
 #include <linux/random.h>
 
 #include "lrng_internal.h"
@@ -19,9 +21,7 @@
 #define LRNG_ARCHRANDOM_DEFAULT_STRENGTH CONFIG_LRNG_CPU_ENTROPY_RATE
 #define LRNG_ARCHRANDOM_TRUST_CPU_STRENGTH LRNG_DRNG_SECURITY_STRENGTH_BITS
 #ifdef CONFIG_RANDOM_TRUST_CPU
-/* PowerISA defines DARN to deliver at least 0.5 bits of entropy per data bit */
-static u32 archrandom = LRNG_ARCHRANDOM_TRUST_CPU_STRENGTH /
-			(IS_ENABLED(CONFIG_PPC) ? 2 : 1);
+static u32 archrandom = LRNG_ARCHRANDOM_TRUST_CPU_STRENGTH;
 #else
 static u32 archrandom = LRNG_ARCHRANDOM_DEFAULT_STRENGTH;
 #endif
@@ -55,18 +55,9 @@ u32 lrng_archrandom_entropylevel(u32 requested_bits)
 	return lrng_fast_noise_entropylevel(archrandom, requested_bits);
 }
 
-/*
- * lrng_get_arch() - Get CPU noise source entropy
- *
- * @outbuf: buffer to store entropy of size LRNG_DRNG_SECURITY_STRENGTH_BYTES
- *
- * Return:
- * * > 0 on success where value provides the added entropy in bits
- * *   0 if no fast source was available
- */
-u32 lrng_get_arch(u8 *outbuf, u32 requested_bits)
+static u32 lrng_get_arch_data(u8 *outbuf, u32 requested_bits)
 {
-	u32 i, ent_bits = lrng_archrandom_entropylevel(requested_bits);
+	u32 i;
 
 	/* operate on full blocks */
 	BUILD_BUG_ON(LRNG_DRNG_SECURITY_STRENGTH_BYTES % sizeof(unsigned long));
@@ -84,7 +75,128 @@ u32 lrng_get_arch(u8 *outbuf, u32 requested_bits)
 		}
 	}
 
-	pr_debug("obtained %u bits of entropy from CPU RNG noise source\n",
-		 ent_bits);
+	return requested_bits;
+}
+
+static u32 inline lrng_get_arch_data_compress(u8 *outbuf, u32 requested_bits,
+					      u32 data_multiplier)
+{
+	SHASH_DESC_ON_STACK(shash, NULL);
+	const struct lrng_crypto_cb *crypto_cb;
+	struct lrng_drng *drng = lrng_drng_init_instance();
+	unsigned long flags;
+	u32 ent_bits = 0, i;
+	void *hash;
+
+	lrng_hash_lock(drng, &flags);
+	crypto_cb = drng->crypto_cb;
+	hash = drng->hash;
+
+	if (crypto_cb->lrng_hash_init(shash, hash))
+		goto out;
+
+	/* Hash all data from the CPU entropy source */
+	for (i = 0; i < data_multiplier; i++) {
+		ent_bits = lrng_get_arch_data(outbuf, requested_bits);
+		if (!ent_bits)
+			goto out;
+
+		if (crypto_cb->lrng_hash_update(shash, outbuf, ent_bits >> 3))
+			goto out;
+	}
+
+	if (requested_bits < (crypto_cb->lrng_hash_digestsize(hash) << 3)) {
+		u8 digest[LRNG_MAX_DIGESTSIZE];
+
+		if (crypto_cb->lrng_hash_final(shash, digest))
+			goto out;
+
+		/* Truncate output data to requested size */
+		memcpy(outbuf, digest, requested_bits >> 3);
+		memzero_explicit(digest, crypto_cb->lrng_hash_digestsize(hash));
+		ent_bits = requested_bits;
+	} else {
+		if (crypto_cb->lrng_hash_final(shash, outbuf))
+			goto out;
+		ent_bits = crypto_cb->lrng_hash_digestsize(hash) << 3;
+	}
+
+out:
+	crypto_cb->lrng_hash_desc_zero(shash);
+	lrng_hash_unlock(drng, flags);
 	return ent_bits;
+}
+
+/*
+ * If CPU entropy source requires does not return full entropy, return the
+ * multiplier of how much data shall be sampled from it.
+ */
+static u32 lrng_arch_multiplier(void)
+{
+	static u32 data_multiplier = 0;
+
+	if (data_multiplier > 0) {
+		return data_multiplier;
+	} else {
+		unsigned long v;
+
+		if (IS_ENABLED(CONFIG_X86) && !arch_get_random_seed_long(&v)) {
+			/*
+			 * Intel SPEC: pulling 512 blocks from RDRAND ensures
+			 * one reseed making it logically equivalent to RDSEED.
+			 */
+			data_multiplier = 512;
+		} else if (IS_ENABLED(CONFIG_PPC)) {
+			/*
+			 * PowerISA defines DARN to deliver at least 0.5 bits of
+			 * entropy per data bit.
+			 */
+			data_multiplier = 2;
+		} else {
+			/* CPU provides full entropy */
+			data_multiplier = 1;
+		}
+	}
+	return data_multiplier;
+}
+
+/*
+ * lrng_get_arch() - Get CPU entropy source entropy
+ *
+ * @outbuf: buffer to store entropy of size requested_bits
+ *
+ * Return:
+ * * > 0 on success where value provides the added entropy in bits
+ * *   0 if no fast source was available
+ */
+u32 lrng_get_arch(u8 *outbuf, u32 requested_bits)
+{
+	u32 ent_bits, data_multiplier = lrng_arch_multiplier();
+
+	if (data_multiplier <= 1) {
+		ent_bits = lrng_get_arch_data(outbuf, requested_bits);
+	} else {
+		ent_bits = lrng_get_arch_data_compress(outbuf, requested_bits,
+						       data_multiplier);
+	}
+
+	ent_bits = lrng_archrandom_entropylevel(ent_bits);
+	pr_debug("obtained %u bits of entropy from CPU RNG entropy source requesting %u bits of data\n",
+		 ent_bits, data_multiplier * requested_bits);
+	return ent_bits;
+}
+
+void lrng_arch_es_state(unsigned char *buf, size_t buflen)
+{
+	const struct lrng_drng *lrng_drng_init = lrng_drng_init_instance();
+	u32 data_multiplier = lrng_arch_multiplier();
+
+	/* Assume the lrng_drng_init lock is taken by caller */
+	snprintf(buf, buflen,
+		 "CPU ES properties:\n"
+		 " Hash for compressing data: %s\n"
+		 " Data multiplier: %u\n",
+		 (data_multiplier <= 1) ?
+			"N/A" : lrng_drng_init->crypto_cb->lrng_hash_name(),
+		 data_multiplier);
 }
