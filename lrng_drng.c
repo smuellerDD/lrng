@@ -293,7 +293,14 @@ void lrng_drng_force_reseed(void)
 	struct lrng_drng **lrng_drng = lrng_drng_instances();
 	u32 node;
 
-	if (!lrng_drng) {
+	/*
+	 * If the initial DRNG is over the reseed threshold, allow a forced
+	 * reseed only for the initial DRNG as this is the fallback for all. It
+	 * must be kept seeded before all others to keep the LRNG operational.
+	 */
+	if (!lrng_drng ||
+	    (atomic_read_u32(&lrng_drng_init.requests_since_fully_seeded) >
+	     LRNG_DRNG_RESEED_THRESH)) {
 		lrng_drng_init.force_reseed = lrng_drng_init.fully_seeded;
 		pr_debug("force reseed of initial DRNG\n");
 		return;
