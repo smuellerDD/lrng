@@ -317,6 +317,11 @@ config LRNG_CPU
 	  does not offer such entropy source, the LRNG will automatically
 	  detect this and ignore the hardware.
 
+config LRNG_CPU_FULL_ENT_MULTIPLIER
+	int
+	default 1 if !LRNG_TEST_CPU_ES_COMPRESSION
+	default 123 if LRNG_TEST_CPU_ES_COMPRESSION
+
 config LRNG_CPU_ENTROPY_RATE
 	int "CPU Entropy Source Entropy Rate"
 	depends on LRNG_CPU
@@ -554,11 +559,6 @@ config LRNG_TESTING
 	default y if (LRNG_RAW_HIRES_ENTROPY || LRNG_RAW_JIFFIES_ENTROPY ||LRNG_RAW_IRQ_ENTROPY || LRNG_RAW_IRQFLAGS_ENTROPY || LRNG_RAW_RETIP_ENTROPY || LRNG_RAW_REGS_ENTROPY || LRNG_RAW_ARRAY || LRNG_IRQ_PERF || LRNG_ACVT_HASH)
 
 endif #LRNG_TESTING_MENU
-
-config LRNG_CPU_FULL_ENT_MULTIPLIER
-	int
-	default 1 if !LRNG_TEST_CPU_ES_COMPRESSION
-	default 123 if LRNG_TEST_CPU_ES_COMPRESSION
 
 config LRNG_SELFTEST
 	bool "Enable power-on and on-demand self-tests"
