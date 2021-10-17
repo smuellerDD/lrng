@@ -539,11 +539,26 @@ config LRNG_RUNTIME_MAX_WO_RESEED_CONFIG
 	  operations without a reseed that has full entropy. The
 	  interface is lrng_drng.max_wo_reseed.
 
+config LRNG_TEST_CPU_ES_COMPRESSION
+	bool "Force CPU ES compression operation"
+	help
+	  When enabling this option, the CPU ES compression operation
+	  is forced by setting an arbitrary value > 1 for the data
+	  multiplier even when the CPU ES would deliver full entropy.
+	  This allows testing of the compression operation. It
+	  therefore forces to pull more data from the CPU ES
+	  than what may be required.
+
 config LRNG_TESTING
 	bool
 	default y if (LRNG_RAW_HIRES_ENTROPY || LRNG_RAW_JIFFIES_ENTROPY ||LRNG_RAW_IRQ_ENTROPY || LRNG_RAW_IRQFLAGS_ENTROPY || LRNG_RAW_RETIP_ENTROPY || LRNG_RAW_REGS_ENTROPY || LRNG_RAW_ARRAY || LRNG_IRQ_PERF || LRNG_ACVT_HASH)
 
 endif #LRNG_TESTING_MENU
+
+config LRNG_CPU_FULL_ENT_MULTIPLIER
+	int
+	default 1 if !LRNG_TEST_CPU_ES_COMPRESSION
+	default 123 if LRNG_TEST_CPU_ES_COMPRESSION
 
 config LRNG_SELFTEST
 	bool "Enable power-on and on-demand self-tests"

@@ -333,12 +333,139 @@ sp80090c_compliance()
 	fi
 }
 
+sp80090c_cpu_es_data_pulled()
+{
+	local data=$(dmesg | grep "lrng_es_archrandom: pulled" | tail -n1 | sed 's/^.* pulled \([0-9]\+\) bits.*$/\1/')
+
+	if [ -n $data ]
+	then
+		echo_pass "SP800-90C: CPU ES pulled data: $data"
+	else
+		echo_fail "SP800-90C: CPU ES pulled data not found"
+		data=1
+	fi
+
+	echo $data
+}
+
+sp80090c_cpu_es_multiplier()
+{
+	local multiplier=$(cat /proc/lrng_type | grep multiplier | cut -d":" -f 2)
+
+	if [ -n $multiplier ]
+	then
+		echo_pass "SP800-90C: CPU ES multiplier found: $multiplier"
+	else
+		echo_fail "SP800-90C: CPU ES multiplier not found"
+		multiplier=1
+	fi
+
+	echo $multiplier
+}
+
+sp80090c_force_reseed()
+{
+	echo > /dev/random
+	dd if=/dev/random of=/dev/null count=1 bs=32
+}
+
+sp80090c_compliance_cpu_conditioning()
+{
+	$(check_fully_seeded)
+	if [ $? -ne 0 ]
+	then
+		echo_deact "SP800-90C: Fully seeding level not reached"
+		return
+	fi
+
+	# CONFIG_LRNG_CPU_FULL_ENT_MULTIPLIER == 123
+	# Data rate: multiplier * 256 bits as no SP800-90C oversampling is applicable
+	local multiplier=$(sp80090c_cpu_es_multiplier)
+
+	if [ $multiplier -gt 1 ]
+	then
+		local data_rate=$(($multiplier*256))
+		local data=$(sp80090c_cpu_es_data_pulled)
+
+		if [ $data_rate -eq $data ]
+		then
+			echo_pass "SP800-90C: CPU ES conditioner oversampling - non SP800-90C compliance"
+		else
+			echo_fail "SP800-90C: CPU ES conditioner oversampling: expected data rate $data_rate - identified data rate $data"
+		fi
+	else
+		echo_deact "SP800-90C: CPU ES conditioner oversampling: conditioning deactivated"
+	fi
+
+	#
+	# Test purpose: Check that DRBG extension of LRNG can be loaded
+	#		successfully
+	#
+	$(load_drbg)
+	if [ $? -eq 0 ]
+	then
+		echo_pass "SP800-90C: Loading and seeding DRBG successful"
+	else
+		echo_fail "SP800-90C: Loading and seeding DRBG failed"
+	fi
+
+	#
+	# Test purpose: Check that SP800-90C flag is show in /proc/lrng_type
+	#
+	$(check_90c_flag)
+	if [ $? -eq 0 ]
+	then
+		echo_pass "SP800-90C: standards flag present"
+	else
+		echo_fail "SP800-90C: standards flag not present"
+	fi
+
+	# Initial seeding of DRBG compliant to SP800-90C
+	# Data rate: multiplier * (384 + 64)
+	if [ $multiplier -gt 1 ]
+	then
+		local data_rate=$(($multiplier*448))
+		local data=$(sp80090c_cpu_es_data_pulled)
+
+		if [ $data_rate -eq $data ]
+		then
+			echo_pass "SP800-90C: CPU ES conditioner oversampling - SP800-90C compliance with initial seeding"
+		else
+			echo_fail "SP800-90C: CPU ES conditioner oversampling: expected data rate $data_rate - identified data rate $data"
+		fi
+	else
+		echo_deact "SP800-90C: CPU ES conditioner oversampling: conditioning deactivated"
+	fi
+
+	sp80090c_force_reseed
+
+	# Subsequent seeding of DRBG
+	# Data rate: multiplier * (256 + 64)
+	if [ $multiplier -gt 1 ]
+	then
+		local data_rate=$(($multiplier*320))
+		local data=$(sp80090c_cpu_es_data_pulled)
+
+		if [ $data_rate -eq $data ]
+		then
+			echo_pass "SP800-90C: CPU ES conditioner oversampling  - SP800-90C compliance with reseeding"
+		else
+			echo_fail "SP800-90C: CPU ES conditioner oversampling: expected data rate $data_rate - identified data rate $data"
+		fi
+	else
+		echo_deact "SP800-90C: CPU ES conditioner oversampling: conditioning deactivated"
+	fi
+}
+
 $(in_hypervisor)
 if [ $? -eq 1 ]
 then
 	case $(read_cmd) in
 		"test1")
 			sp80090c_compliance
+			;;
+		"test2")
+			sp80090c_compliance_cpu_conditioning
 			;;
 		*)
 			echo_fail "Test $1 not found"
@@ -457,4 +584,13 @@ else
 	#
 	write_cmd "test1"
 	execvirt $(full_scriptname $0) "fips=1 random.trust_cpu=1"
+
+	$(check_kernel_config "LRNG_TEST_CPU_ES_COMPRESSION=y")
+	if [ $? -ne 0 ]
+	then
+		echo_deact "SP800-90C: CPU ES compression test deactivated"
+	else
+		write_cmd "test2"
+		execvirt $(full_scriptname $0) "fips=1 random.trust_cpu=1 lrng_es_jent.jitterrng=256"
+	fi
 fi

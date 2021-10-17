@@ -174,7 +174,7 @@ static u32 lrng_arch_multiplier(void)
 			data_multiplier = 2;
 		} else {
 			/* CPU provides full entropy */
-			data_multiplier = 1;
+			data_multiplier = CONFIG_LRNG_CPU_FULL_ENT_MULTIPLIER;
 		}
 	}
 	return data_multiplier;
