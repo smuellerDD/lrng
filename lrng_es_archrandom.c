@@ -124,7 +124,9 @@ static u32 inline lrng_get_arch_data_compress(u8 *outbuf, u32 requested_bits,
 
 	pr_debug("pulled %u bits from CPU RNG entropy source\n", full_bits);
 
-	if (requested_bits < (crypto_cb->lrng_hash_digestsize(hash) << 3)) {
+	/* Generate the compressed data to be returned to the caller */
+	ent_bits = crypto_cb->lrng_hash_digestsize(hash) << 3;
+	if (requested_bits < ent_bits) {
 		u8 digest[LRNG_MAX_DIGESTSIZE];
 
 		if (crypto_cb->lrng_hash_final(shash, digest))
@@ -137,7 +139,6 @@ static u32 inline lrng_get_arch_data_compress(u8 *outbuf, u32 requested_bits,
 	} else {
 		if (crypto_cb->lrng_hash_final(shash, outbuf))
 			goto out;
-		ent_bits = crypto_cb->lrng_hash_digestsize(hash) << 3;
 	}
 
 out:
