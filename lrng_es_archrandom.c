@@ -85,8 +85,19 @@ static u32 inline lrng_get_arch_data_compress(u8 *outbuf, u32 requested_bits,
 	const struct lrng_crypto_cb *crypto_cb;
 	struct lrng_drng *drng = lrng_drng_init_instance();
 	unsigned long flags;
-	u32 ent_bits = 0, i;
+	u32 ent_bits = 0, i, partial_bits = 0,
+	    full_bits = requested_bits * data_multiplier;
 	void *hash;
+
+	/* Calculate oversampling for SP800-90C */
+	if (lrng_sp80090c_compliant()) {
+		/* Complete amount of bits to be pulled */
+		full_bits += CONFIG_LRNG_OVERSAMPLE_ES_BITS * data_multiplier;
+		/* Full blocks that will be pulled */
+		data_multiplier = full_bits / requested_bits;
+		/* Partial block in bits to be pulled */
+		partial_bits = full_bits - (data_multiplier * requested_bits);
+	}
 
 	lrng_hash_lock(drng, &flags);
 	crypto_cb = drng->crypto_cb;
@@ -104,6 +115,14 @@ static u32 inline lrng_get_arch_data_compress(u8 *outbuf, u32 requested_bits,
 		if (crypto_cb->lrng_hash_update(shash, outbuf, ent_bits >> 3))
 			goto out;
 	}
+
+	/* Hash partial block, if applicable */
+	ent_bits = lrng_get_arch_data(outbuf, partial_bits);
+	if (ent_bits &&
+	    crypto_cb->lrng_hash_update(shash, outbuf, ent_bits >> 3))
+		goto out;
+
+	pr_debug("pulled %u bits from CPU RNG entropy source\n", full_bits);
 
 	if (requested_bits < (crypto_cb->lrng_hash_digestsize(hash) << 3)) {
 		u8 digest[LRNG_MAX_DIGESTSIZE];
@@ -181,8 +200,8 @@ u32 lrng_get_arch(u8 *outbuf, u32 requested_bits)
 	}
 
 	ent_bits = lrng_archrandom_entropylevel(ent_bits);
-	pr_debug("obtained %u bits of entropy from CPU RNG entropy source requesting %u bits of data\n",
-		 ent_bits, data_multiplier * requested_bits);
+	pr_debug("obtained %u bits of entropy from CPU RNG entropy source\n",
+		 ent_bits);
 	return ent_bits;
 }
 
