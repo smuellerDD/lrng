@@ -113,14 +113,14 @@ static u32 inline lrng_get_arch_data_compress(u8 *outbuf, u32 requested_bits,
 			goto out;
 
 		if (crypto_cb->lrng_hash_update(shash, outbuf, ent_bits >> 3))
-			goto out;
+			goto err;
 	}
 
 	/* Hash partial block, if applicable */
 	ent_bits = lrng_get_arch_data(outbuf, partial_bits);
 	if (ent_bits &&
 	    crypto_cb->lrng_hash_update(shash, outbuf, ent_bits >> 3))
-		goto out;
+		goto err;
 
 	pr_debug("pulled %u bits from CPU RNG entropy source\n", full_bits);
 
@@ -130,7 +130,7 @@ static u32 inline lrng_get_arch_data_compress(u8 *outbuf, u32 requested_bits,
 		u8 digest[LRNG_MAX_DIGESTSIZE];
 
 		if (crypto_cb->lrng_hash_final(shash, digest))
-			goto out;
+			goto err;
 
 		/* Truncate output data to requested size */
 		memcpy(outbuf, digest, requested_bits >> 3);
@@ -138,13 +138,17 @@ static u32 inline lrng_get_arch_data_compress(u8 *outbuf, u32 requested_bits,
 		ent_bits = requested_bits;
 	} else {
 		if (crypto_cb->lrng_hash_final(shash, outbuf))
-			goto out;
+			goto err;
 	}
 
 out:
 	crypto_cb->lrng_hash_desc_zero(shash);
 	lrng_hash_unlock(drng, flags);
 	return ent_bits;
+
+err:
+	ent_bits = 0;
+	goto out;
 }
 
 /*
