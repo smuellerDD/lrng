@@ -110,5 +110,53 @@ event.
 With this configuration, you have to make sure that the heuristic value
 is less than the measured entropy rate.
 
+# Additional Assessments
+
+## Histogram of Time Stamps
+
+The tool `dist.r` generates a histogram of the raw noise source data obtained
+from the measurement. Examples are shown in section 3.1 of the `lrng.pdf`
+document.
+
+The tool is invoked with the following command:
+
+```
+Rscript --vanilla dist.r lrng_raw_noise.data lrng_raw_noise_hist
+```
+
+This invocation generates the graph `lrng_raw_noise_hist.svg`.
+
+## Statistical Properties
+
+The tool `stats.` calculates the statistical properties of the
+raw noise source data.
+
+It is invoked with the following command:
+
+```
+Rscript --vanilla stats.r lrng_raw_noise.data
+```
+
+The output contains the following data:
+
+- 25% quartile
+
+- median value 
+
+- mean value of the data
+
+- 75% quartile
+
+- standard derivation
+
+- variation coefficient
+
+- Chi-Squared Goodness-of-Fit test asymptotic signficance value P assuming
+  the data follows an equi-distribution - if the value is >= 0.05, the
+  noise source produces an equi-distribution with an alpha of 5%
+
+- Chi-Squared Goodness-of-Fit test degrees of freedom (should be 255 since
+  the time stamp is an 8 bit value)
+
 # Author
 Stephan Mueller <smueller@chronox.de>

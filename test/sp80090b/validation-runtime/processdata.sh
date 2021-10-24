@@ -97,6 +97,8 @@ do
 	do
 		mask=${item%:*}
 		bits=${item#*:}
+
+		Rscript --vanilla dist.r $file $filepath
 		
 		./$EXTRACT $file $filepath.${mask}bitout.data $MAX_EVENTS $mask 2>&1 | tee -a $LOGFILE
 
