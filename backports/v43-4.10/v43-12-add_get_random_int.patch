@@ -1,0 +1,73 @@
+--- linux-4.10/drivers/char/lrng/lrng_interfaces.c.orig	2020-08-21 17:48:57.871336752 +0200
++++ linux-4.10/drivers/char/lrng/lrng_interfaces.c	2020-08-21 17:54:02.613459609 +0200
+@@ -7,6 +7,7 @@
+ 
+ #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+ 
++#include <linux/cryptohash.h>
+ #include <linux/freezer.h>
+ #include <linux/fs.h>
+ #include <linux/genhd.h>
+@@ -630,3 +631,62 @@ SYSCALL_DEFINE3(getrandom, char __user *
+ 
+ 	return lrng_read_common_block(flags & GRND_NONBLOCK, buf, count);
+ }
++
++/* Code duplication from drivers/char/random.c - for copyright see this file */
++static u32 random_int_secret[MD5_MESSAGE_BYTES / 4] ____cacheline_aligned;
++
++int random_int_secret_init(void)
++{
++	get_random_bytes(random_int_secret, sizeof(random_int_secret));
++	return 0;
++}
++
++static DEFINE_PER_CPU(__u32 [MD5_DIGEST_WORDS], get_random_int_hash)
++		__aligned(sizeof(unsigned long));
++
++/*
++ * Get a random word for internal kernel use only. Similar to urandom but
++ * with the goal of minimal entropy pool depletion. As a result, the random
++ * value is not cryptographically secure but for several uses the cost of
++ * depleting entropy is too high
++ */
++unsigned int get_random_int(void)
++{
++	__u32 *hash;
++	unsigned int ret;
++
++	if (arch_get_random_int(&ret))
++		return ret;
++
++	hash = get_cpu_var(get_random_int_hash);
++
++	hash[0] += current->pid + jiffies + random_get_entropy();
++	md5_transform(hash, random_int_secret);
++	ret = hash[0];
++	put_cpu_var(get_random_int_hash);
++
++	return ret;
++}
++EXPORT_SYMBOL(get_random_int);
++
++/*
++ * Same as get_random_int(), but returns unsigned long.
++ */
++unsigned long get_random_long(void)
++{
++	__u32 *hash;
++	unsigned long ret;
++
++	if (arch_get_random_long(&ret))
++		return ret;
++
++	hash = get_cpu_var(get_random_int_hash);
++
++	hash[0] += current->pid + jiffies + random_get_entropy();
++	md5_transform(hash, random_int_secret);
++	ret = *(unsigned long *)hash;
++	put_cpu_var(get_random_int_hash);
++
++	return ret;
++}
++EXPORT_SYMBOL(get_random_long);
