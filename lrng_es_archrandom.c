@@ -175,6 +175,12 @@ static u32 lrng_arch_multiplier(void)
 		 * entropy per data bit.
 		 */
 		data_multiplier = 2;
+	} else if (IS_ENABLED(CONFIG_RISCV)) {
+		/*
+		 * riscv-crypto-spec-scalar-1.0.0-rc6.pdf section 4.2 defines
+		 * this requirement.
+		 */
+		data_multiplier = 2;
 	} else {
 		/* CPU provides full entropy */
 		data_multiplier = CONFIG_LRNG_CPU_FULL_ENT_MULTIPLIER;
