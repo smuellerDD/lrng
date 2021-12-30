@@ -128,7 +128,7 @@ This invocation generates the graph `lrng_raw_noise_hist.svg`.
 
 ## Statistical Properties
 
-The tool `stats.` calculates the statistical properties of the
+The tool `stats.r` calculates the statistical properties of the
 raw noise source data.
 
 It is invoked with the following command:
