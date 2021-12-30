@@ -15,7 +15,7 @@ struct lrng_hash_info {
 	struct crypto_shash *tfm;
 };
 
-static inline void _lrng_kcapi_hash_free(struct lrng_hash_info *lrng_hash)
+static void _lrng_kcapi_hash_free(struct lrng_hash_info *lrng_hash)
 {
 	struct crypto_shash *tfm = lrng_hash->tfm;
 

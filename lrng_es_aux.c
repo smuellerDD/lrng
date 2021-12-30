@@ -51,7 +51,7 @@ u32 lrng_avail_aux_entropy(void)
 }
 
 /* Set the digest size of the used hash in bytes */
-static inline void lrng_set_digestsize(u32 digestsize)
+static void lrng_set_digestsize(u32 digestsize)
 {
 	struct lrng_pool *pool = &lrng_pool;
 	u32 ent_bits = atomic_xchg_relaxed(&pool->aux_entropy_bits, 0),
@@ -197,7 +197,7 @@ int lrng_pool_insert_aux(const u8 *inbuf, u32 inbuflen, u32 entropy_bits)
  * @requested_bits: Requested amount of entropy
  * @return: amount of entropy in outbuf in bits.
  */
-static inline u32 lrng_get_aux_pool(u8 *outbuf, u32 requested_bits)
+static u32 lrng_get_aux_pool(u8 *outbuf, u32 requested_bits)
 {
 	struct lrng_pool *pool = &lrng_pool;
 	struct shash_desc *shash = (struct shash_desc *)pool->aux_pool;

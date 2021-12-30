@@ -64,7 +64,7 @@ void lrng_state_exseed_set(enum lrng_external_noise_source source, bool type)
 		lrng_state.lrng_seed_user = type;
 }
 
-static inline void lrng_state_exseed_allow_all(void)
+static void lrng_state_exseed_allow_all(void)
 {
 	lrng_state_exseed_set(lrng_noise_source_hw, true);
 	lrng_state_exseed_set(lrng_noise_source_user, true);
@@ -161,7 +161,7 @@ void lrng_unset_fully_seeded(struct lrng_drng *drng)
 }
 
 /* Policy to enable LRNG operational mode */
-static inline void lrng_set_operational(u32 external_es)
+static void lrng_set_operational(u32 external_es)
 {
 	/* LRNG is operational if the initial DRNG is fully seeded ... */
 	if (lrng_state.lrng_fully_seeded &&

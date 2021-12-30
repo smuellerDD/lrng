@@ -45,7 +45,7 @@
 static u32 lrng_data_selftest_ptr = 0;
 static u32 lrng_data_selftest[LRNG_DATA_ARRAY_SIZE];
 
-static inline void lrng_data_process_selftest_insert(u32 time)
+static void lrng_data_process_selftest_insert(u32 time)
 {
 	u32 ptr = lrng_data_selftest_ptr++ & LRNG_DATA_WORD_MASK;
 	unsigned int array = lrng_data_idx2array(ptr);
@@ -59,7 +59,7 @@ static inline void lrng_data_process_selftest_insert(u32 time)
 		lrng_data_slot_val(time & LRNG_DATA_SLOTSIZE_MASK, slot);
 }
 
-static inline void lrng_data_process_selftest_u32(u32 data)
+static void lrng_data_process_selftest_u32(u32 data)
 {
 	u32 pre_ptr, ptr, mask;
 	unsigned int pre_array;
@@ -165,7 +165,7 @@ static unsigned int lrng_gcd_selftest(void)
 
 #endif /* CONFIG_LRNG_IRQ */
 
-static inline void lrng_selftest_bswap32(u32 *ptr, u32 words)
+static void lrng_selftest_bswap32(u32 *ptr, u32 words)
 {
 	u32 i;
 

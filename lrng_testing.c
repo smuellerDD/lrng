@@ -46,7 +46,7 @@ struct lrng_testing {
  *	 disabled
  */
 
-static inline void lrng_testing_reset(struct lrng_testing *data)
+static void lrng_testing_reset(struct lrng_testing *data)
 {
 	unsigned long flags;
 
@@ -56,7 +56,7 @@ static inline void lrng_testing_reset(struct lrng_testing *data)
 	spin_unlock_irqrestore(&data->lock, flags);
 }
 
-static inline void lrng_testing_init(struct lrng_testing *data, u32 boot)
+static void lrng_testing_init(struct lrng_testing *data, u32 boot)
 {
 	/*
 	 * The boot time testing implies we have a running test. If the
@@ -71,7 +71,7 @@ static inline void lrng_testing_init(struct lrng_testing *data, u32 boot)
 	pr_warn("Enabling data collection\n");
 }
 
-static inline void lrng_testing_fini(struct lrng_testing *data, u32 boot)
+static void lrng_testing_fini(struct lrng_testing *data, u32 boot)
 {
 	/* If we have boot data, we do not reset yet to allow data to be read */
 	if (boot)
@@ -82,8 +82,8 @@ static inline void lrng_testing_fini(struct lrng_testing *data, u32 boot)
 	pr_warn("Disabling data collection\n");
 }
 
-static inline bool lrng_testing_store(struct lrng_testing *data, u32 value,
-				      u32 *boot)
+static bool lrng_testing_store(struct lrng_testing *data, u32 value,
+			       u32 *boot)
 {
 	unsigned long flags;
 
@@ -120,14 +120,14 @@ static inline bool lrng_testing_store(struct lrng_testing *data, u32 value,
 	return true;
 }
 
-static inline bool lrng_testing_have_data(struct lrng_testing *data)
+static bool lrng_testing_have_data(struct lrng_testing *data)
 {
 	return ((data->rb_writer & LRNG_TESTING_RINGBUFFER_MASK) !=
 		 (data->rb_reader & LRNG_TESTING_RINGBUFFER_MASK));
 }
 
-static inline int lrng_testing_reader(struct lrng_testing *data, u32 *boot,
-				      u8 *outbuf, u32 outbuflen)
+static int lrng_testing_reader(struct lrng_testing *data, u32 *boot,
+			       u8 *outbuf, u32 outbuflen)
 {
 	unsigned long flags;
 	int collected_data = 0;

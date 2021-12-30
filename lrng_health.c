@@ -70,13 +70,13 @@ static struct lrng_health lrng_health = {
 
 static DEFINE_PER_CPU(struct lrng_stuck_test, lrng_stuck_test);
 
-static inline bool lrng_sp80090b_health_requested(void)
+static bool lrng_sp80090b_health_requested(void)
 {
 	/* Health tests are only requested in FIPS mode */
 	return fips_enabled;
 }
 
-static inline bool lrng_sp80090b_health_enabled(void)
+static bool lrng_sp80090b_health_enabled(void)
 {
 	struct lrng_health *health = &lrng_health;
 
@@ -102,7 +102,7 @@ static inline bool lrng_sp80090b_health_enabled(void)
 /*
  * Perform SP800-90B startup testing
  */
-static inline void lrng_sp80090b_startup(struct lrng_health *health)
+static void lrng_sp80090b_startup(struct lrng_health *health)
 {
 	if (!health->sp80090b_startup_done &&
 	    atomic_dec_and_test(&health->sp80090b_startup_blocks)) {
@@ -126,7 +126,7 @@ static inline void lrng_sp80090b_startup(struct lrng_health *health)
 /*
  * Handle failure of SP800-90B startup testing
  */
-static inline void lrng_sp80090b_startup_failure(struct lrng_health *health)
+static void lrng_sp80090b_startup_failure(struct lrng_health *health)
 {
 	/* Reset of LRNG and its entropy - NOTE: we are in atomic context */
 	lrng_reset();
@@ -146,13 +146,13 @@ static inline void lrng_sp80090b_startup_failure(struct lrng_health *health)
 /*
  * Handle failure of SP800-90B runtime testing
  */
-static inline void lrng_sp80090b_runtime_failure(struct lrng_health *health)
+static void lrng_sp80090b_runtime_failure(struct lrng_health *health)
 {
 	lrng_sp80090b_startup_failure(health);
 	health->sp80090b_startup_done = false;
 }
 
-static inline void lrng_sp80090b_failure(struct lrng_health *health)
+static void lrng_sp80090b_failure(struct lrng_health *health)
 {
 	if (health->sp80090b_startup_done) {
 		pr_err("SP800-90B runtime health test failure - invalidating all existing entropy and initiate SP800-90B startup\n");
@@ -196,7 +196,7 @@ bool lrng_sp80090b_compliant(void)
  *
  * @health [in] Reference to health state
  */
-static inline void lrng_apt_reset(struct lrng_health *health,
+static void lrng_apt_reset(struct lrng_health *health,
 				  unsigned int time_masked)
 {
 	struct lrng_apt *apt = &health->apt;
@@ -209,7 +209,7 @@ static inline void lrng_apt_reset(struct lrng_health *health,
 	atomic_set(&apt->apt_base, time_masked);
 }
 
-static inline void lrng_apt_restart(struct lrng_health *health)
+static void lrng_apt_restart(struct lrng_health *health)
 {
 	struct lrng_apt *apt = &health->apt;
 
@@ -227,8 +227,8 @@ static inline void lrng_apt_restart(struct lrng_health *health)
  * @health [in] Reference to health state
  * @now_time [in] Time stamp to process
  */
-static inline void lrng_apt_insert(struct lrng_health *health,
-				   unsigned int now_time)
+static void lrng_apt_insert(struct lrng_health *health,
+			    unsigned int now_time)
 {
 	struct lrng_apt *apt = &health->apt;
 
@@ -281,7 +281,7 @@ static inline void lrng_apt_insert(struct lrng_health *health,
  * @health: Reference to health information
  * @stuck: Decision of stuck test
  */
-static inline void lrng_rct(struct lrng_health *health, int stuck)
+static void lrng_rct(struct lrng_health *health, int stuck)
 {
 	struct lrng_rct *rct = &health->rct;
 
@@ -332,7 +332,7 @@ static inline void lrng_rct(struct lrng_health *health, int stuck)
  * high-resolution time stamps are identified after initialization.
  ***************************************************************************/
 
-static inline u32 lrng_delta(u32 prev, u32 next)
+static u32 lrng_delta(u32 prev, u32 next)
 {
 	/*
 	 * Note that this (unsigned) subtraction does yield the correct value
@@ -349,7 +349,7 @@ static inline u32 lrng_delta(u32 prev, u32 next)
  * @return: 0 event occurrence not stuck (good time stamp)
  *	    != 0 event occurrence stuck (reject time stamp)
  */
-static inline int lrng_irq_stuck(struct lrng_stuck_test *stuck, u32 now_time)
+static int lrng_irq_stuck(struct lrng_stuck_test *stuck, u32 now_time)
 {
 	u32 delta = lrng_delta(stuck->last_time, now_time);
 	u32 delta2 = lrng_delta(stuck->last_delta, delta);

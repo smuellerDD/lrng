@@ -102,13 +102,13 @@ static atomic_t lrng_gcd_history_ptr = ATOMIC_INIT(-1);
 /* The common divisor for all timestamps */
 static u32 lrng_gcd_timer = 0;
 
-static inline bool lrng_gcd_tested(void)
+static bool lrng_gcd_tested(void)
 {
 	return (lrng_gcd_timer != 0);
 }
 
 /* Set the GCD for use in IRQ ES - if 0, the GCD calculation is restarted. */
-static inline void _lrng_gcd_set(u32 running_gcd)
+static void _lrng_gcd_set(u32 running_gcd)
 {
 	lrng_gcd_timer = running_gcd;
 	/* Ensure that update to global variable lrng_gcd_timer is visible */
@@ -190,20 +190,20 @@ static bool lrng_pool_highres_timer(void)
 }
 
 /* Convert entropy in bits into number of IRQs with the same entropy content. */
-static inline u32 lrng_entropy_to_data(u32 entropy_bits)
+static u32 lrng_entropy_to_data(u32 entropy_bits)
 {
 	return ((entropy_bits * lrng_irq_entropy_bits) /
 		LRNG_DRNG_SECURITY_STRENGTH_BITS);
 }
 
 /* Convert number of IRQs into entropy value. */
-static inline u32 lrng_data_to_entropy(u32 irqnum)
+static u32 lrng_data_to_entropy(u32 irqnum)
 {
 	return ((irqnum * LRNG_DRNG_SECURITY_STRENGTH_BITS) /
 		lrng_irq_entropy_bits);
 }
 
-static inline bool lrng_pcpu_pool_online(int cpu)
+static bool lrng_pcpu_pool_online(int cpu)
 {
 	return per_cpu(lrng_pcpu_lock_init, cpu);
 }
@@ -390,7 +390,7 @@ out:
  * callbacks defined for the NUMA node the per-CPU pool is defined for because
  * the LRNG crypto switch support is only atomic per NUMA node.
  */
-static inline u32
+static u32
 lrng_pcpu_pool_hash_one(const struct lrng_crypto_cb *pcpu_crypto_cb,
 			void *pcpu_hash, int cpu, u8 *digest, u32 *digestsize)
 {
@@ -561,7 +561,7 @@ err:
 }
 
 /* Compress the lrng_pcpu_array array into lrng_pcpu_pool */
-static inline void lrng_pcpu_array_compress(void)
+static void lrng_pcpu_array_compress(void)
 {
 	struct shash_desc *shash =
 			(struct shash_desc *)this_cpu_ptr(lrng_pcpu_pool);
@@ -609,7 +609,7 @@ static inline void lrng_pcpu_array_compress(void)
 }
 
 /* Compress data array into hash */
-static inline void lrng_pcpu_array_to_hash(u32 ptr)
+static void lrng_pcpu_array_to_hash(u32 ptr)
 {
 	u32 *array = this_cpu_ptr(lrng_pcpu_array);
 
@@ -649,7 +649,7 @@ static inline void lrng_pcpu_array_to_hash(u32 ptr)
  * Concatenate full 32 bit word at the end of time array even when current
  * ptr is not aligned to sizeof(data).
  */
-static inline void _lrng_pcpu_array_add_u32(u32 data)
+static void _lrng_pcpu_array_add_u32(u32 data)
 {
 	/* Increment pointer by number of slots taken for input value */
 	u32 pre_ptr, mask, ptr = this_cpu_add_return(lrng_pcpu_array_ptr,
@@ -701,7 +701,7 @@ void lrng_pcpu_array_add_u32(u32 data)
 }
 
 /* Concatenate data of max LRNG_DATA_SLOTSIZE_MASK at the end of time array */
-static inline void lrng_pcpu_array_add_slot(u32 data)
+static void lrng_pcpu_array_add_slot(u32 data)
 {
 	/* Get slot */
 	u32 ptr = this_cpu_inc_return(lrng_pcpu_array_ptr) &
@@ -724,7 +724,7 @@ static inline void lrng_pcpu_array_add_slot(u32 data)
 	lrng_pcpu_array_to_hash(ptr);
 }
 
-static inline void
+static void
 lrng_time_process_common(u32 time, void(*add_time)(u32 data))
 {
 	enum lrng_health_res health_test;
@@ -745,7 +745,7 @@ lrng_time_process_common(u32 time, void(*add_time)(u32 data))
 /*
  * Batching up of entropy in per-CPU array before injecting into entropy pool.
  */
-static inline void lrng_time_process(void)
+static void lrng_time_process(void)
 {
 	u32 now_time = random_get_entropy();
 

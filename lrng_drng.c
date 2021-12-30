@@ -198,7 +198,7 @@ static void lrng_drng_inject(struct lrng_drng *drng,
 /*
  * Perform the seeding of the DRNG with data from noise source
  */
-static inline void _lrng_drng_seed(struct lrng_drng *drng)
+static void _lrng_drng_seed(struct lrng_drng *drng)
 {
 	struct entropy_buf seedbuf __aligned(LRNG_KCAPI_ALIGN);
 
@@ -243,7 +243,7 @@ static void lrng_drng_seed(struct lrng_drng *drng)
 	}
 }
 
-static inline void _lrng_drng_seed_work(struct lrng_drng *drng, u32 node)
+static void _lrng_drng_seed_work(struct lrng_drng *drng, u32 node)
 {
 	pr_debug("reseed triggered by interrupt noise source for DRNG on NUMA node %d\n",
 		 node);

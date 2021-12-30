@@ -78,8 +78,8 @@ static u32 lrng_get_arch_data(u8 *outbuf, u32 requested_bits)
 	return requested_bits;
 }
 
-static inline u32 lrng_get_arch_data_compress(u8 *outbuf, u32 requested_bits,
-					      u32 data_multiplier)
+static u32 lrng_get_arch_data_compress(u8 *outbuf, u32 requested_bits,
+				       u32 data_multiplier)
 {
 	SHASH_DESC_ON_STACK(shash, NULL);
 	const struct lrng_crypto_cb *crypto_cb;

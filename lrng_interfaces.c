@@ -41,7 +41,7 @@ static struct fasync_struct *fasync;
 /********************************** Helper ***********************************/
 
 /* Is the DRNG seed level too low? */
-static inline bool lrng_need_entropy(void)
+static bool lrng_need_entropy(void)
 {
 	return (lrng_avail_aux_entropy() < lrng_write_wakeup_bits);
 }
