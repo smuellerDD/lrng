@@ -3,14 +3,36 @@
 # Linux Random Number Generator configuration
 #
 
-menuconfig LRNG
-	bool "Linux Random Number Generator"
+choice
+	prompt "Random Number Generator Implementation"
+	default RANDOM_DEFAULT_IMPL
+	help
+	  Select the random number generator implementation that is
+	  accessible via /dev/random, /dev/urandom, getrandom(2), and
+	  the in-kernel function get_random_bytes.
+
+config RANDOM_DEFAULT_IMPL
+	bool "Default Implementation"
+	help
+	  The default random number generator as provided with
+	  drivers/char/random.c is selected with this option.
+
+config LRNG
+	bool "LRNG Implementation with SP800-90A/B/C compliance"
 	select CRYPTO_LIB_SHA256 if CRYPTO
 	help
-	  The Linux Random Number Generator (LRNG) is the replacement
-	  of the existing /dev/random provided with drivers/char/random.c.
-	  It generates entropy from different noise sources and
-	  delivers significant entropy during boot.
+	  The Linux Random Number Generator (LRNG) generates entropy
+	  from different entropy sources. Each entropy source can
+	  be enabled and configured independently. The interrupt
+	  entropy source can be configured to be SP800-90B compliant.
+	  The entire LRNG can be configured to be SP800-90C compliant.
+	  Runtime-switchable cryptographic support is available.
+	  The LRNG delivers significant entropy during boot.
+
+endchoice
+
+menu "Linux Random Number Generator Configuration"
+	depends on LRNG
 
 if LRNG
 
@@ -587,3 +609,5 @@ config LRNG_SELFTEST_PANIC
 endif # LRNG_SELFTEST
 
 endif # LRNG
+
+endmenu # LRNG
