@@ -17,7 +17,7 @@ static struct lrng_drng **lrng_drng __read_mostly = NULL;
 struct lrng_drng **lrng_drng_instances(void)
 {
 	/* counterpart to cmpxchg_release in _lrng_drngs_numa_alloc */
-	return smp_load_acquire(&lrng_drng);
+	return READ_ONCE(lrng_drng);
 }
 
 /* Allocate the data structures for the per-NUMA node DRNGs */
