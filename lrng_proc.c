@@ -90,7 +90,7 @@ void lrng_proc_update_max_write_thresh(u32 new_digestsize)
 	mb();
 }
 
-struct ctl_table random_table[] = {
+static struct ctl_table random_table[] = {
 	{
 		.procname	= "poolsize",
 		.maxlen		= sizeof(int),
@@ -191,10 +191,20 @@ static int lrng_proc_type_show(struct seq_file *m, void *v)
 	return 0;
 }
 
+/*
+ * rand_initialize() is called before sysctl_init(),
+ * so we cannot call register_sysctl_init() in rand_initialize()
+ */
+static int __init random_sysctls_init(void)
+{
+	register_sysctl_init("kernel/random", random_table);
+	return 0;
+}
+device_initcall(random_sysctls_init);
+
 static int __init lrng_proc_type_init(void)
 {
 	proc_create_single("lrng_type", 0444, NULL, &lrng_proc_type_show);
 	return 0;
 }
-
 module_init(lrng_proc_type_init);
