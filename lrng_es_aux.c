@@ -206,7 +206,7 @@ static u32 lrng_get_aux_pool(u8 *outbuf, u32 requested_bits)
 	unsigned long flags;
 	void *hash;
 	u32 collected_ent_bits, returned_ent_bits, unused_bits = 0,
-	    digestsize;
+	    digestsize, requested_bits_osr;
 	u8 aux_output[LRNG_MAX_DIGESTSIZE];
 
 	if (unlikely(!pool->initialized))
@@ -220,19 +220,20 @@ static u32 lrng_get_aux_pool(u8 *outbuf, u32 requested_bits)
 
 	/* Ensure that no more than the size of aux_pool can be requested */
 	requested_bits = min_t(u32, requested_bits, (LRNG_MAX_DIGESTSIZE << 3));
+	requested_bits_osr = requested_bits + lrng_compress_osr();
 
 	/* Cap entropy with entropy counter from aux pool and the used digest */
 	collected_ent_bits = min_t(u32, digestsize << 3,
 			       atomic_xchg_relaxed(&pool->aux_entropy_bits, 0));
 
 	/* We collected too much entropy and put the overflow back */
-	if (collected_ent_bits > (requested_bits + lrng_compress_osr())) {
+	if (collected_ent_bits > requested_bits_osr) {
 		/* Amount of bits we collected too much */
-		unused_bits = collected_ent_bits - requested_bits;
+		unused_bits = collected_ent_bits - requested_bits_osr;
 		/* Put entropy back */
 		atomic_add(unused_bits, &pool->aux_entropy_bits);
 		/* Fix collected entropy */
-		collected_ent_bits = requested_bits;
+		collected_ent_bits = requested_bits_osr;
 	}
 
 	/* Apply oversampling: discount requested oversampling rate */
