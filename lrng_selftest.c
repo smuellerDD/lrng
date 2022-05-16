@@ -2,7 +2,7 @@
 /*
  * LRNG power-on and on-demand self-test
  *
- * Copyright (C) 2016 - 2021, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2022, Stephan Mueller <smueller@chronox.de>
  */
 
 /*
@@ -24,12 +24,12 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
-#include <linux/module.h>
 #include <linux/lrng.h>
+#include <linux/module.h>
 #include <linux/slab.h>
 
-#include "lrng_chacha20.h"
-#include "lrng_internal.h"
+#include "lrng_drng_chacha20.h"
+#include "lrng_sha.h"
 
 #define LRNG_SELFTEST_PASSED		0
 #define LRNG_SEFLTEST_ERROR_TIME	(1 << 0)
@@ -38,9 +38,9 @@
 #define LRNG_SEFLTEST_ERROR_GCD		(1 << 3)
 #define LRNG_SELFTEST_NOT_EXECUTED	0xffffffff
 
-#ifdef CONFIG_LRNG_IRQ
+#ifdef CONFIG_LRNG_TIMER_COMMON
 
-#include "lrng_es_irq.h"
+#include "lrng_es_timer_common.h"
 
 static u32 lrng_data_selftest_ptr = 0;
 static u32 lrng_data_selftest[LRNG_DATA_ARRAY_SIZE];
@@ -70,7 +70,7 @@ static void lrng_data_process_selftest_u32(u32 data)
 	/* ptr to current unit */
 	ptr = lrng_data_selftest_ptr;
 
-	lrng_pcpu_split_u32(&ptr, &pre_ptr, &mask);
+	lrng_data_split_u32(&ptr, &pre_ptr, &mask);
 
 	/* MSB of data go into previous unit */
 	pre_array = lrng_data_idx2array(pre_ptr);
@@ -151,7 +151,7 @@ static unsigned int lrng_gcd_selftest(void)
 	return LRNG_SEFLTEST_ERROR_GCD;
 }
 
-#else /* CONFIG_LRNG_IRQ */
+#else /* CONFIG_LRNG_TIMER_COMMON */
 
 static unsigned int lrng_data_process_selftest(void)
 {
@@ -163,7 +163,41 @@ static unsigned int lrng_gcd_selftest(void)
 	return LRNG_SELFTEST_PASSED;
 }
 
-#endif /* CONFIG_LRNG_IRQ */
+#endif /* CONFIG_LRNG_TIMER_COMMON */
+
+/* The test vectors are taken from crypto/testmgr.h */
+static unsigned int lrng_hash_selftest(void)
+{
+	SHASH_DESC_ON_STACK(shash, NULL);
+	const struct lrng_hash_cb *hash_cb = &lrng_sha_hash_cb;
+	static const u8 lrng_hash_selftest_result[] =
+#ifdef CONFIG_CRYPTO_LIB_SHA256
+		{ 0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea,
+		  0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23,
+		  0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
+		  0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad };
+#else /* CONFIG_CRYPTO_LIB_SHA256 */
+		{ 0xa9, 0x99, 0x3e, 0x36, 0x47, 0x06, 0x81, 0x6a, 0xba, 0x3e,
+		  0x25, 0x71, 0x78, 0x50, 0xc2, 0x6c, 0x9c, 0xd0, 0xd8, 0x9d };
+#endif /* CONFIG_CRYPTO_LIB_SHA256 */
+	static const u8 hash_input[] = { 0x61, 0x62, 0x63 }; /* "abc" */
+	u8 digest[sizeof(lrng_hash_selftest_result)] __aligned(sizeof(u32));
+
+	if (sizeof(digest) != hash_cb->hash_digestsize(NULL))
+		return LRNG_SEFLTEST_ERROR_HASH;
+
+	if (!hash_cb->hash_init(shash, NULL) &&
+	    !hash_cb->hash_update(shash, hash_input,
+					 sizeof(hash_input)) &&
+	    !hash_cb->hash_final(shash, digest) &&
+	    !memcmp(digest, lrng_hash_selftest_result, sizeof(digest)))
+		return 0;
+
+	pr_err("LRNG %s Hash self-test FAILED\n", hash_cb->hash_name());
+	return LRNG_SEFLTEST_ERROR_HASH;
+}
+
+#ifdef CONFIG_LRNG_DRNG_CHACHA20
 
 static void lrng_selftest_bswap32(u32 *ptr, u32 words)
 {
@@ -178,45 +212,13 @@ static void lrng_selftest_bswap32(u32 *ptr, u32 words)
 	}
 }
 
-/* The test vectors are taken from crypto/testmgr.h */
-static unsigned int lrng_hash_selftest(void)
-{
-	SHASH_DESC_ON_STACK(shash, NULL);
-	const struct lrng_crypto_cb *crypto_cb = &lrng_cc20_crypto_cb;
-	static const u8 lrng_hash_selftest_result[] =
-#ifdef CONFIG_CRYPTO_LIB_SHA256
-		{ 0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea,
-		  0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23,
-		  0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
-		  0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad };
-#else /* CONFIG_CRYPTO_LIB_SHA256 */
-		{ 0xa9, 0x99, 0x3e, 0x36, 0x47, 0x06, 0x81, 0x6a, 0xba, 0x3e,
-		  0x25, 0x71, 0x78, 0x50, 0xc2, 0x6c, 0x9c, 0xd0, 0xd8, 0x9d };
-#endif /* CONFIG_CRYPTO_LIB_SHA256 */
-	static const u8 hash_input[] = { 0x61, 0x62, 0x63 }; /* "abc" */
-	u8 digest[sizeof(lrng_hash_selftest_result)] __aligned(sizeof(u32));
-
-	if (sizeof(digest) != crypto_cb->lrng_hash_digestsize(NULL))
-		return LRNG_SEFLTEST_ERROR_HASH;
-
-	if (!crypto_cb->lrng_hash_init(shash, NULL) &&
-	    !crypto_cb->lrng_hash_update(shash, hash_input,
-					 sizeof(hash_input)) &&
-	    !crypto_cb->lrng_hash_final(shash, digest) &&
-	    !memcmp(digest, lrng_hash_selftest_result, sizeof(digest)))
-		return 0;
-
-	pr_err("LRNG %s Hash self-test FAILED\n", crypto_cb->lrng_hash_name());
-	return LRNG_SEFLTEST_ERROR_HASH;
-}
-
 /*
  * The test vectors were generated using the ChaCha20 DRNG from
  * https://www.chronox.de/chacha20.html
  */
 static unsigned int lrng_chacha20_drng_selftest(void)
 {
-	const struct lrng_crypto_cb *crypto_cb = &lrng_cc20_crypto_cb;
+	const struct lrng_drng_cb *drng_cb = &lrng_cc20_drng_cb;
 	u8 seed[CHACHA_KEY_SIZE * 2] = {
 		0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
 		0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
@@ -294,8 +296,8 @@ static unsigned int lrng_chacha20_drng_selftest(void)
 	lrng_selftest_bswap32((u32 *)seed, sizeof(seed) / sizeof(u32));
 
 	/* Generate with zero state */
-	ret = crypto_cb->lrng_drng_generate_helper(&chacha20, outbuf,
-						   sizeof(expected_halfblock));
+	ret = drng_cb->drng_generate(&chacha20, outbuf,
+				     sizeof(expected_halfblock));
 	if (ret != sizeof(expected_halfblock))
 		goto err;
 	if (memcmp(outbuf, expected_halfblock, sizeof(expected_halfblock)))
@@ -305,12 +307,11 @@ static unsigned int lrng_chacha20_drng_selftest(void)
 	memset(&chacha20.key.u[0], 0, 48);
 
 	/* Reseed with 2 key blocks */
-	ret = crypto_cb->lrng_drng_seed_helper(&chacha20, seed,
-					       sizeof(expected_oneblock));
+	ret = drng_cb->drng_seed(&chacha20, seed, sizeof(expected_oneblock));
 	if (ret < 0)
 		goto err;
-	ret = crypto_cb->lrng_drng_generate_helper(&chacha20, outbuf,
-						   sizeof(expected_oneblock));
+	ret = drng_cb->drng_generate(&chacha20, outbuf,
+				     sizeof(expected_oneblock));
 	if (ret != sizeof(expected_oneblock))
 		goto err;
 	if (memcmp(outbuf, expected_oneblock, sizeof(expected_oneblock)))
@@ -320,12 +321,12 @@ static unsigned int lrng_chacha20_drng_selftest(void)
 	memset(&chacha20.key.u[0], 0, 48);
 
 	/* Reseed with 1 key block and one byte */
-	ret = crypto_cb->lrng_drng_seed_helper(&chacha20, seed,
-					sizeof(expected_block_nonalinged));
+	ret = drng_cb->drng_seed(&chacha20, seed,
+				 sizeof(expected_block_nonalinged));
 	if (ret < 0)
 		goto err;
-	ret = crypto_cb->lrng_drng_generate_helper(&chacha20, outbuf,
-					sizeof(expected_block_nonalinged));
+	ret = drng_cb->drng_generate(&chacha20, outbuf,
+				     sizeof(expected_block_nonalinged));
 	if (ret != sizeof(expected_block_nonalinged))
 		goto err;
 	if (memcmp(outbuf, expected_block_nonalinged,
@@ -338,6 +339,15 @@ err:
 	pr_err("LRNG ChaCha20 DRNG self-test FAILED\n");
 	return LRNG_SEFLTEST_ERROR_CHACHA20;
 }
+
+#else /* CONFIG_LRNG_DRNG_CHACHA20 */
+
+static unsigned int lrng_chacha20_drng_selftest(void)
+{
+	return LRNG_SELFTEST_PASSED;
+}
+
+#endif /* CONFIG_LRNG_DRNG_CHACHA20 */
 
 static unsigned int lrng_selftest_status = LRNG_SELFTEST_NOT_EXECUTED;
 
