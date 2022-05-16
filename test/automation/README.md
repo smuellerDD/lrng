@@ -1,7 +1,7 @@
 # Automated Regression Tests
 
 The directory contains automated regression tests for the LRNG verifying
-various aspects of the LRNG with different permutations of LRNG configurations.
+various aspects of the LRNG with different permutations of ESDM configurations.
 
 ## Quick Start
 

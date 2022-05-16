@@ -103,7 +103,7 @@ The entropy rate per interrupt event is therefore
 	rate = 256/CONFIG_LRNG_IRQ_ENTROPY_RATE (bits of entropy per event)
 ```
 
-Thus, if you, say, configure CONFIG_LRNG_IRQ_ENTROPY_RATE=512, the LRNG
+Thus, if you, say, configure CONFIG_LRNG_IRQ_ENTROPY_RATE=512, the ESDM
 heuristic applies an entropy estimate of 1/2 bits of entropy per interrupt
 event.
 

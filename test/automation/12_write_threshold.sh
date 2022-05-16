@@ -25,13 +25,26 @@
 TESTNAME="Write threshold"
 
 write_threshold_file="/proc/sys/kernel/random/write_wakeup_threshold"
+fips_enabled="/proc/sys/crypto/fips_enabled"
+fips=$(cat $fips_enabled)
+
+sp80090c_osr()
+{
+	local val=$1
+	if [ $fips -eq 1 ]
+	then
+		echo $(($val-64))
+	else
+		echo $val
+	fi
+}
 
 threshold_verification()
 {
 	local thresh=$(cat $write_threshold_file)
 
 	# Check for default value
-	if [ $thresh -eq 256 ]
+	if [ $thresh -eq $(sp80090c_osr 256) ]
 	then
 		echo_pass "$TESTNAME: expected initial value found"
 	else
@@ -41,7 +54,7 @@ threshold_verification()
 	# Default hash is SHA-256 -> threshold cannot be larger than 256
 	echo 300 > $write_threshold_file 2>/dev/null
 	thresh=$(cat $write_threshold_file)
-	if [ $thresh -eq 256 ]
+	if [ $thresh -eq $(sp80090c_osr 256) ]
 	then
 		echo_pass "$TESTNAME: expected initial value found after wrong update attempt"
 	else
@@ -58,13 +71,13 @@ threshold_verification()
 		echo_fail "$TESTNAME: expected updated value not found"
 	fi
 
-	# Insert DRBG with its SHA-512 -> threshold max is 512
-	# Check that low value is unchanged as it does not violate threshold max
-	modprobe lrng_drbg
+	# Insert hash with its SHA-512 -> threshold max is 512
+	# Check that low value is updated
+	modprobe lrng_hash_kcapi
 	thresh=$(cat $write_threshold_file)
-	if [ $thresh -eq 100 ]
+	if [ $thresh -eq $(sp80090c_osr 512) ]
 	then
-		echo_pass "$TESTNAME: expected updated value after inserting DRBG found"
+		echo_pass "$TESTNAME: expected updated value after inserting hash found"
 	else
 		echo_fail "$TESTNAME: expected updated value not found"
 	fi
@@ -79,16 +92,36 @@ threshold_verification()
 		echo_fail "$TESTNAME: expected updated value not found"
 	fi
 
-	rmmod lrng_drbg
+	# SHA-512 -> threshold can be up to 512, but ensure we are not writing more
+	echo $(sp80090c_osr 513) > $write_threshold_file 2>/dev/null
+	thresh=$(cat $write_threshold_file)
+	if [ $thresh -eq $(sp80090c_osr 513) ]
+	then
+		echo_fail "$TESTNAME: expected updated value not found"
+	else
+		echo_pass "$TESTNAME: expected updated value found"
+	fi
+
+	rmmod lrng_hash_kcapi
 
 	# Now we have SHA-256 again -> kernel must automatically reduce value
 	# to new max
 	thresh=$(cat $write_threshold_file)
-	if [ $thresh -eq 256 ]
+	if [ $thresh -eq $(sp80090c_osr 256) ]
 	then
 		echo_pass "$TESTNAME: expected kernel-updated value found"
 	else
 		echo_fail "$TESTNAME: expected kernel-updated value not found"
+	fi
+
+	# SHA-256 -> threshold can be up to 256, but ensure we are not writing more
+	echo $(sp80090c_osr 257) > $write_threshold_file 2>/dev/null
+	thresh=$(cat $write_threshold_file)
+	if [ $thresh -eq $(sp80090c_osr 257) ]
+	then
+		echo_fail "$TESTNAME: expected updated value not found"
+	else
+		echo_pass "$TESTNAME: expected updated value found"
 	fi
 }
 
@@ -104,7 +137,7 @@ then
 			;;
 	esac
 else
-	$(check_kernel_config "CONFIG_LRNG_DRBG=m")
+	$(check_kernel_config "CONFIG_LRNG_HASH_KCAPI=m")
 	if [ $? -ne 0 ]
 	then
 		echo_deact "$TESTNAME: testing skipped"
@@ -116,4 +149,7 @@ else
 	#
 	write_cmd "test1"
 	execvirt $(full_scriptname $0)
+
+	write_cmd "test1"
+	execvirt $(full_scriptname $0) "fips=1"
 fi

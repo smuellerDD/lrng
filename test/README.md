@@ -7,7 +7,7 @@ The following description of the different tests apply
 * `atomic`: This directory contains a kernel module that tries to generate
   large quantities of random numbers in atomic context. This shall verify
   that the LRNG properly delivers data in atomic context. Such test is of
-  particular interest when the lrng_drbg.ko module is loaded and the
+  particular interest when the lrng_drng_drbg.ko module is loaded and the
   kernel crypto API DRBG is used which may sleep.
 
 * `automation`: This directory contains an automated regression test.
@@ -41,8 +41,8 @@ The following description of the different tests apply
   swap operation in loaded systems. The tool instantiates applications that
   continuously pull data from /dev/urandom (one caller per identified NUMA node)
   and a caller pulling /dev/random. While the LRNG is under this load, the
-  kernel module lrng_drbg.ko is continuously loaded and unloaded triggering a
-  constant swap of the DRNG from / to ChaCha20 and SP800-90A DRBG.
+  kernel module lrng_drng_drbg.ko is continuously loaded and unloaded triggering
+  a constant swap of the DRNG from / to ChaCha20 and SP800-90A DRBG.
 
 * `syscall_test.c`: This tool allows invoking of all types of the getrandom(2)
   system calls and monitor the behavior.

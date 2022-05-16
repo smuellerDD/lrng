@@ -24,7 +24,7 @@
 #
 # CONFIG_LRNG_DRNG_SWITCH=y
 # CONFIG_LRNG_DRBG=m
-# CONFIG_LRNG_KCAPI=m
+# CONFIG_LRNG_DRNG_KCAPI=m
 # CONFIG_CRYPTO_ANSI_CPRNG=m
 #
 
@@ -36,12 +36,14 @@ KCAPI_SKIP=0
 urandom=0
 lrng_type=0
 dd_random=0
+dd_lrng=0
+kcapi_hash=0
 
 init() {
-	modinfo lrng_drbg > /dev/null 2>&1
+	modinfo lrng_drng_drbg > /dev/null 2>&1
 	DRBG_SKIP=$?
 
-	modinfo lrng_kcapi > /dev/null 2>&1
+	modinfo lrng_drng_kcapi > /dev/null 2>&1
 	KCAPI_SKIP=$?
 
 	modinfo ansi_cprng > /dev/null 2>&1
@@ -69,6 +71,16 @@ cleanup() {
 		kill $dd_random > /dev/null 2>&1
 	fi
 
+	if [ $dd_lrng -gt 0 ]
+	then
+		kill $dd_lrng > /dev/null 2>&1
+	fi
+
+	if [ $kcapi_hash -gt 0 ]
+	then
+		kill $kcapi_hash > /dev/null 2>&1
+	fi
+
 	i=0
 	while [ $i -lt $lrng_type ]
 	do
@@ -81,16 +93,16 @@ cleanup() {
 load_drbg() {
 	type=$1
 
-	sudo modprobe lrng_drbg lrng_drbg_type=$type
+	sudo modprobe lrng_drng_drbg lrng_drbg_type=$type
 	rng_name=$(cat /proc/lrng_type  | grep "DRNG name" | cut -d ":" -f2)
-	sudo rmmod lrng_drbg
+	sudo rmmod lrng_drng_drbg
 	rng_name="DRBG LRNG:$rng_name"
 }
 
 load_kcapi() {
-	sudo modprobe lrng_kcapi drng_name="$ANSI_CPRNG" pool_hash="sha512" seed_hash="sha384"
+	sudo modprobe lrng_drng_kcapi drng_name="$ANSI_CPRNG" pool_hash="sha512" seed_hash="sha384"
 	rng_name=$(cat /proc/lrng_type  | grep "DRNG name" | cut -d ":" -f2)
-	sudo rmmod lrng_kcapi
+	sudo rmmod lrng_drng_kcapi
 	rng_name="KCAPI LRNG:$rng_name"
 }
 
@@ -121,6 +133,13 @@ echo "spawn load on /dev/random"
 ( dd if=/dev/random of=/dev/null bs=4096 > /dev/null 2>&1) &
 dd_random=$!
 
+if [ -c /dev/lrng ]
+then
+	echo "spawn load on /dev/lrng"
+	( dd if=/dev/random of=/dev/null bs=4096 > /dev/null 2>&1) &
+	dd_lrng=$!
+fi
+
 # lrng_type uses the crypto callbacks which implies locking - ensure that
 # this code path is executed so that these locks are taken
 while [ $lrng_type -lt $NUMA_NODES ]
@@ -144,6 +163,10 @@ then
 		ANSI_CPRNG="fips_ansi_cprng"
 	fi
 fi
+
+echo "Spawning loading of hash"
+( while [ 1 ]; do modprobe lrng_hash_kcapi; rmmod lrng_hash_kcapi; done ) &
+eval kcapi_hash=$!
 
 i=1
 while [ $i -lt 5000 ]

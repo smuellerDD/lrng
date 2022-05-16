@@ -72,7 +72,7 @@ fi
 
 rm -f $RESULTS_DIR/*.txt $RESULTS_DIR/*.data  $RESULTS_DIR/*.log
 
-trap "make clean; rm -f $RESULTS_DIR/*.data $inprocess_file " 0 1 2 3 15
+trap "make clean; exit" 0 1 2 3 15
 
 
 if [ "$BUILD_EXTRACT" = "yes" ]

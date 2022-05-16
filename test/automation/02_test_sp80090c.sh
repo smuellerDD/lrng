@@ -22,6 +22,39 @@
 
 . $(dirname $0)/libtest.sh
 
+load_drng_kcapi()
+{
+	local name=$1
+
+	modprobe lrng_drng_kcapi drng_name="$name" seed_hash="sha384"
+	if [ $? -ne 0 ]
+	then
+		echo_deact "DRNG: cannot load kernel module lrng_drng_kcapi with parameter drng_name=\"$name\" seed_hash=\"sha384\""
+		return 1
+	fi
+	return 0
+}
+
+check_kcapi_drng()
+{
+	$(check_kernel_config "CONFIG_LRNG_DRNG_KCAPI=m")
+	if [ $? -ne 0 ]
+	then
+		echo_deact "DRNG: testing KCAPI DRNG skipped"
+		return
+	fi
+
+	modprobe ansi_cprng
+	local ansi_cprng="ansi_cprng"
+	if (cat /proc/sys/crypto/fips_enabled | grep -q 1)
+	then
+		ansi_cprng="fips_ansi_cprng"
+	fi
+
+	load_drng_kcapi "$ansi_cprng"
+	return $?
+}
+
 create_irqs()
 {
 	dd if=/bin/bash of=$HOMEDIR/sp80090b.tmp oflag=sync
@@ -42,10 +75,10 @@ create_irqs()
 # provides full entropy. It returns therefore the maximum of both values.
 check_normal_seed()
 {
-	modprobe lrng_drbg
+	check_kcapi_drng
 	if [ $? -ne 0 ]
 	then
-		echo_fail "SP800-90C: Cannot load lrng_drbg.ko"
+		echo_fail "SP800-90C: Cannot load lrng_drng_kcapi.ko"
 	fi
 
 	create_irqs
@@ -60,7 +93,7 @@ check_normal_seed()
 	echo > /dev/urandom
 	dd if=/dev/urandom of=/dev/null bs=32 count=1
 
-	local cpu=$(dmesg | grep "lrng_es_archrandom: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
+	local cpu=$(dmesg | grep "lrng_es_cpu: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 	local jent=$(dmesg | grep "lrng_es_jent: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 
 	local secstrength=$(grep "LRNG security strength in bits:" /proc/lrng_type  | cut -d ":" -f2)
@@ -83,17 +116,17 @@ check_normal_seed()
 
 load_drbg()
 {
-	local lastseed=$(dmesg | grep "lrng_drng: DRNG fully seeded" | tail -n 1)
+	local lastseed=$(dmesg | grep "lrng_drng_mgr: regular DRNG fully seeded" | tail -n 1)
 	local oldop=$(dmesg | grep "LRNG fully operational")
 	if [ -z "$oldop" ]
 	then
 		oldop=""
 	fi
 
-	modprobe lrng_drbg
+	check_kcapi_drng
 	if [ $? -ne 0 ]
 	then
-		echo_fail "SP800-90C: Cannot load lrng_drbg.ko"
+		echo_fail "SP800-90C: Cannot load lrng_drng_kcapi.ko"
 	fi
 
 	create_irqs
@@ -107,7 +140,7 @@ load_drbg()
 		echo_pass "SP800-90C: LRNG is re-initialized for SP800-90C compliance"
 	fi
 
-	local newseed=$(dmesg | grep "lrng_drng: DRNG fully seeded" | tail -n 1)
+	local newseed=$(dmesg | grep "lrng_drng_mgr: regular DRNG fully seeded" | tail -n 1)
 
 	if [ -z "$lastseed" -o -z "$newseed" ]
 	then
@@ -123,22 +156,16 @@ load_drbg()
 	fi
 }
 
-check_fully_post_completed()
+load_hash()
 {
-	local i=0
-	while [ $i -lt 10 ]
-	do
-		if (dmesg | grep -q "lrng_health: SP800-90B startup health tests completed")
-		then
-			return 0
-		fi
+	modprobe lrng_hash_kcapi lrng_hash_name="sha384"
+	if [ $? -ne 0 ]
+	then
+		echo_fail "SP800-90C: Cannot load lrng_hash_kcapi.ko"
+		return 1
+	fi
 
-		create_irqs
-
-		i=$((i+1))
-	done
-
-	return 1
+	return 0
 }
 
 check_fully_seeded()
@@ -150,18 +177,18 @@ check_fully_seeded()
 		# boot cycle that the dyndbg output is not yet created
 		# Thus trigger a forced DRNG reseeding with a DRNG that is
 		# known to be not fully seeded yet
-		modprobe lrng_drbg
+		check_kcapi_drng
 		if [ $? -ne 0 ]
 		then
-			echo_fail "SP800-90C: Cannot load lrng_drbg.ko"
+			echo_fail "SP800-90C: Cannot load lrng_drng_kcapi.ko"
 		fi
 
 		local i=0
 		while [ $i -lt 10 ]
 		do
-			if (dmesg | grep -q "lrng_drng: DRNG fully seeded")
+			if (dmesg | grep -q "lrng_drng_mgr: regular DRNG fully seeded")
 			then
-				rmmod lrng_drbg
+				rmmod lrng_drng_kcapi
 				return 0
 			fi
 
@@ -169,8 +196,7 @@ check_fully_seeded()
 
 			i=$((i+1))
 		done
-
-		rmmod lrng_drbg
+		rmmod lrng_drng_kcapi
 		return 1
 	else
 		return 1
@@ -181,7 +207,7 @@ check_oversampling_seed()
 {
 	jent_bits=$(dmesg | grep "lrng_es_jent: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 	irq_bits=$(dmesg | grep "lrng_es_irq: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
-	cpu_bits=$(dmesg | grep "lrng_es_archrandom: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
+	cpu_bits=$(dmesg | grep "lrng_es_cpu: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 	aux_bits=$(dmesg | grep "lrng_es_aux: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 
 	sec_strength=$(grep "LRNG security strength in bits" /proc/lrng_type | cut -d":" -f2)
@@ -279,6 +305,19 @@ sp80090c_compliance()
 
 	#
 	# Test purpose: Check that DRBG extension of LRNG can be loaded
+	#		successfully - prerequisite to set SP800-90C flag and
+	#		guaranteeing that SP800-90C rules are enforced
+	#
+	$(load_hash)
+	if [ $? -eq 0 ]
+	then
+		echo_pass "SP800-90C: Loading Hash successful"
+	else
+		echo_fail "SP800-90C: Loading Hash failed"
+	fi
+
+	#
+	# Test purpose: Check that DRBG extension of LRNG can be loaded
 	#		successfully
 	#
 	$(load_drbg)
@@ -335,7 +374,7 @@ sp80090c_compliance()
 
 sp80090c_cpu_es_data_pulled()
 {
-	local data=$(dmesg | grep "lrng_es_archrandom: pulled" | tail -n1 | sed 's/^.* pulled \([0-9]\+\) bits.*$/\1/')
+	local data=$(dmesg | grep "lrng_es_cpu: pulled" | tail -n1 | sed 's/^.* pulled \([0-9]\+\) bits.*$/\1/')
 
 	if [ -n $data ]
 	then
@@ -379,12 +418,15 @@ sp80090c_compliance_cpu_conditioning()
 	fi
 
 	# CONFIG_LRNG_CPU_FULL_ENT_MULTIPLIER == 123
-	# Data rate: multiplier * 256 bits as no SP800-90C oversampling is applicable
+	# Data rate: multiplier * (256 + 64) bits
+	# The used hash has 256 bits output size -> max transported entropy
+	# is 256 bits (requested entropy: 384)
+	# SP800-90C entropy oversampling is enabled -> 64 additional bits pulled
 	local multiplier=$(sp80090c_cpu_es_multiplier)
 
 	if [ $multiplier -gt 1 ]
 	then
-		local data_rate=$(($multiplier*256))
+		local data_rate=$(($multiplier*320))
 		local data=$(sp80090c_cpu_es_data_pulled)
 
 		if [ $data_rate -eq $data ]
@@ -396,6 +438,9 @@ sp80090c_compliance_cpu_conditioning()
 	else
 		echo_deact "SP800-90C: CPU ES conditioner oversampling: conditioning deactivated"
 	fi
+
+	# load hash to allow 384 bits of entropy to be transported
+	$(load_hash)
 
 	#
 	# Test purpose: Check that DRBG extension of LRNG can be loaded
@@ -422,6 +467,9 @@ sp80090c_compliance_cpu_conditioning()
 
 	# Initial seeding of DRBG compliant to SP800-90C
 	# Data rate: multiplier * (384 + 64)
+	# The used hash has 384 bits output size -> max transported entropy
+	# is 384 bits (requested entropy: 384)
+	# SP800-90C entropy oversampling is enabled -> 64 additional bits pulled
 	if [ $multiplier -gt 1 ]
 	then
 		local data_rate=$(($multiplier*448))
@@ -441,6 +489,9 @@ sp80090c_compliance_cpu_conditioning()
 
 	# Subsequent seeding of DRBG
 	# Data rate: multiplier * (256 + 64)
+	# The used hash has 384 bits output size -> max transported entropy
+	# is 384 bits (requested entropy: 256)
+	# SP800-90C entropy oversampling is enabled -> 64 additional bits pulled
 	if [ $multiplier -gt 1 ]
 	then
 		local data_rate=$(($multiplier*320))
@@ -473,6 +524,13 @@ then
 	esac
 else
 	$(check_kernel_config "CONFIG_LRNG_CPU=y")
+	if [ $? -ne 0 ]
+	then
+		echo_deact "SP800-90C: tests skipped"
+		exit
+	fi
+
+	$(check_kernel_config "CONFIG_LRNG_HASH_KCAPI=m")
 	if [ $? -ne 0 ]
 	then
 		echo_deact "SP800-90C: tests skipped"
@@ -514,7 +572,7 @@ else
 		exit
 	fi
 
-	$(check_kernel_config "CONFIG_LRNG_DRBG=m")
+	$(check_kernel_config "CONFIG_LRNG_DRNG_KCAPI=m")
 	if [ $? -ne 0 ]
 	then
 		echo_deact "SP800-90C: tests skipped"
@@ -525,7 +583,7 @@ else
 	# Validating Jitter RNG and IRQ ES providing sufficient seed
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jitterrng=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jent_entropy=256"
 
 	#
 	# Validating that the lower entropy rate of the IRQ ES
@@ -533,7 +591,7 @@ else
 	# oversampling entropy for SP800-90C
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jitterrng=256 lrng_es_irq.irq_entropy=1024"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jent_entropy=256 lrng_es_irq.irq_entropy=1024"
 
 
 	#
@@ -541,20 +599,20 @@ else
 	# Note: Check that NTG.1 setup does not interfere
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jitterrng=256 lrng_es_mgr.ntg1=1"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jent_entropy=256 lrng_es_mgr.ntg1=1"
 
 	#
 	# Validating Jitter RNG, CPU and IRQ ES providing sufficient seed
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_archrandom.archrandom=256 lrng_es_jent.jitterrng=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_cpu.cpu_entropy=256 lrng_es_jent.jent_entropy=256"
 
 	#
 	# Validating Jitter RNG, CPU and IRQ ES providing sufficient seed
 	# Note: Check that NTG.1 setup does not interfere
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_archrandom.archrandom=256 lrng_es_jent.jitterrng=256 lrng_es_mgr.ntg1=1"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_cpu.cpu_entropy=256 lrng_es_jent.jent_entropy=256 lrng_es_mgr.ntg1=1"
 
 	#
 	# Validating Jitter RNG, CPU and IRQ ES providing sufficient seed
@@ -562,7 +620,7 @@ else
 	# Note: Check that NTG.1 setup does not interfere
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 random.trust_cpu=1 lrng_es_jent.jitterrng=256"
+	execvirt $(full_scriptname $0) "fips=1 random.trust_cpu=1 lrng_es_jent.jent_entropy=256"
 
 	#
 	# Validating Jitter RNG, CPU and IRQ ES providing sufficient seed
@@ -570,13 +628,13 @@ else
 	# Note: Check that NTG.1 setup does not interfere
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 random.trust_cpu=1 lrng_es_jent.jitterrng=256 lrng_es_mgr.ntg1=1"
+	execvirt $(full_scriptname $0) "fips=1 random.trust_cpu=1 lrng_es_jent.jent_entropy=256 lrng_es_mgr.ntg1=1"
 
 	#
 	# Validating CPU and IRQ ES providing sufficient seed
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_cpu.cpu_entropy=256"
 
 	#
 	# Validating CPU and IRQ ES providing sufficient seed
@@ -591,6 +649,6 @@ else
 		echo_deact "SP800-90C: CPU ES compression test deactivated"
 	else
 		write_cmd "test2"
-		execvirt $(full_scriptname $0) "fips=1 random.trust_cpu=1 lrng_es_jent.jitterrng=256"
+		execvirt $(full_scriptname $0) "fips=1 random.trust_cpu=1 lrng_es_jent.jent_entropy=256"
 	fi
 fi

@@ -27,7 +27,7 @@ TESTNAME="GCD"
 verify_gcd()
 {
 
-	if (dmesg | grep -q "lrng_es_irq: Setting GCD to")
+	if (dmesg | grep -q "lrng_es_timer_common: Setting GCD to")
 	then
 		echo_pass "$TESTNAME: analysis performed"
 	else
@@ -47,7 +47,7 @@ then
 			;;
 	esac
 else
-	$(check_kernel_config "CONFIG_LRNG_IRQ=y")
+	$(check_kernel_config "CONFIG_LRNG_TIMER_COMMON=y")
 	if [ $? -ne 0 ]
 	then
 		echo_deact "$TESTNAME: tests skipped"
@@ -58,5 +58,5 @@ else
 	# Validating the operation of the GCD
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0)s
+	execvirt $(full_scriptname $0)
 fi

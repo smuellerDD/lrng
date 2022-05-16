@@ -24,6 +24,30 @@
 
 SYSFS="/sys/module/lrng_es_irq/parameters/irq_entropy"
 
+cap_rate()
+{
+	local rate=$1
+
+	local sp80090c=$(cat /proc/lrng_type | grep "Standards compliance:" | head -n1 | cut -d":" -f 2)
+	sp80090c=$(echo $sp80090c)
+
+	local osr=0
+
+	if [ x"$sp80090c" = x"SP800-90C" ]
+	then
+		osr=64
+	fi
+
+	local exprate=$((256-$osr))
+
+	# Hash has max entropy rate of 256 bits - reduce by SP800-90C OSR
+	if [ $rate -gt $exprate ]
+	then
+		rate=192
+	fi
+	echo $rate
+}
+
 verify_entropyrate()
 {
 	local expected_sysfs=$1
@@ -42,6 +66,7 @@ verify_entropyrate()
 	local found=$(dmesg | grep "lrng_es_irq: .* interrupts " | tail -n 1 | sed 's/^.*: \([0-9]\+\) interrupts.*$/\1/')
 
 	local expected_irq_rate=$(($found*$LRNG_SEC_STRENGTH/$expected_sysfs))
+	expected_irq_rate=$(cap_rate $expected_irq_rate)
 
 	found=$(dmesg | grep "lrng_es_irq: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 	if [ -z "$found" ]
@@ -153,62 +178,62 @@ else
 	# Validating FIPS mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256"
 
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256 lrng_es_irq.irq_entropy=512"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256 lrng_es_irq.irq_entropy=512"
 
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256 lrng_es_irq.irq_entropy=1024"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256 lrng_es_irq.irq_entropy=1024"
 
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256 lrng_es_irq.irq_entropy=0xffffffff"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256 lrng_es_irq.irq_entropy=0xffffffff"
 
 	#
 	# Validating non-FIPS mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256"
 
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256 lrng_es_irq.irq_entropy=2048"
+	execvirt $(full_scriptname $0) "lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256 lrng_es_irq.irq_entropy=2048"
 
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256 lrng_es_irq.irq_entropy=0xffffffff"
+	execvirt $(full_scriptname $0) "lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256 lrng_es_irq.irq_entropy=0xffffffff"
 
 	#
 	# Validating NTG mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "lrng_es_mgr.ntg1=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256"
 
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256 lrng_es_irq.irq_entropy=2048"
+	execvirt $(full_scriptname $0) "lrng_es_mgr.ntg1=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256 lrng_es_irq.irq_entropy=2048"
 
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256  lrng_es_irq.irq_entropy=0xffffffff"
+	execvirt $(full_scriptname $0) "lrng_es_mgr.ntg1=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256  lrng_es_irq.irq_entropy=0xffffffff"
 
 	#
 	# Validating NTG and FIPS mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256"
 
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256 lrng_es_irq.irq_entropy=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256 lrng_es_irq.irq_entropy=256"
 
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256 lrng_es_irq.irq_entropy=0xffffffff"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256 lrng_es_irq.irq_entropy=0xffffffff"
 
 	#
 	# Underflow
 	#
 	write_cmd "test2"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256 lrng_es_irq.irq_entropy=0"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256 lrng_es_irq.irq_entropy=0"
 
 	write_cmd "test2"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256 lrng_es_irq.irq_entropy=128"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256 lrng_es_irq.irq_entropy=128"
 
 	write_cmd "test2"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256 lrng_es_irq.irq_entropy=255"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256 lrng_es_irq.irq_entropy=255"
 fi

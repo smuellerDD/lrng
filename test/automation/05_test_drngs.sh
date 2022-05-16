@@ -22,29 +22,18 @@
 
 . $(dirname $0)/libtest.sh
 
-verify_crypto()
+verify_hash()
 {
-	local expected_drng=$1
-	local expected_hash=$2
+	local expected_hash=$1
 
-	local drng_name=$(cat /proc/lrng_type  | grep "DRNG name" | cut -d ":" -f2)
-	local hash_ent_name=$(cat /proc/lrng_type | grep -A1 "Auxiliary ES properties" | grep "Hash for operating entropy" | cut -d ":" -f2)
-	local hash_aux_name=$(cat /proc/lrng_type | grep -A1 "IRQ ES properties" | grep "Hash for operating entropy" | cut -d ":" -f2)
+	local hash_ent_name=$(cat /proc/lrng_type | grep -A1 "Name: Auxiliary" | grep "Hash for operating entropy" | cut -d ":" -f2)
+	local hash_aux_name=$(cat /proc/lrng_type | grep -A1 "Name: IRQ" | grep "Hash for operating entropy" | cut -d ":" -f2)
 
-	drng_name=$(echo $drng_name)
 	hash_ent_name=$(echo $hash_ent_name)
 	hash_aux_name=$(echo $hash_aux_name)
 
-	echo_log "DRNG loaded: $name"
 	echo_log "Hash for entropy pool loaded: $hash_ent_name"
 	echo_log "Hash for aux pool loaded: $hash_aux_name"
-
-	if [ x"$drng_name" != x"$expected_drng" ]
-	then
-		echo_fail "DRNG: Unexpected DRNG type - expected: $expected_drng, found: $drng_name"
-	else
-		echo_pass "DRNG: DRNG type $drng_name as expected"
-	fi
 
 	if [ x"$hash_ent_name" != x"$expected_hash" ]
 	then
@@ -60,42 +49,77 @@ verify_crypto()
 		echo_pass "DRNG: Hash type $hash_aux_name as expected"
 	fi
 }
+verify_drng()
+{
+	local expected_drng=$1
+
+	local drng_name=$(cat /proc/lrng_type  | grep "DRNG name" | cut -d ":" -f2)
+
+	drng_name=$(echo $drng_name)
+
+	echo_log "DRNG loaded: $name"
+
+	if [ x"$drng_name" != x"$expected_drng" ]
+	then
+		echo_fail "DRNG: Unexpected DRNG type - expected: $expected_drng, found: $drng_name"
+	else
+		echo_pass "DRNG: DRNG type $drng_name as expected"
+	fi
+}
 
 load_drbg() {
 	local type=$1
 	local expected_drng=$2
-	local expected_hash=$3
 
-	modprobe lrng_drbg lrng_drbg_type=$type
+	modprobe lrng_drng_drbg lrng_drbg_type=$type
 	if [ $? -ne 0 ]
 	then
-		echo_deact "DRNG: cannot load kernel module lrng_drbg with parameter lrng_drbg_type=$type"
+		echo_deact "DRNG: cannot load kernel module lrng_drng_kcapi with parameter drng_name=$expected_drng"
 		return
 	fi
 
-	verify_crypto $expected_drng $expected_hash
-	rmmod lrng_drbg
-
-
+	verify_drng $expected_drng
+	rmmod lrng_drng_drbg
 }
 
-load_kcapi() {
+load_drng_kcapi()
+{
 	local name=$1
 	local expected_drng=$2
-	local expected_hash=$3
 
-	modprobe lrng_kcapi drng_name="$name" pool_hash="sha512" seed_hash="sha384"
+	modprobe lrng_drng_kcapi drng_name="$name" seed_hash="sha384"
 	if [ $? -ne 0 ]
 	then
-		echo_deact "DRNG: cannot load kernel module lrng_kcapi with parameter drng_name=\"$name\" pool_hash=\"sha512\" seed_hash=\"sha384\""
+		echo_deact "DRNG: cannot load kernel module lrng_drng_kcapi with parameter drng_name=\"$name\" seed_hash=\"sha384\""
 		return
 	fi
 
-	verify_crypto $expected_drng $expected_hash
-	rmmod lrng_kcapi
+	verify_drng $expected_drng
+	rmmod lrng_drng_kcapi
+}
+
+load_hash_kcapi()
+{
+	local name=$1
+	local expected_hash=$1
+
+	modprobe lrng_hash_kcapi lrng_hash_name="$name"
+	if [ $? -ne 0 ]
+	then
+		echo_deact "DRNG: cannot load kernel module lrng_hash_kcapi with parameter lrng_hash_name=\"$name\""
+		return
+	fi
+
+	verify_hash $expected_hash
+	rmmod lrng_hash_kcapi
 }
 
 check_chacha20()
+{
+	verify_drng "ChaCha20 DRNG"
+}
+
+check_default_hash()
 {
 	local hash="SHA-256"
 	$(check_kernel_config "CONFIG_CRYPTO_LIB_SHA256=y")
@@ -104,7 +128,7 @@ check_chacha20()
 		hash="SHA-1"
 	fi
 
-	verify_crypto "ChaCha20 DRNG" "$hash"
+	verify_hash "$hash"
 }
 
 check_drbgs()
@@ -116,17 +140,17 @@ check_drbgs()
 		return
 	fi
 
-	load_drbg 0 "drbg_nopr_ctr_aes256" "sha512"
+	load_drbg 0 "drbg_nopr_ctr_aes256"
 	check_chacha20
-	load_drbg 1 "drbg_nopr_hmac_sha512" "sha512"
+	load_drbg 1 "drbg_nopr_hmac_sha512"
 	check_chacha20
-	load_drbg 2 "drbg_nopr_sha512" "sha512"
+	load_drbg 2 "drbg_nopr_sha512"
 	check_chacha20
 }
 
 check_kcapi_drng()
 {
-	$(check_kernel_config "CONFIG_LRNG_KCAPI=m")
+	$(check_kernel_config "CONFIG_LRNG_DRNG_KCAPI=m")
 	if [ $? -ne 0 ]
 	then
 		echo_deact "DRNG: testing KCAPI DRNG skipped"
@@ -140,8 +164,21 @@ check_kcapi_drng()
 		ansi_cprng="fips_ansi_cprng"
 	fi
 
-	load_kcapi "$ansi_cprng" "$ansi_cprng" "sha512"
+	load_drng_kcapi "$ansi_cprng" "$ansi_cprng"
 	check_chacha20
+}
+
+check_kcapi_hash()
+{
+	$(check_kernel_config "CONFIG_LRNG_HASH_KCAPI=m")
+	if [ $? -ne 0 ]
+	then
+		echo_deact "DRNG: testing KCAPI hash skipped"
+		return
+	fi
+
+	load_hash_kcapi "sha512"
+	check_default_hash
 }
 
 exec_test()
@@ -149,6 +186,7 @@ exec_test()
 	check_chacha20
 	check_drbgs
 	check_kcapi_drng
+	check_kcapi_hash
 }
 
 $(in_hypervisor)
@@ -195,13 +233,13 @@ else
 	# Validating FIPS mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256"
 
 	#
 	# Validating non-FIPS mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256"
 
 	$(check_kernel_config "CONFIG_LRNG_AIS2031_NTG1_SEEDING_STRATEGY=y")
 	if [ $? -ne 0 ]
@@ -214,11 +252,11 @@ else
 	# Validating NTG mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "lrng_es_mgr.ntg1=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256"
 
 	#
 	# Validating NTG and FIPS mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256"
 fi

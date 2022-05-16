@@ -24,10 +24,11 @@
 
 check_fully_post_completed()
 {
+	local es=$1
 	local i=0
 	while [ $i -lt 10 ]
 	do
-		if (dmesg | grep -q "lrng_health: SP800-90B startup health tests completed")
+		if (dmesg | grep -q "lrng_health: SP800-90B startup health tests for internal entropy source $es completed")
 		then
 			return 0
 		fi
@@ -41,36 +42,78 @@ check_fully_post_completed()
 	return 1
 }
 
-sp80090b_compliance()
+get_es_number()
 {
-	$(check_fully_post_completed)
+	local es=$1
+	OLD_IFS=$IFS
+
+	IFS="
+"
+
+	for i in $(cat /proc/lrng_type | grep "Entropy Source" )
+	do
+		if (cat /proc/lrng_type | grep -A 1 "${i}" | grep -q ${es})
+		then
+			ret=$(echo ${i} | sed 's/^Entropy Source \(.*\) properties.*$/\1/')
+			echo $ret
+			exit
+		fi
+	done
+	IFS=$OLD_IFS
+}
+
+sp80090b_compliance_irq()
+{
+	$(check_kernel_config "CONFIG_LRNG_IRQ=y")
+	if [ $? -ne 0 ]
+	then
+		echo_deact "SP800-90B: IRQ ES tests skipped"
+		exit
+	fi
+
+	local es=$(get_es_number "IRQ")
+	$(check_fully_post_completed $es)
 	if [ $? -eq 0 ]
 	then
-		echo_pass "SP800-90B: Power-up health test successfully completed"
+		echo_pass "SP800-90B: Power-up health test for IRQs successfully completed"
 	else
-		echo_fail "SP800-90B: Power-up health test failed"
+		echo_fail "SP800-90B: Power-up health test for IRQs failed"
 	fi
 }
+
+sp80090b_compliance_sched()
+{
+	$(check_kernel_config "CONFIG_LRNG_SCHED=y")
+	if [ $? -ne 0 ]
+	then
+		echo_deact "SP800-90B: Scheduler ES tests skipped"
+		exit
+	fi
+
+	local es=$(get_es_number "Scheduler")
+	$(check_fully_post_completed $es)
+	if [ $? -eq 0 ]
+	then
+		echo_pass "SP800-90B: Power-up health test for scheduler successfully completed"
+	else
+		echo_fail "SP800-90B: Power-up health test for scheduler failed"
+	fi
+}
+
 
 $(in_hypervisor)
 if [ $? -eq 1 ]
 then
 	case $(read_cmd) in
 		"test1")
-			sp80090b_compliance
+			sp80090b_compliance_irq
+			sp80090b_compliance_sched
 			;;
 		*)
 			echo_fail "Test $1 not found"
 			;;
 	esac
 else
-	$(check_kernel_config "CONFIG_LRNG_IRQ=y")
-	if [ $? -ne 0 ]
-	then
-		echo_deact "SP800-90B: tests skipped"
-		exit
-	fi
-
 	$(check_kernel_config "CONFIG_LRNG_CPU=y")
 	if [ $? -ne 0 ]
 	then
@@ -110,27 +153,27 @@ else
 	# Validating Jitter RNG and IRQ ES providing sufficient seed
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jitterrng=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jent_entropy=256"
 
 	#
 	# Validating Jitter RNG and IRQ ES providing sufficient seed
 	# Note: Check that NTG.1 setup does not interfere
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jitterrng=256 lrng_es_mgr.ntg1=1"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jent_entropy=256 lrng_es_mgr.ntg1=1"
 
 	#
 	# Validating Jitter RNG, CPU and IRQ ES providing sufficient seed
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_archrandom.archrandom=256 lrng_es_jent.jitterrng=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_cpu.cpu_entropy=256 lrng_es_jent.jent_entropy=256"
 
 	#
 	# Validating Jitter RNG, CPU and IRQ ES providing sufficient seed
 	# Note: Check that NTG.1 setup does not interfere
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_archrandom.archrandom=256 lrng_es_jent.jitterrng=256 lrng_es_mgr.ntg1=1"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_cpu.cpu_entropy=256 lrng_es_jent.jent_entropy=256 lrng_es_mgr.ntg1=1"
 
 	#
 	# Validating Jitter RNG, CPU and IRQ ES providing sufficient seed
@@ -138,7 +181,7 @@ else
 	# Note: Check that NTG.1 setup does not interfere
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 random.trust_cpu=1 lrng_es_jent.jitterrng=256"
+	execvirt $(full_scriptname $0) "fips=1 random.trust_cpu=1 lrng_es_jent.jent_entropy=256"
 
 	#
 	# Validating Jitter RNG, CPU and IRQ ES providing sufficient seed
@@ -146,13 +189,13 @@ else
 	# Note: Check that NTG.1 setup does not interfere
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 random.trust_cpu=1 lrng_es_jent.jitterrng=256 lrng_es_mgr.ntg1=1"
+	execvirt $(full_scriptname $0) "fips=1 random.trust_cpu=1 lrng_es_jent.jent_entropy=256 lrng_es_mgr.ntg1=1"
 
 	#
 	# Validating CPU and IRQ ES providing sufficient seed
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_cpu.cpu_entropy=256"
 
 	#
 	# Validating CPU and IRQ ES providing sufficient seed

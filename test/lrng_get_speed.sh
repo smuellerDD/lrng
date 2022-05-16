@@ -56,52 +56,52 @@ measure_speed()
 
 hmac_drbg_speed()
 {
-	remove_module lrng_drbg
-	insert_module lrng_drbg lrng_drbg_type=1
+	remove_module lrng_drng_drbg
+	insert_module lrng_drng_drbg lrng_drbg_type=1
 
-	if [ -z "$(lsmod | grep lrng_drbg)" ]
+	if [ -z "$(lsmod | grep lrng_drng_drbg)" ]
 	then
 		echo "HMAC DRBG test disabled"
 		return
 	fi
 
 	measure_speed "HMAC DRBG SHA-512"
-	remove_module lrng_drbg
+	remove_module lrng_drng_drbg
 }
 
 hash_drbg_speed()
 {
-	remove_module lrng_drbg
-	insert_module lrng_drbg lrng_drbg_type=2
+	remove_module lrng_drng_drbg
+	insert_module lrng_drng_drbg lrng_drbg_type=2
 
-	if [ -z "$(lsmod | grep lrng_drbg)" ]
+	if [ -z "$(lsmod | grep lrng_drng_drbg)" ]
 	then
 		echo "Hash DRBG test disabled"
 		return
 	fi
 
 	measure_speed "Hash DRBG SHA-512"
-	remove_module lrng_drbg
+	remove_module lrng_drng_drbg
 }
 
 ctr_drbg_speed()
 {
-	remove_module lrng_drbg
-	insert_module lrng_drbg lrng_drbg_type=0
+	remove_module lrng_drng_drbg
+	insert_module lrng_drng_drbg lrng_drbg_type=0
 
-	if [ -z "$(lsmod | grep lrng_drbg)" ]
+	if [ -z "$(lsmod | grep lrng_drng_drbg)" ]
 	then
 		echo "CTR DRBG test disabled"
 		return
 	fi
 
 	measure_speed "CTR DRBG AES-256"
-	remove_module lrng_drbg
+	remove_module lrng_drng_drbg
 }
 
 chacha20_drng_speed()
 {
-	remove_module lrng_drbg
+	remove_module lrng_drng_drbg
 
 	measure_speed "ChaCha20 DRNG"
 }

@@ -290,11 +290,11 @@ static void bytes2string(uint64_t bytes, uint64_t ns, char *str, size_t strlen)
 static int print_status(size_t buflen,
 			uint64_t processed_bytes, uint64_t totaltime)
 {
-#define VALLEN 20
-	char byteseconds[VALLEN + 1];
+#define VALLEN 21
+	char byteseconds[VALLEN];
 
 	memset(byteseconds, 0, sizeof(byteseconds));
-	bytes2string(processed_bytes, totaltime, byteseconds, (VALLEN + 1));
+	bytes2string(processed_bytes, totaltime, byteseconds, VALLEN);
 	printf("%8lu bytes | %*s/s | %12lu bytes |%12lu ns\n", buflen,
 	       VALLEN, byteseconds, processed_bytes, totaltime);
 
@@ -316,6 +316,8 @@ int main(int argc, char *argv[])
 	int c = 0;
 	ssize_t ret = 0;
 	ssize_t (*rnd)(uint8_t *buffer, size_t bufferlen);
+
+	rnd = NULL;
 
 	while (1)
 	{
@@ -360,6 +362,9 @@ int main(int argc, char *argv[])
 				return -EINVAL;
 		}
 	}
+
+	if (!rnd)
+		return EINVAL;
 
 	start_time(&start);
 	ret = rnd(buffer, bufferlen);

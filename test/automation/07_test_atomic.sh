@@ -33,9 +33,42 @@ fi
 echo $TESTMODDIR
 TESTMOD="getrandom.ko"
 
+load_drng_kcapi()
+{
+	local name=$1
+
+	modprobe lrng_drng_kcapi drng_name="$name" seed_hash="sha384"
+	if [ $? -ne 0 ]
+	then
+		echo_deact "DRNG: cannot load kernel module lrng_drng_kcapi with parameter drng_name=\"$name\" seed_hash=\"sha384\""
+		return 1
+	fi
+	return 0
+}
+
+check_kcapi_drng()
+{
+	$(check_kernel_config "CONFIG_LRNG_DRNG_KCAPI=m")
+	if [ $? -ne 0 ]
+	then
+		echo_deact "DRNG: testing KCAPI DRNG skipped"
+		return
+	fi
+
+	modprobe ansi_cprng
+	local ansi_cprng="ansi_cprng"
+	if (cat /proc/sys/crypto/fips_enabled | grep -q 1)
+	then
+		ansi_cprng="fips_ansi_cprng"
+	fi
+
+	load_drng_kcapi "$ansi_cprng"
+	return $?
+}
+
 load_testmod()
 {
-	modprobe lrng_drbg
+	check_kcapi_drng
 
 	if [ ! -d "$TESTMODDIR" ]
 	then
@@ -62,7 +95,7 @@ load_testmod()
 
 	# Check that the atomic DRNG is automatically reseeded
 	# This only happens if the atomic DRNG != the initial DRNG
-	# which happens if, say, lrng_drbg is loaded
+	# which happens if, say, lrng_drng_kcapi is loaded
 	echo > /dev/random
 	dd if=/dev/urandom of=/dev/null bs=32 count=1 > /dev/null 2>&1
 	sleep 1
@@ -124,25 +157,25 @@ else
 	# Validating FIPS mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256"
 
 	#
 	# Validating non-FIPS mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256"
 
 	#
 	# Validating NTG mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "lrng_es_mgr.ntg1=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256"
 
 	#
 	# Validating NTG and FIPS mode
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jitterrng=256 lrng_es_archrandom.archrandom=256"
+	execvirt $(full_scriptname $0) "fips=1 lrng_es_mgr.ntg1=1 lrng_es_jent.jent_entropy=256 lrng_es_cpu.cpu_entropy=256"
 
 	make -C "${KERNEL_BASE}/${TESTKERN}" M=$TESTMODDIR clean
 fi

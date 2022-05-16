@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Test for Jitter RNG operation
+# Test for CPU RNG operation
 #
 # Copyright (C) 2021, Stephan Mueller <smueller@chronox.de>
 #
@@ -22,7 +22,7 @@
 
 . $(dirname $0)/libtest.sh
 
-SYSFS="/sys/module/lrng_es_jent/parameters/jent_entropy"
+SYSFS="/sys/module/lrng_es_cpu/parameters/cpu_entropy"
 
 verify_entropyrate()
 {
@@ -31,47 +31,46 @@ verify_entropyrate()
 	# Force reseed
 	echo >/dev/random; dd if=/dev/random of=/dev/null bs=32 count=1
 
-	local found=$(dmesg | grep "lrng_es_jent: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
+	local found=$(dmesg | grep "lrng_es_cpu: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 
 	if [ -z "$found" ]
 	then
-		echo_deact "Jitter RNG: Cannot obtain entropy rate from kernel log"
+		echo_deact "CPU RNG: Cannot obtain entropy rate from kernel log"
 	else
 		if [ $expected_rate -eq $found ]
 		then
-			echo_pass "Jitter RNG: Verified entropy rate $expected_rate with kernel log"
+			echo_pass "CPU RNG: Verified entropy rate $expected_rate with kernel log"
 		else
-			echo_fail "Jitter RNG: Entropy rate $expected_rate does not match with kernel log: $found"
+			echo_fail "CPU RNG: Entropy rate $expected_rate does not match with kernel log: $found"
 		fi
 	fi
 
 	local found=$(cat $SYSFS)
 	if [ -z "$found" ]
 	then
-		echo_deact "Jitter RNG: Cannot obtain entropy rate from SysFS file $SYSFS"
+		echo_deact "CPU RNG: Cannot obtain entropy rate from SysFS file $SYSFS"
 
 	# The SysFS file is not reset in case of an overflow
 	elif [ $found -le 256 ]
 	then
 		if [ $expected_rate -eq $found ]
 		then
-			echo_pass "Jitter RNG: Verified entropy rate $expected_rate with SysFS file $SYSFS"
+			echo_pass "CPU RNG: Verified entropy rate $expected_rate with SysFS file $SYSFS"
 		else
-			echo_fail "Jitter RNG: Entropy rate $expected_rate does not match with SysFS: $found"
+			echo_fail "CPU RNG: Entropy rate $expected_rate does not match with SysFS: $found"
 		fi
 	fi
 }
 
 verify_entropyrate_boot()
 {
-	local rate=16
+	local rate=8
 
 	for i in $(cat /proc/cmdline)
 	do
-		if (echo $i | grep -q jent_entropy)
+		if (echo $i | grep -q cpu)
 		then
 			rate=$(echo $i | cut -d"=" -f 2)
-			break
 		fi
 	done
 
@@ -94,24 +93,16 @@ verify_set_entropyrate_overflow()
 	verify_entropyrate 256
 }
 
-verify_jent()
+verify_cpu()
 {
-	if (dmesg | grep -q "lrng_es_jent: Jitter RNG working on current system")
-	then
-		echo_pass "Jitter RNG: Jitter RNG working on system"
-	else
-		echo_deact "Jitter RNG: Jitter RNG not working on system"
-		return
-	fi
-
 	# Force reseed
 	echo >/dev/random; dd if=/dev/random of=/dev/null bs=32 count=1
 
-	if (dmesg | grep -q "lrng_es_jent: obtained")
+	if (dmesg | grep -q "lrng_es_cpu: obtained")
 	then
-		echo_pass "Jitter RNG: used for seeding"
+		echo_pass "CPU RNG: used for seeding"
 	else
-		echo_fail "Jitter RNG: not used for seeding"
+		echo_fail "CPU RNG: not used for seeding"
 		return
 	fi
 
@@ -130,31 +121,31 @@ if [ $? -eq 1 ]
 then
 	case $(read_cmd) in
 		"test1")
-			verify_jent
+			verify_cpu
 			;;
 		*)
 			echo_fail "Test $1 not found"
 			;;
 	esac
 else
-	$(check_kernel_config "CONFIG_LRNG_JENT=y")
+	$(check_kernel_config "CONFIG_LRNG_CPU=y")
 	if [ $? -ne 0 ]
 	then
-		echo_deact "Jitter RNG: tests skipped"
+		echo_deact "CPU RNG: tests skipped"
 		exit
 	fi
 
 	$(check_kernel_config "CONFIG_LRNG_RUNTIME_ES_CONFIG=y")
 	if [ $? -ne 0 ]
 	then
-		echo_deact "Jitter RNG: tests skipped"
+		echo_deact "CPU RNG: tests skipped"
 		exit
 	fi
 
 	$(check_kernel_config "CONFIG_LRNG_JENT=y")
 	if [ $? -ne 0 ]
 	then
-		echo_deakt "Jitter RNG: Jitter RNG not enabled"
+		echo_deakt "CPU RNG: CPU RNG not enabled"
 		exit
 	fi
 

@@ -71,7 +71,7 @@ drain_drng2()
 
 	if [ $max_attempts -le 0 ]
 	then
-		echo_fail "$TESTNAME: LRNG reports it is fully seeded after draining and reseeding"
+		echo_fail "$TESTNAME: LRNG reports it is not fully seeded after draining and reseeding"
 		exit
 	fi
 
@@ -177,7 +177,7 @@ check_reseed()
 	create_irqs
 
 	op=$(dmesg | grep "LRNG fully operational" | tail -n 1)
-	newseed=$(dmesg | grep "lrng_drng: DRNG fully seeded" | tail -n 1)
+	newseed=$(dmesg | grep "lrng_drng_mgr: regular DRNG fully seeded" | tail -n 1)
 	if [ -z "$op" ]
 	then
 		op=""
@@ -207,7 +207,7 @@ exec_test1()
 
 exec_test2()
 {
-	if (dmesg | grep "ChaCha20 core initialized with first seeding")
+	if (dmesg | grep "Initial DRNG initialized triggering first seeding")
 	then
 		echo_pass "$TESTNAME: Initial seeding performed"
 	else
@@ -251,12 +251,11 @@ else
 		exit
 	fi
 
-
 	#
 	# Validating LRNG_DRNG_MAX_WITHOUT_RESEED enforced after two reseeds
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "lrng_drng.max_wo_reseed=2"
+	execvirt $(full_scriptname $0) "lrng_drng_mgr.max_wo_reseed=2"
 
 	#
 	# Verify first seed operation during initialization
