@@ -106,16 +106,16 @@ chacha20_drng_speed()
 	measure_speed "ChaCha20 DRNG"
 }
 
-if [ $(id -u) -ne 0 ]
-then
-	echo "Test must be run as root"
-	exit 1
-fi
-
 CPU=$(cat /proc/cpuinfo  | grep "model name" | tail -n1 | cut -d":" -f2)
 
 if [ -f /proc/lrng_type ]
 then
+	if [ $(id -u) -ne 0 ]
+	then
+		echo "Test must be run as root"
+		exit 1
+	fi
+
 	echo "LRNG Speed test on $CPU"
 	echo -e "DRNG name\tBlocksize\tSpeed"
 
