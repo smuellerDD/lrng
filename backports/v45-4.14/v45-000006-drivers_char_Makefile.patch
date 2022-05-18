@@ -1,0 +1,7 @@
+--- linux-4.14/drivers/char/Makefile.orig	2022-05-18 02:06:09.774876995 -0400
++++ linux-4.14/drivers/char/Makefile	2022-05-18 02:06:32.759932703 -0400
+@@ -60,3 +60,4 @@ js-rtc-y = rtc.o
+ obj-$(CONFIG_TILE_SROM)		+= tile-srom.o
+ obj-$(CONFIG_XILLYBUS)		+= xillybus/
+ obj-$(CONFIG_POWERNV_OP_PANEL)	+= powernv-op-panel.o
++obj-$(CONFIG_ADI)		+= adi.o

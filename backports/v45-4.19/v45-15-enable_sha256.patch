@@ -1,0 +1,55 @@
+--- linux-4.19/lib/Kconfig.orig	2020-10-15 18:47:16.691020244 +0200
++++ linux-4.19/lib/Kconfig	2020-10-15 18:47:27.366089556 +0200
+@@ -621,3 +621,6 @@ config GENERIC_LIB_CMPDI2
+ 
+ config GENERIC_LIB_UCMPDI2
+ 	bool
++
++config CRYPTO_LIB_SHA256
++	tristate
+--- linux-4.19/lib/Makefile.orig	2020-10-15 18:45:35.442144084 +0200
++++ linux-4.19/lib/Makefile	2020-10-15 18:45:58.394381742 +0200
+@@ -270,3 +270,6 @@ obj-$(CONFIG_GENERIC_LIB_LSHRDI3) += lsh
+ obj-$(CONFIG_GENERIC_LIB_MULDI3) += muldi3.o
+ obj-$(CONFIG_GENERIC_LIB_CMPDI2) += cmpdi2.o
+ obj-$(CONFIG_GENERIC_LIB_UCMPDI2) += ucmpdi2.o
++
++obj-$(CONFIG_CRYPTO_LIB_SHA256)	+= libsha256.o
++libsha256-y			:= sha256.o
+--- linux-4.19/include/crypto/hash.h.orig	2020-10-15 20:26:21.099078090 +0200
++++ linux-4.19/include/crypto/hash.h	2020-10-15 20:27:02.427257809 +0200
+@@ -151,9 +151,11 @@ struct shash_desc {
+ 	void *__ctx[] CRYPTO_MINALIGN_ATTR;
+ };
+ 
++#define HASH_MAX_DESCSIZE	(sizeof(struct shash_desc) + 360)
++
+ #define SHASH_DESC_ON_STACK(shash, ctx)				  \
+ 	char __##shash##_desc[sizeof(struct shash_desc) +	  \
+-		crypto_shash_descsize(ctx)] CRYPTO_MINALIGN_ATTR; \
++		HASH_MAX_DESCSIZE] CRYPTO_MINALIGN_ATTR; \
+ 	struct shash_desc *shash = (struct shash_desc *)__##shash##_desc
+ 
+ /**
+--- linux-4.19/drivers/char/lrng/lrng_sha256.c.orig	2022-05-17 16:13:34.667145085 -0400
++++ linux-4.19/drivers/char/lrng/lrng_sha256.c	2022-05-17 16:13:56.734215929 -0400
+@@ -10,7 +10,7 @@
+ #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+ 
+ #include <linux/lrng.h>
+-#include <crypto/sha.h>
++#include <linux/sha256.h>
+ 
+ #include "lrng_sha.h"
+ 
+--- linux-4.19/drivers/char/lrng/lrng_drng_kcapi.c.orig	2022-05-17 16:35:46.342402331 -0400
++++ linux-4.19/drivers/char/lrng/lrng_drng_kcapi.c	2022-05-17 16:36:17.228489094 -0400
+@@ -38,7 +38,7 @@ static int lrng_kcapi_drng_seed_helper(v
+ 	struct crypto_shash *hash_tfm = lrng_drng_info->hash_tfm;
+ 	SHASH_DESC_ON_STACK(shash, hash_tfm);
+ 	u32 digestsize;
+-	u8 digest[HASH_MAX_DIGESTSIZE] __aligned(8);
++	u8 digest[64] __aligned(8);
+ 	int ret;
+ 
+ 	if (!hash_tfm)

@@ -1,0 +1,84 @@
+--- linux-4.14/drivers/char/lrng/lrng_interface_dev_common.h.orig	2022-05-18 02:13:00.046871356 -0400
++++ linux-4.14/drivers/char/lrng/lrng_interface_dev_common.h	2022-05-18 02:13:31.673948015 -0400
+@@ -37,7 +37,7 @@ ssize_t lrng_drng_write(struct file *fil
+ 			size_t count, loff_t *ppos);
+ ssize_t lrng_drng_write_common(const char __user *buffer, size_t count,
+ 			       u32 entropy_bits);
+-__poll_t lrng_random_poll(struct file *file, poll_table *wait);
++unsigned int lrng_random_poll(struct file *file, poll_table *wait);
+ ssize_t lrng_read_common_block(int nonblock, char __user *buf, size_t nbytes);
+ ssize_t lrng_drng_read_block(struct file *file, char __user *buf, size_t nbytes,
+ 			     loff_t *ppos);
+--- linux-4.14/drivers/char/lrng/lrng_interface_dev_common.c.orig	2022-05-18 02:20:25.785948736 -0400
++++ linux-4.14/drivers/char/lrng/lrng_interface_dev_common.c	2022-05-18 02:21:12.039060318 -0400
+@@ -156,19 +156,19 @@ ssize_t lrng_drng_read_block(struct file
+ 	return lrng_read_common_block(file->f_flags & O_NONBLOCK, buf, nbytes);
+ }
+ 
+-__poll_t lrng_random_poll(struct file *file, poll_table *wait)
++unsigned int lrng_random_poll(struct file *file, poll_table *wait)
+ {
+-	__poll_t mask;
++	unsigned int mask;
+ 
+ 	poll_wait(file, &lrng_init_wait, wait);
+ 	poll_wait(file, &lrng_write_wait, wait);
+ 	mask = 0;
+ 	if (lrng_state_operational())
+-		mask |= EPOLLIN | EPOLLRDNORM;
++		mask |= POLLIN | POLLRDNORM;
+ 	if (lrng_need_entropy() ||
+ 	    lrng_state_exseed_allow(lrng_noise_source_user)) {
+ 		lrng_state_exseed_set(lrng_noise_source_user, false);
+-		mask |= EPOLLOUT | EPOLLWRNORM;
++		mask |= POLLOUT | POLLWRNORM;
+ 	}
+ 	return mask;
+ }
+@@ -265,18 +265,6 @@ long lrng_ioctl(struct file *f, unsigned
+ 			return -EPERM;
+ 		lrng_pool_set_entropy(0);
+ 		return 0;
+-	case RNDRESEEDCRNG:
+-		/*
+-		 * We leave the capability check here since it is present
+-		 * in the upstream's RNG implementation. Yet, user space
+-		 * can trigger a reseed as easy as writing into /dev/random
+-		 * or /dev/urandom where no privilege is needed.
+-		 */
+-		if (!capable(CAP_SYS_ADMIN))
+-			return -EPERM;
+-		/* Force a reseed of all DRNGs */
+-		lrng_drng_force_reseed();
+-		return 0;
+ 	default:
+ 		return -EINVAL;
+ 	}
+--- linux-4.14/drivers/char/lrng/lrng_interface_random_kernel.c.orig	2022-05-18 02:23:18.015364228 -0400
++++ linux-4.14/drivers/char/lrng/lrng_interface_random_kernel.c	2022-05-18 02:24:08.744486609 -0400
+@@ -11,6 +11,7 @@
+ #include <linux/blkdev.h>
+ #include <linux/hw_random.h>
+ #include <linux/kthread.h>
++#include <linux/module.h>
+ #include <linux/lrng.h>
+ #include <linux/random.h>
+ 
+@@ -281,7 +282,7 @@ EXPORT_SYMBOL(wait_for_random_bytes);
+  *
+  * Return: number of bytes filled in.
+  */
+-int __must_check get_random_bytes_arch(void *buf, int nbytes)
++void get_random_bytes_arch(void *buf, int nbytes)
+ {
+ 	u8 *p = buf;
+ 
+@@ -299,8 +300,6 @@ int __must_check get_random_bytes_arch(v
+ 
+ 	if (nbytes)
+ 		lrng_get_random_bytes(p, nbytes);
+-
+-	return nbytes;
+ }
+ EXPORT_SYMBOL(get_random_bytes_arch);
+ 

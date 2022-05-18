@@ -1,0 +1,16 @@
+kernels prior to 5.2 need rand_initialize to be called as an early_initcall.
+
+Commit d55535232c3dbde9a523a9d10d68670f5fe5dec3 in 5.2 replaces this.
+
+diff --git a/drivers/char/lrng/lrng_interface_random_kernel.c b/drivers/char/lrng/lrng_interface_random_kernel.c
+index 0faadb0d8d7c..b2055d5c793c 100644
+--- a/drivers/char/lrng/lrng_interface_random_kernel.c
++++ b/drivers/char/lrng/lrng_interface_random_kernel.c
+@@ -312,6 +312,7 @@ int __init rand_initialize(void)
+ 
+ 	return 0;
+ }
++early_initcall(rand_initialize);
+ 
+ /*
+  * Insert data into auxiliary pool by hashing the input data together with

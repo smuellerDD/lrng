@@ -1,0 +1,16 @@
+--- linux-5.4/drivers/char/lrng/lrng_es_mgr.c.orig	2022-05-17 15:28:52.158351454 -0400
++++ linux-5.4/drivers/char/lrng/lrng_es_mgr.c	2022-05-17 15:33:36.623775340 -0400
+@@ -335,13 +335,8 @@ int __init lrng_rand_initialize(void)
+ 	seed.time = ktime_get_real();
+ 
+ 	for (i = 0; i < ARRAY_SIZE(seed.data); i++) {
+-#ifdef CONFIG_LRNG_RANDOM_IF
+-		if (!arch_get_random_seed_long_early(&(seed.data[i])) &&
+-		    !arch_get_random_long_early(&seed.data[i]))
+-#else
+ 		if (!arch_get_random_seed_long(&(seed.data[i])) &&
+ 		    !arch_get_random_long(&seed.data[i]))
+-#endif
+ 			seed.data[i] = random_get_entropy();
+ 	}
+ 	memcpy(&seed.utsname, utsname(), sizeof(*(utsname())));
