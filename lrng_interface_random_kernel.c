@@ -155,7 +155,7 @@ EXPORT_SYMBOL(add_interrupt_randomness);
 #endif
 
 /*
- * del_random_ready_callback() - Delete a previously registered readiness
+ * unregister_random_ready_notifier() - Delete a previously registered readiness
  * callback function.
  *
  * @nb: callback definition that was registered initially
