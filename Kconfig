@@ -582,6 +582,7 @@ config LRNG_SWITCH_DRBG
 config LRNG_SWITCH_DRNG_KCAPI
 	tristate "Kernel Crypto API support for the LRNG"
 	depends on !LRNG_DFLT_DRNG_KCAPI
+	depends on !LRNG_SWITCH_DRBG
 	select LRNG_DRNG_KCAPI
 	help
 	  Enable the support for generic pseudo-random number
