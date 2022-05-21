@@ -9,24 +9,24 @@
 #include <linux/hw_random.h>
 #include <linux/module.h>
 
-static int lrng_hwrand_if_init(struct hwrng *rng)
-{
-	return 0;
-}
-
-static void lrng_hwrand_if_cleanup(struct hwrng *rng) { }
-
 static int lrng_hwrand_if_random(struct hwrng *rng, void *buf, size_t max,
 				 bool wait)
 {
-	lrng_get_random_bytes_full(buf, max);
+	/*
+	 * lrng_get_random_bytes_full not called as we cannot block.
+	 *
+	 * Note: We should either adjust .quality below depending on
+	 * rng_is_initialized() or block here, but neither is not supported by
+	 * the hw_rand framework.
+	 */
+	lrng_get_random_bytes(buf, max);
 	return (int)max;
 }
 
 static struct hwrng lrng_hwrand = {
 	.name		= "lrng",
-	.init		= lrng_hwrand_if_init,
-	.cleanup	= lrng_hwrand_if_cleanup,
+	.init		= NULL,
+	.cleanup	= NULL,
 	.read		= lrng_hwrand_if_random,
 
 	/*
@@ -44,8 +44,8 @@ static struct hwrng lrng_hwrand = {
 	 * We can specify full entropy here, because the LRNG is designed
 	 * to provide full entropy.
 	 */
-#if !defined(CONFIG_LRNG_RANDOM_IF) || \
-    !defined(CONFIG_LRNG_LEGACY_RNG)
+#if !defined(CONFIG_LRNG_RANDOM_IF) && \
+    !defined(CONFIG_LRNG_KERNEL_RNG)
 	.quality	= 1024,
 #endif
 };

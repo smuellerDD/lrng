@@ -72,6 +72,7 @@ config LRNG_KCAPI_IF
 config LRNG_HWRAND_IF
 	tristate "Interface with Hardware Random Number Generator Framework"
 	depends on HW_RANDOM
+	select LRNG_DRNG_ATOMIC
 	help
 	  The LRNG can be registered with the hardware random number
 	  generator framework. This offers a random number generator
