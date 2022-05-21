@@ -35,7 +35,7 @@ bool lrng_ready_chain_has_sleeper(void)
 	return !!lrng_ready_chain_used;
 }
 
-/**
+/*
  * lrng_process_ready_list() - Ping all kernel internal callers waiting until
  * the DRNG is completely initialized to inform that the DRNG reached that
  * seed level.
