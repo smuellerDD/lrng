@@ -58,6 +58,13 @@ bool lrng_state_exseed_allow(enum lrng_external_noise_source source)
 /* Enable / disable external entropy provider to furnish seed */
 void lrng_state_exseed_set(enum lrng_external_noise_source source, bool type)
 {
+	/*
+	 * If the LRNG is not yet operational, allow all entropy sources
+	 * to deliver data unconditionally to get fully seeded asap.
+	 */
+	if (!lrng_state_operational())
+		return;
+
 	if (source == lrng_noise_source_hw)
 		lrng_seed_hw = type;
 	else
