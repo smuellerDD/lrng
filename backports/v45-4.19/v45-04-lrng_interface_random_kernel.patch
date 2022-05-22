@@ -39,7 +39,7 @@
 +	return list_empty(&lrng_ready_list);
  }
  
- /**
+ /*
 @@ -48,13 +51,20 @@ bool lrng_ready_chain_has_sleeper(void)
  void lrng_process_ready_list(void)
  {
