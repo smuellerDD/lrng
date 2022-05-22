@@ -174,6 +174,13 @@ else
 		exit
 	fi
 
+	$(check_kernel_config "CONFIG_LRNG_IRQ_ENTROPY_RATE=256")
+	if [ $? -ne 0 ]
+	then
+		echo_deact "SW ES: tests skipped - configure IRQ entropy rate to 256 bits"
+		exit
+	fi
+
 	#
 	# Validating FIPS mode
 	#
