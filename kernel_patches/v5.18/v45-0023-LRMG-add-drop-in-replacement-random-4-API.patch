@@ -1,4 +1,4 @@
-From f2919b73d754bf90e4ac1a8d942befee87dca12b Mon Sep 17 00:00:00 2001
+From d19ba5ae15e7508a9c1c804210deb3496f9494ae Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 18:29:08 +0200
 Subject: [PATCH v45 23/26] LRMG - add drop-in replacement random(4) API
@@ -15,10 +15,10 @@ Signed-off-by: Stephan Mueller <smueller@chronox.de>
  drivers/char/Makefile                         |   3 +-
  drivers/char/lrng/Makefile                    |   5 +
  drivers/char/lrng/lrng_interface_aux.c        | 158 +++++++++
- drivers/char/lrng/lrng_interface_dev_common.c | 288 ++++++++++++++++
+ drivers/char/lrng/lrng_interface_dev_common.c | 295 ++++++++++++++++
  .../char/lrng/lrng_interface_random_kernel.c  | 325 ++++++++++++++++++
  .../char/lrng/lrng_interface_random_user.c    |  70 ++++
- 6 files changed, 848 insertions(+), 1 deletion(-)
+ 6 files changed, 855 insertions(+), 1 deletion(-)
  create mode 100644 drivers/char/lrng/lrng_interface_aux.c
  create mode 100644 drivers/char/lrng/lrng_interface_dev_common.c
  create mode 100644 drivers/char/lrng/lrng_interface_random_kernel.c
@@ -53,7 +53,7 @@ index 52b4625a0760..6242262d577e 100644
 +					   lrng_interface_aux.o
 diff --git a/drivers/char/lrng/lrng_interface_aux.c b/drivers/char/lrng/lrng_interface_aux.c
 new file mode 100644
-index 000000000000..2075068e7cb1
+index 000000000000..a2236ff3b133
 --- /dev/null
 +++ b/drivers/char/lrng/lrng_interface_aux.c
 @@ -0,0 +1,158 @@
@@ -217,10 +217,10 @@ index 000000000000..2075068e7cb1
 +}
 diff --git a/drivers/char/lrng/lrng_interface_dev_common.c b/drivers/char/lrng/lrng_interface_dev_common.c
 new file mode 100644
-index 000000000000..5471906fd645
+index 000000000000..8e80d5bd9773
 --- /dev/null
 +++ b/drivers/char/lrng/lrng_interface_dev_common.c
-@@ -0,0 +1,288 @@
+@@ -0,0 +1,295 @@
 +// SPDX-License-Identifier: GPL-2.0 OR BSD-2-Clause
 +/*
 + * LRNG User and kernel space interfaces
@@ -281,6 +281,13 @@ index 000000000000..5471906fd645
 +/* Enable / disable external entropy provider to furnish seed */
 +void lrng_state_exseed_set(enum lrng_external_noise_source source, bool type)
 +{
++	/*
++	 * If the LRNG is not yet operational, allow all entropy sources
++	 * to deliver data unconditionally to get fully seeded asap.
++	 */
++	if (!lrng_state_operational())
++		return;
++
 +	if (source == lrng_noise_source_hw)
 +		lrng_seed_hw = type;
 +	else
@@ -511,7 +518,7 @@ index 000000000000..5471906fd645
 +}
 diff --git a/drivers/char/lrng/lrng_interface_random_kernel.c b/drivers/char/lrng/lrng_interface_random_kernel.c
 new file mode 100644
-index 000000000000..031fdfea904d
+index 000000000000..4dae08e06500
 --- /dev/null
 +++ b/drivers/char/lrng/lrng_interface_random_kernel.c
 @@ -0,0 +1,325 @@
@@ -552,7 +559,7 @@ index 000000000000..031fdfea904d
 +	return !!lrng_ready_chain_used;
 +}
 +
-+/**
++/*
 + * lrng_process_ready_list() - Ping all kernel internal callers waiting until
 + * the DRNG is completely initialized to inform that the DRNG reached that
 + * seed level.
@@ -672,7 +679,7 @@ index 000000000000..031fdfea904d
 +#endif
 +
 +/*
-+ * del_random_ready_callback() - Delete a previously registered readiness
++ * unregister_random_ready_notifier() - Delete a previously registered readiness
 + * callback function.
 + *
 + * @nb: callback definition that was registered initially

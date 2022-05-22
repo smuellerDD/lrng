@@ -1,4 +1,4 @@
-From 4eba5c6dc340220c313fed8779f35d2847ff7101 Mon Sep 17 00:00:00 2001
+From 6217ace8e0182b5b5d6b0bc546344c56248a4f79 Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 16:56:10 +0200
 Subject: [PATCH v45 13/26] LRNG - add scheduler-based entropy source
@@ -59,10 +59,10 @@ Signed-off-by: Stephan Mueller <smueller@chronox.de>
  create mode 100644 drivers/char/lrng/lrng_testing.h
 
 diff --git a/drivers/char/lrng/Kconfig b/drivers/char/lrng/Kconfig
-index 8fc711903813..03548cc0c96d 100644
+index 634c698143a8..f8a0b47744f8 100644
 --- a/drivers/char/lrng/Kconfig
 +++ b/drivers/char/lrng/Kconfig
-@@ -108,9 +108,9 @@ comment "Common Timer-based Entropy Source Configuration"
+@@ -109,9 +109,9 @@ comment "Common Timer-based Entropy Source Configuration"
  config LRNG_IRQ_DFLT_TIMER_ES
  	bool
 
@@ -75,7 +75,7 @@ index 8fc711903813..03548cc0c96d 100644
  config LRNG_TIMER_COMMON
  	bool
 
-@@ -131,12 +131,12 @@ choice
+@@ -132,12 +132,12 @@ choice
  	  The interrupt entropy source is selected as a timer-based
  	  entropy source to provide entropy.
 
@@ -94,7 +94,7 @@ index 8fc711903813..03548cc0c96d 100644
  endchoice
 
  choice
-@@ -432,58 +432,58 @@ config LRNG_IRQ_ENTROPY_RATE
+@@ -433,58 +433,58 @@ config LRNG_IRQ_ENTROPY_RATE
  # 	  Note, this option is overwritten when the option
  # 	  CONFIG_RANDOM_TRUST_CPU is set.
  #

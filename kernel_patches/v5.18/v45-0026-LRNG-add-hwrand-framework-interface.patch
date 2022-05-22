@@ -1,4 +1,4 @@
-From 0e12f5f0cedff1202cbb33454645b24d5d29a1da Mon Sep 17 00:00:00 2001
+From 18085920507c63f390c828db1bee0eb61aaeb958 Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 18:43:30 +0200
 Subject: [PATCH v45 26/26] LRNG - add hwrand framework interface
@@ -10,23 +10,24 @@ data from the LRNG via the /dev/hwrng file.
 
 Signed-off-by: Stephan Mueller <smueller@chronox.de>
 ---
- drivers/char/lrng/Kconfig                 | 18 +++---
+ drivers/char/lrng/Kconfig                 | 20 +++----
  drivers/char/lrng/Makefile                |  1 +
  drivers/char/lrng/lrng_interface_hwrand.c | 68 +++++++++++++++++++++++
- 3 files changed, 78 insertions(+), 9 deletions(-)
+ 3 files changed, 79 insertions(+), 10 deletions(-)
  create mode 100644 drivers/char/lrng/lrng_interface_hwrand.c
 
 diff --git a/drivers/char/lrng/Kconfig b/drivers/char/lrng/Kconfig
-index 5890d4a9c25f..7bdbb6dd6d72 100644
+index 860a2bbd2bf4..bfd6b3ea4f1b 100644
 --- a/drivers/char/lrng/Kconfig
 +++ b/drivers/char/lrng/Kconfig
-@@ -69,15 +69,15 @@ config LRNG_KCAPI_IF
+@@ -69,16 +69,16 @@ config LRNG_KCAPI_IF
  	  is intended to be higher than the existing RNG
  	  implementations.
 
 -# config LRNG_HWRAND_IF
 -# 	tristate "Interface with Hardware Random Number Generator Framework"
 -# 	depends on HW_RANDOM
+-# 	select LRNG_DRNG_ATOMIC
 -# 	help
 -# 	  The LRNG can be registered with the hardware random number
 -# 	  generator framework. This offers a random number generator
@@ -36,6 +37,7 @@ index 5890d4a9c25f..7bdbb6dd6d72 100644
 +config LRNG_HWRAND_IF
 +	tristate "Interface with Hardware Random Number Generator Framework"
 +	depends on HW_RANDOM
++	select LRNG_DRNG_ATOMIC
 +	help
 +	  The LRNG can be registered with the hardware random number
 +	  generator framework. This offers a random number generator
@@ -56,7 +58,7 @@ index 9dd87363a97e..f61fc40f4620 100644
 +obj-$(CONFIG_LRNG_HWRAND_IF)		+= lrng_interface_hwrand.o
 diff --git a/drivers/char/lrng/lrng_interface_hwrand.c b/drivers/char/lrng/lrng_interface_hwrand.c
 new file mode 100644
-index 000000000000..d05e675b6058
+index 000000000000..e841eea13348
 --- /dev/null
 +++ b/drivers/char/lrng/lrng_interface_hwrand.c
 @@ -0,0 +1,68 @@
@@ -71,24 +73,24 @@ index 000000000000..d05e675b6058
 +#include <linux/hw_random.h>
 +#include <linux/module.h>
 +
-+static int lrng_hwrand_if_init(struct hwrng *rng)
-+{
-+	return 0;
-+}
-+
-+static void lrng_hwrand_if_cleanup(struct hwrng *rng) { }
-+
 +static int lrng_hwrand_if_random(struct hwrng *rng, void *buf, size_t max,
 +				 bool wait)
 +{
-+	lrng_get_random_bytes_full(buf, max);
++	/*
++	 * lrng_get_random_bytes_full not called as we cannot block.
++	 *
++	 * Note: We should either adjust .quality below depending on
++	 * rng_is_initialized() or block here, but neither is not supported by
++	 * the hw_rand framework.
++	 */
++	lrng_get_random_bytes(buf, max);
 +	return (int)max;
 +}
 +
 +static struct hwrng lrng_hwrand = {
 +	.name		= "lrng",
-+	.init		= lrng_hwrand_if_init,
-+	.cleanup	= lrng_hwrand_if_cleanup,
++	.init		= NULL,
++	.cleanup	= NULL,
 +	.read		= lrng_hwrand_if_random,
 +
 +	/*
@@ -106,8 +108,8 @@ index 000000000000..d05e675b6058
 +	 * We can specify full entropy here, because the LRNG is designed
 +	 * to provide full entropy.
 +	 */
-+#if !defined(CONFIG_LRNG_RANDOM_IF) || \
-+    !defined(CONFIG_LRNG_LEGACY_RNG)
++#if !defined(CONFIG_LRNG_RANDOM_IF) && \
++    !defined(CONFIG_LRNG_KERNEL_RNG)
 +	.quality	= 1024,
 +#endif
 +};

@@ -1,4 +1,4 @@
-From 17734b423db8e224effff3dc1068a7ed47794e02 Mon Sep 17 00:00:00 2001
+From 86fcee6487d05aa457a518fec730ebaa16a89425 Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 17:32:29 +0200
 Subject: [PATCH v45 15/26] LRNG - add random.c entropy source support
@@ -28,10 +28,10 @@ Signed-off-by: Stephan Mueller <smueller@chronox.de>
  create mode 100644 drivers/char/lrng/lrng_es_krng.c
 
 diff --git a/drivers/char/lrng/Kconfig b/drivers/char/lrng/Kconfig
-index 9383afbd5357..ae605433ab39 100644
+index 04592e1f13d8..9f88fe02aea7 100644
 --- a/drivers/char/lrng/Kconfig
 +++ b/drivers/char/lrng/Kconfig
-@@ -484,34 +484,34 @@ config LRNG_SCHED_ENTROPY_RATE
+@@ -485,34 +485,34 @@ config LRNG_SCHED_ENTROPY_RATE
  	  scheduler entropy source will still deliver data but without
  	  being credited with entropy.
 

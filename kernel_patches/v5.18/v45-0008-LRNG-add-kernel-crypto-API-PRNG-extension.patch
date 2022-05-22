@@ -1,4 +1,4 @@
-From f9b516422b11ed21f95a62e56d1898c6ecbd3585 Mon Sep 17 00:00:00 2001
+From b8771baac603b17cf26a7a7b55b4070f23fe0a43 Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 16:13:37 +0200
 Subject: [PATCH v45 08/26] LRNG - add kernel crypto API PRNG extension
@@ -18,17 +18,17 @@ complies with the seedsize of the PRNG.
 
 Signed-off-by: Stephan Mueller <smueller@chronox.de>
 ---
- drivers/char/lrng/Kconfig           |  34 ++---
+ drivers/char/lrng/Kconfig           |  36 ++---
  drivers/char/lrng/Makefile          |   1 +
  drivers/char/lrng/lrng_drng_kcapi.c | 208 ++++++++++++++++++++++++++++
- 3 files changed, 226 insertions(+), 17 deletions(-)
+ 3 files changed, 227 insertions(+), 18 deletions(-)
  create mode 100644 drivers/char/lrng/lrng_drng_kcapi.c
 
 diff --git a/drivers/char/lrng/Kconfig b/drivers/char/lrng/Kconfig
-index f80044bd7bcd..53491d10b733 100644
+index c2aedd067b05..6632eae0c797 100644
 --- a/drivers/char/lrng/Kconfig
 +++ b/drivers/char/lrng/Kconfig
-@@ -523,10 +523,10 @@ config LRNG_DRBG
+@@ -524,10 +524,10 @@ config LRNG_DRBG
  	depends on CRYPTO
  	select CRYPTO_DRBG_MENU
 
@@ -43,13 +43,14 @@ index f80044bd7bcd..53491d10b733 100644
 
  config LRNG_SWITCH
  	bool
-@@ -578,16 +578,16 @@ config LRNG_SWITCH_DRBG
+@@ -579,17 +579,17 @@ config LRNG_SWITCH_DRBG
  	  module is loaded, output from /dev/random, /dev/urandom,
  	  getrandom(2), or get_random_bytes_full is provided by a DRBG.
 
 -# config LRNG_SWITCH_DRNG_KCAPI
 -# 	tristate "Kernel Crypto API support for the LRNG"
 -# 	depends on !LRNG_DFLT_DRNG_KCAPI
+-#	depends on !LRNG_SWITCH_DRBG
 -# 	select LRNG_DRNG_KCAPI
 -# 	help
 -# 	  Enable the support for generic pseudo-random number
@@ -60,6 +61,7 @@ index f80044bd7bcd..53491d10b733 100644
 +config LRNG_SWITCH_DRNG_KCAPI
 +	tristate "Kernel Crypto API support for the LRNG"
 +	depends on !LRNG_DFLT_DRNG_KCAPI
++	depends on !LRNG_SWITCH_DRBG
 +	select LRNG_DRNG_KCAPI
 +	help
 +	  Enable the support for generic pseudo-random number
@@ -70,7 +72,7 @@ index f80044bd7bcd..53491d10b733 100644
 
  endif # LRNG_SWITCH_DRNG
 
-@@ -608,9 +608,9 @@ choice
+@@ -610,9 +610,9 @@ choice
  		bool "SP800-90A DRBG"
  		select LRNG_DRBG
 

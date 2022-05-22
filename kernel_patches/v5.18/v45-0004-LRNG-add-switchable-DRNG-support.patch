@@ -1,4 +1,4 @@
-From f91f288fa50dbfd619d32a36ace815990393e2a4 Mon Sep 17 00:00:00 2001
+From dede810aad034b648d35cbfe261ecc016575fe2a Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 18:47:50 +0200
 Subject: [PATCH v45 04/26] LRNG - add switchable DRNG support
@@ -48,10 +48,10 @@ Signed-off-by: Stephan Mueller <smueller@chronox.de>
  create mode 100644 drivers/char/lrng/lrng_switch.c
 
 diff --git a/drivers/char/lrng/Kconfig b/drivers/char/lrng/Kconfig
-index 8438f7560bea..cf262a66cbf8 100644
+index 1f93c64d430e..27652e2fd7be 100644
 --- a/drivers/char/lrng/Kconfig
 +++ b/drivers/char/lrng/Kconfig
-@@ -527,10 +527,10 @@ config LRNG_DRNG_CHACHA20
+@@ -528,10 +528,10 @@ config LRNG_DRNG_CHACHA20
  # 	tristate
  # 	depends on CRYPTO
  # 	select CRYPTO_RNG

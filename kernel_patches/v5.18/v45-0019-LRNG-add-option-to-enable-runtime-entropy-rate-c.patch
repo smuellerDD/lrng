@@ -1,4 +1,4 @@
-From 8638d9ff296699279d82c9ed5818e536894b3632 Mon Sep 17 00:00:00 2001
+From 09ed8a04b95cf54758e029c07c8a9370b76d5fdb Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 17:56:56 +0200
 Subject: [PATCH v45 19/26] LRNG - add option to enable runtime entropy rate
@@ -28,10 +28,10 @@ Signed-off-by: Stephan Mueller <smueller@chronox.de>
  1 file changed, 11 insertions(+), 11 deletions(-)
 
 diff --git a/drivers/char/lrng/Kconfig b/drivers/char/lrng/Kconfig
-index 8ddc81cb8939..32649f7e4809 100644
+index 797f6001f17b..d7e87dc26850 100644
 --- a/drivers/char/lrng/Kconfig
 +++ b/drivers/char/lrng/Kconfig
-@@ -91,17 +91,17 @@ config LRNG_RANDOM_IF
+@@ -92,17 +92,17 @@ config LRNG_RANDOM_IF
 
  menu "Entropy Source Configuration"
 

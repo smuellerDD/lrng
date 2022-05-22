@@ -1,4 +1,4 @@
-From 52ed28f800a426b172e854d2b606636e0e9588c6 Mon Sep 17 00:00:00 2001
+From 1f9f2d7c5c75a17bf7f36a0e0f2e87ba136765d7 Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 16:51:02 +0200
 Subject: [PATCH v45 11/26] LRNG - add interrupt entropy source
@@ -49,10 +49,10 @@ Signed-off-by: Stephan Mueller <smueller@chronox.de>
  create mode 100644 drivers/char/lrng/lrng_es_irq.c
 
 diff --git a/drivers/char/lrng/Kconfig b/drivers/char/lrng/Kconfig
-index 49e8f4414c79..8fc711903813 100644
+index b9a357243075..634c698143a8 100644
 --- a/drivers/char/lrng/Kconfig
 +++ b/drivers/char/lrng/Kconfig
-@@ -89,8 +89,8 @@ config LRNG_RANDOM_IF
+@@ -90,8 +90,8 @@ config LRNG_RANDOM_IF
  #
  # endmenu # "LRNG Interfaces"
 
@@ -63,7 +63,7 @@ index 49e8f4414c79..8fc711903813 100644
  # config LRNG_RUNTIME_ES_CONFIG
  # 	bool "Enable runtime configuration of entropy sources"
  # 	help
-@@ -102,100 +102,100 @@ config LRNG_RANDOM_IF
+@@ -103,100 +103,100 @@ config LRNG_RANDOM_IF
  # 	  a kernel command line option. When not providing any
  # 	  option, the default specified during kernel compilation
  # 	  is applied.
@@ -246,7 +246,7 @@ index 49e8f4414c79..8fc711903813 100644
  # config LRNG_HEALTH_TESTS
  # 	bool "Enable internal entropy source online health tests"
  # 	depends on LRNG_TIMER_COMMON
-@@ -258,113 +258,113 @@ config LRNG_TIMER_COMMON
+@@ -259,113 +259,113 @@ config LRNG_TIMER_COMMON
  # 	int
  # 	default 325 if !LRNG_APT_BROKEN
  # 	default 32 if LRNG_APT_BROKEN
@@ -467,7 +467,7 @@ index 49e8f4414c79..8fc711903813 100644
  # comment "Jitter RNG Entropy Source"
  #
  # config LRNG_JENT
-@@ -512,8 +512,8 @@ config LRNG_TIMER_COMMON
+@@ -513,8 +513,8 @@ config LRNG_TIMER_COMMON
  # 	  kernel in FIPS mode (with fips=1 kernel command line option).
  # 	  This is due to the fact that random.c is not SP800-90B
  # 	  compliant.

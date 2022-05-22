@@ -1,4 +1,4 @@
-From 95f37572e1229e801eb0348c1aa786a3968c3a8e Mon Sep 17 00:00:00 2001
+From 31e783978f75d7510172d5dec044551755e5c5ab Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 18:13:56 +0200
 Subject: [PATCH v45 21/26] LRNG - add power-on and runtime self-tests
@@ -54,10 +54,10 @@ Signed-off-by: Stephan Mueller <smueller@chronox.de>
  create mode 100644 drivers/char/lrng/lrng_selftest.c
 
 diff --git a/drivers/char/lrng/Kconfig b/drivers/char/lrng/Kconfig
-index 9578a3fbefc9..0f68a455a43f 100644
+index 6b5f6a88e956..ec45aee683de 100644
 --- a/drivers/char/lrng/Kconfig
 +++ b/drivers/char/lrng/Kconfig
-@@ -873,32 +873,32 @@ config LRNG_TEST_CPU_ES_COMPRESSION
+@@ -875,32 +875,32 @@ config LRNG_TEST_CPU_ES_COMPRESSION
  	  than what may be required.
 
  endif #LRNG_TESTING_MENU

@@ -1,4 +1,4 @@
-From b0885b259a8dd83da53cd89598b457ebe71be974 Mon Sep 17 00:00:00 2001
+From 0f98c3a76f004cf551cc854bddc0bdd90e77ec35 Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 17:51:58 +0200
 Subject: [PATCH v45 18/26] LRNG - add Jitter RNG fast noise source
@@ -21,10 +21,10 @@ Signed-off-by: Stephan Mueller <smueller@chronox.de>
  create mode 100644 drivers/char/lrng/lrng_es_jent.c
 
 diff --git a/drivers/char/lrng/Kconfig b/drivers/char/lrng/Kconfig
-index ba35e71542d8..8ddc81cb8939 100644
+index 549f472d4c1b..797f6001f17b 100644
 --- a/drivers/char/lrng/Kconfig
 +++ b/drivers/char/lrng/Kconfig
-@@ -365,35 +365,35 @@ config LRNG_IRQ_ENTROPY_RATE
+@@ -366,35 +366,35 @@ config LRNG_IRQ_ENTROPY_RATE
  	  interrupt entropy source will still deliver data but without
  	  being credited with entropy.
 

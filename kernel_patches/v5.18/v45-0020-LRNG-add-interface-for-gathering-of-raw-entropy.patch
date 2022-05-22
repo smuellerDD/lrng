@@ -1,4 +1,4 @@
-From c317f488134834e2a6e83c6fe7eec2a1cfe858da Mon Sep 17 00:00:00 2001
+From bed0e9e2b0a16a316d3595c5ed848e5d92d2e7ed Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 18:05:58 +0200
 Subject: [PATCH v45 20/26] LRNG - add interface for gathering of raw entropy
@@ -78,10 +78,10 @@ Signed-off-by: Stephan Mueller <smueller@chronox.de>
  create mode 100644 drivers/char/lrng/lrng_testing.c
 
 diff --git a/drivers/char/lrng/Kconfig b/drivers/char/lrng/Kconfig
-index 32649f7e4809..9578a3fbefc9 100644
+index d7e87dc26850..6b5f6a88e956 100644
 --- a/drivers/char/lrng/Kconfig
 +++ b/drivers/char/lrng/Kconfig
-@@ -613,266 +613,266 @@ choice
+@@ -615,266 +615,266 @@ choice
  		select LRNG_DRNG_KCAPI
  endchoice
 

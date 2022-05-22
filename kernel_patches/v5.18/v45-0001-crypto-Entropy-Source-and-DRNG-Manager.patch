@@ -1,4 +1,4 @@
-From 70ec3394d6ccd953601567be553d43625fe71313 Mon Sep 17 00:00:00 2001
+From 523998a620b86365cccd20ebc3f391fabad20598 Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 15:33:28 +0200
 Subject: [PATCH v45 01/26] crypto: Entropy Source and DRNG Manager
@@ -141,7 +141,7 @@ Signed-off-by: Stephan Mueller <smueller@chronox.de>
 ---
  drivers/char/Kconfig                          |   2 +
  drivers/char/Makefile                         |   2 +
- drivers/char/lrng/Kconfig                     | 905 ++++++++++++++++++
+ drivers/char/lrng/Kconfig                     | 907 ++++++++++++++++++
  drivers/char/lrng/Makefile                    |  11 +
  drivers/char/lrng/lrng_definitions.h          | 151 +++
  drivers/char/lrng/lrng_drng_atomic.h          |  23 +
@@ -170,7 +170,7 @@ Signed-off-by: Stephan Mueller <smueller@chronox.de>
  drivers/char/lrng/lrng_sha256.c               |  72 ++
  drivers/char/lrng/lrng_sysctl.h               |  15 +
  include/linux/lrng.h                          | 150 +++
- 31 files changed, 3465 insertions(+)
+ 31 files changed, 3467 insertions(+)
  create mode 100644 drivers/char/lrng/Kconfig
  create mode 100644 drivers/char/lrng/Makefile
  create mode 100644 drivers/char/lrng/lrng_definitions.h
@@ -224,10 +224,10 @@ index 264eb398fdd4..bcb57ac88a7c 100644
 +obj-$(CONFIG_LRNG)		+= lrng/
 diff --git a/drivers/char/lrng/Kconfig b/drivers/char/lrng/Kconfig
 new file mode 100644
-index 000000000000..8438f7560bea
+index 000000000000..1f93c64d430e
 --- /dev/null
 +++ b/drivers/char/lrng/Kconfig
-@@ -0,0 +1,905 @@
+@@ -0,0 +1,907 @@
 +# SPDX-License-Identifier: GPL-2.0
 +#
 +# Linux Random Number Generator configuration
@@ -302,6 +302,7 @@ index 000000000000..8438f7560bea
 +# config LRNG_HWRAND_IF
 +# 	tristate "Interface with Hardware Random Number Generator Framework"
 +# 	depends on HW_RANDOM
++# 	select LRNG_DRNG_ATOMIC
 +# 	help
 +# 	  The LRNG can be registered with the hardware random number
 +# 	  generator framework. This offers a random number generator
@@ -811,6 +812,7 @@ index 000000000000..8438f7560bea
 +# config LRNG_SWITCH_DRNG_KCAPI
 +# 	tristate "Kernel Crypto API support for the LRNG"
 +# 	depends on !LRNG_DFLT_DRNG_KCAPI
++#	depends on !LRNG_SWITCH_DRBG
 +# 	select LRNG_DRNG_KCAPI
 +# 	help
 +# 	  Enable the support for generic pseudo-random number

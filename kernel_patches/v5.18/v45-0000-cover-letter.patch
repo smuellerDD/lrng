@@ -1,6 +1,6 @@
-From 0e12f5f0cedff1202cbb33454645b24d5d29a1da Mon Sep 17 00:00:00 2001
+From 18085920507c63f390c828db1bee0eb61aaeb958 Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
-Date: Sun, 15 May 2022 22:51:17 +0200
+Date: Sun, 22 May 2022 16:46:26 +0200
 Subject: [PATCH v45 00/26] /dev/random - a new approach
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -294,7 +294,6 @@ are visible at https://github.com/smuellerDD/lrng/commits/master:
   /dev/random (e.g. when the LRNG is compiled along with random.c but
   user space wants to interact with LRNG)
 
-
 Stephan Mueller (26):
   crypto: Entropy Source and DRNG Manager
   LRNG - allocate one DRNG instance per NUMA node
@@ -328,7 +327,7 @@ Stephan Mueller (26):
  crypto/jitterentropy.c                        |   2 +-
  drivers/char/Kconfig                          |   2 +
  drivers/char/Makefile                         |   5 +-
- drivers/char/lrng/Kconfig                     | 905 ++++++++++++++++++
+ drivers/char/lrng/Kconfig                     | 907 ++++++++++++++++++
  drivers/char/lrng/Makefile                    |  39 +
  drivers/char/lrng/lrng_definitions.h          | 151 +++
  drivers/char/lrng/lrng_drng_atomic.c          | 170 ++++
@@ -363,7 +362,7 @@ Stephan Mueller (26):
  drivers/char/lrng/lrng_health.h               |  42 +
  drivers/char/lrng/lrng_interface_aux.c        | 158 +++
  drivers/char/lrng/lrng_interface_dev.c        |  35 +
- drivers/char/lrng/lrng_interface_dev_common.c | 288 ++++++
+ drivers/char/lrng/lrng_interface_dev_common.c | 295 ++++++
  drivers/char/lrng/lrng_interface_dev_common.h |  50 +
  drivers/char/lrng/lrng_interface_hwrand.c     |  68 ++
  drivers/char/lrng/lrng_interface_kcapi.c      | 129 +++
@@ -387,7 +386,7 @@ Stephan Mueller (26):
  .../crypto/internal}/jitterentropy.h          |   0
  include/linux/lrng.h                          | 150 +++
  kernel/sched/core.c                           |   3 +
- 64 files changed, 9572 insertions(+), 10 deletions(-)
+ 64 files changed, 9581 insertions(+), 10 deletions(-)
  create mode 100644 drivers/char/lrng/Kconfig
  create mode 100644 drivers/char/lrng/Makefile
  create mode 100644 drivers/char/lrng/lrng_definitions.h
@@ -446,6 +445,6 @@ Stephan Mueller (26):
  rename {crypto => include/crypto/internal}/jitterentropy.h (100%)
  create mode 100644 include/linux/lrng.h
 
---
+-- 
 2.36.1
 

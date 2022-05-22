@@ -1,4 +1,4 @@
-From 35b63e6dd9c7a7c60654e29aa10c35a21a2a7c79 Mon Sep 17 00:00:00 2001
+From 7bc317dbed238a75ed7bc05d95f2b8e7e7a12933 Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 18:35:14 +0200
 Subject: [PATCH v45 24/26] LRNG - add kernel crypto API interface
@@ -17,7 +17,7 @@ Signed-off-by: Stephan Mueller <smueller@chronox.de>
  create mode 100644 drivers/char/lrng/lrng_interface_kcapi.c
 
 diff --git a/drivers/char/lrng/Kconfig b/drivers/char/lrng/Kconfig
-index 0f68a455a43f..7303d5760729 100644
+index ec45aee683de..3ddd8d08a39d 100644
 --- a/drivers/char/lrng/Kconfig
 +++ b/drivers/char/lrng/Kconfig
 @@ -57,18 +57,18 @@ config LRNG_RANDOM_IF
@@ -51,7 +51,7 @@ index 0f68a455a43f..7303d5760729 100644
  # config LRNG_HWRAND_IF
  # 	tristate "Interface with Hardware Random Number Generator Framework"
  # 	depends on HW_RANDOM
-@@ -87,7 +87,7 @@ config LRNG_RANDOM_IF
+@@ -88,7 +88,7 @@ config LRNG_RANDOM_IF
  # 	  identically to /dev/random including IOCTL, read and write
  # 	  operations.
  #

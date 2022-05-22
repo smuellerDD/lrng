@@ -1,4 +1,4 @@
-From 8832be32284b1214babe438368a897c7f99a9e79 Mon Sep 17 00:00:00 2001
+From e64c9f8a53af273722115f75cb86f0f0f03a10af Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 17:47:58 +0200
 Subject: [PATCH v45 17/26] crypto: move Jitter RNG header include dir

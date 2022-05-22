@@ -1,4 +1,4 @@
-From 4023ff1430d479f59a99beda864ac31b055f5baa Mon Sep 17 00:00:00 2001
+From 63624fa577610debe48fa3d11e203b5d32c57b29 Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 17:45:45 +0200
 Subject: [PATCH v45 16/26] LRNG - CPU entropy source
@@ -22,10 +22,10 @@ Signed-off-by: Stephan Mueller <smueller@chronox.de>
  create mode 100644 drivers/char/lrng/lrng_es_cpu.c
 
 diff --git a/drivers/char/lrng/Kconfig b/drivers/char/lrng/Kconfig
-index ae605433ab39..ba35e71542d8 100644
+index 9f88fe02aea7..549f472d4c1b 100644
 --- a/drivers/char/lrng/Kconfig
 +++ b/drivers/char/lrng/Kconfig
-@@ -394,44 +394,44 @@ config LRNG_IRQ_ENTROPY_RATE
+@@ -395,44 +395,44 @@ config LRNG_IRQ_ENTROPY_RATE
  # 	  will provide 256 bits of data without being credited to contain
  # 	  entropy.
  #
