@@ -1,4 +1,4 @@
-From b7f727ac83ae92db61dddf414822b05eee0f2b69 Mon Sep 17 00:00:00 2001
+From 0984925da8334dacce8f98c78e6b55e77bbc3732 Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Mon, 30 May 2022 21:55:07 +0200
 Subject: [PATCH 2/2] lrng: add random_init function
@@ -9,13 +9,13 @@ line string that can be used to stir the auxiliary pool.
 
 Signed-off-by: Stephan Mueller <smueller@chronox.de>
 ---
- lrng_interface_random_kernel.c | 7 +++++--
+ drivers/char/lrng/lrng_interface_random_kernel.c | 7 +++++--
  1 file changed, 5 insertions(+), 2 deletions(-)
 
-diff --git a/lrng_interface_random_kernel.c b/lrng_interface_random_kernel.c
-index 4dae08e06500..81060ba98742 100644
---- a/lrng_interface_random_kernel.c
-+++ b/lrng_interface_random_kernel.c
+diff --git a/drivers/char/lrng/lrng_interface_random_kernel.c b/drivers/char/lrng/lrng_interface_random_kernel.c
+index 4dae08e06..81060ba98 100644
+--- a/drivers/char/lrng/lrng_interface_random_kernel.c
++++ b/drivers/char/lrng/lrng_interface_random_kernel.c
 @@ -25,9 +25,12 @@ static unsigned int lrng_ready_chain_used = 0;
  
  /********************************** Helper ***********************************/
@@ -32,5 +32,5 @@ index 4dae08e06500..81060ba98742 100644
  
  bool lrng_ready_chain_has_sleeper(void)
 -- 
-2.36.1
+2.36.1.74.g277cf0bc36
 

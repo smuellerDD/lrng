@@ -1,4 +1,4 @@
-From ff9c0016669dfd9d429023b8850738c109191788 Mon Sep 17 00:00:00 2001
+From db57fb730fb70da790984b4604cce820dcb9e7c1 Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Mon, 30 May 2022 21:54:10 +0200
 Subject: [PATCH 1/2] lrng: remove randomize_page
@@ -8,13 +8,13 @@ can be removed for good from the LRNG code base.
 
 Signed-off-by: Stephan Mueller <smueller@chronox.de>
 ---
- lrng_interface_aux.c | 32 --------------------------------
+ drivers/char/lrng/lrng_interface_aux.c | 32 --------------------------
  1 file changed, 32 deletions(-)
 
-diff --git a/lrng_interface_aux.c b/lrng_interface_aux.c
-index a2236ff3b133..0eb49bd6b48f 100644
---- a/lrng_interface_aux.c
-+++ b/lrng_interface_aux.c
+diff --git a/drivers/char/lrng/lrng_interface_aux.c b/drivers/char/lrng/lrng_interface_aux.c
+index a2236ff3b..0eb49bd6b 100644
+--- a/drivers/char/lrng/lrng_interface_aux.c
++++ b/drivers/char/lrng/lrng_interface_aux.c
 @@ -124,35 +124,3 @@ void invalidate_batched_entropy(void)
  		spin_unlock_irqrestore(&batched_entropy->batch_lock, flags);
  	}
@@ -52,5 +52,5 @@ index a2236ff3b133..0eb49bd6b48f 100644
 -	return start + (get_random_long() % range << PAGE_SHIFT);
 -}
 -- 
-2.36.1
+2.36.1.74.g277cf0bc36
 
