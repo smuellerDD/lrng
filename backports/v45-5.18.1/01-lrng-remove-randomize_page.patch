@@ -11,10 +11,10 @@ Signed-off-by: Stephan Mueller <smueller@chronox.de>
  lrng_interface_aux.c | 32 --------------------------------
  1 file changed, 32 deletions(-)
 
-diff --git a/lrng_interface_aux.c b/lrng_interface_aux.c
+diff --git a/drivers/char/lrng/lrng_interface_aux.c b/drivers/char/lrng/lrng_interface_aux.c
 index a2236ff3b133..0eb49bd6b48f 100644
---- a/lrng_interface_aux.c
-+++ b/lrng_interface_aux.c
+--- a/drivers/char/lrng/lrng_interface_aux.c
++++ b/drivers/char/lrng/lrng_interface_aux.c
 @@ -124,35 +124,3 @@ void invalidate_batched_entropy(void)
  		spin_unlock_irqrestore(&batched_entropy->batch_lock, flags);
  	}
