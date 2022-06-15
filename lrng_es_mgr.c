@@ -170,20 +170,19 @@ static void lrng_init_wakeup(void)
 	lrng_init_wakeup_dev();
 }
 
-static bool lrng_fully_seeded(bool fully_seeded, u32 collected_entropy)
+bool lrng_fully_seeded(bool fully_seeded, u32 collected_entropy)
 {
 	return (collected_entropy >= lrng_get_seed_entropy_osr(fully_seeded));
 }
 
-/* Policy to check whether entropy buffer contains full seeded entropy */
-bool lrng_fully_seeded_eb(bool fully_seeded, struct entropy_buf *eb)
+u32 lrng_entropy_rate_eb(struct entropy_buf *eb)
 {
 	u32 i, collected_entropy = 0;
 
 	for_each_lrng_es(i)
 		collected_entropy += eb->e_bits[i];
 
-	return lrng_fully_seeded(fully_seeded, collected_entropy);
+	return collected_entropy;
 }
 
 /* Mark one DRNG as not fully seeded */
