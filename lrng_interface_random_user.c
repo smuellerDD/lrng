@@ -24,7 +24,7 @@ static ssize_t lrng_drng_read(struct file *file, char __user *buf,
 		pr_debug_ratelimited("%s - use of not fully seeded DRNG (%zu bytes read)\n",
 				     current->comm, nbytes);
 
-	return lrng_read_common(buf, nbytes);
+	return lrng_read_common(buf, nbytes, false);
 }
 
 const struct file_operations random_fops = {
@@ -66,5 +66,5 @@ SYSCALL_DEFINE3(getrandom, char __user *, buf, size_t, count,
 	if (flags & GRND_INSECURE)
 		return lrng_drng_read(NULL, buf, count, NULL);
 
-	return lrng_read_common_block(flags & GRND_NONBLOCK, buf, count);
+	return lrng_read_common_block(flags & GRND_NONBLOCK, 0, buf, count);
 }

@@ -62,10 +62,10 @@ bool lrng_get_available(void);
 void lrng_drng_reset(struct lrng_drng *drng);
 void lrng_drng_inject(struct lrng_drng *drng, const u8 *inbuf, u32 inbuflen,
 		      bool fully_seeded, const char *drng_type);
-int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen);
+int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen, bool pr);
 int lrng_drng_sleep_while_nonoperational(int nonblock);
 int lrng_drng_sleep_while_non_min_seeded(void);
-int lrng_drng_get_sleep(u8 *outbuf, u32 outbuflen);
+int lrng_drng_get_sleep(u8 *outbuf, u32 outbuflen, bool pr);
 void lrng_drng_seed_work(struct work_struct *dummy);
 void lrng_drng_force_reseed(void);
 
