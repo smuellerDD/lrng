@@ -215,6 +215,7 @@ static DECLARE_WORK(lrng_set_drng_cb_work, lrng_set_drng_cb_workfn);
 int lrng_set_drng_cb(const struct lrng_drng_cb *drng_cb)
 {
 	struct lrng_drng *lrng_drng_init = lrng_drng_init_instance();
+	int ret;
 
 	if (!IS_ENABLED(CONFIG_LRNG_SWITCH_DRNG))
 		return -EOPNOTSUPP;
@@ -242,7 +243,7 @@ int lrng_set_drng_cb(const struct lrng_drng_cb *drng_cb)
 
 	lrng_drng_cb = drng_cb;
 	schedule_work(&lrng_set_drng_cb_work);
-	return 0;
+	return ret;
 }
 EXPORT_SYMBOL(lrng_set_drng_cb);
 
