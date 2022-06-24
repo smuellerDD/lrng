@@ -19,10 +19,6 @@
 #include "lrng_interface_dev_common.h"
 #include "lrng_interface_random_kernel.h"
 
-static RAW_NOTIFIER_HEAD(lrng_ready_chain);
-static DEFINE_SPINLOCK(lrng_ready_chain_lock);
-static unsigned int lrng_ready_chain_used = 0;
-
 /********************************** Helper ***********************************/
 
 int __init random_init(const char *command_line)
@@ -31,33 +27,6 @@ int __init random_init(const char *command_line)
 
 	lrng_pool_insert_aux(command_line, strlen(command_line), 0);
 	return ret;
-}
-
-bool lrng_ready_chain_has_sleeper(void)
-{
-	return !!lrng_ready_chain_used;
-}
-
-/*
- * lrng_process_ready_list() - Ping all kernel internal callers waiting until
- * the DRNG is completely initialized to inform that the DRNG reached that
- * seed level.
- *
- * When the SP800-90B testing is enabled, the ping only happens if the SP800-90B
- * startup health tests are completed. This implies that kernel internal
- * callers always have an SP800-90B compliant noise source when being
- * pinged.
- */
-void lrng_process_ready_list(void)
-{
-	unsigned long flags;
-
-	if (!lrng_state_operational())
-		return;
-
-	spin_lock_irqsave(&lrng_ready_chain_lock, flags);
-	raw_notifier_call_chain(&lrng_ready_chain, 0, NULL);
-	spin_unlock_irqrestore(&lrng_ready_chain_lock, flags);
 }
 
 /************************ LRNG kernel input interfaces ************************/
@@ -157,58 +126,6 @@ void add_interrupt_randomness(int irq) { }
 EXPORT_SYMBOL(add_interrupt_randomness);
 #endif
 
-/*
- * unregister_random_ready_notifier() - Delete a previously registered readiness
- * callback function.
- *
- * @nb: callback definition that was registered initially
- */
-int unregister_random_ready_notifier(struct notifier_block *nb)
-{
-	unsigned long flags;
-	int ret;
-
-	spin_lock_irqsave(&lrng_ready_chain_lock, flags);
-	ret = raw_notifier_chain_unregister(&lrng_ready_chain, nb);
-	spin_unlock_irqrestore(&lrng_ready_chain_lock, flags);
-
-	if (!ret && lrng_ready_chain_used)
-		lrng_ready_chain_used--;
-
-	return ret;
-}
-EXPORT_SYMBOL(unregister_random_ready_notifier);
-
-/*
- * register_random_ready_notifier() - Add a callback function that will be
- * invoked when the DRNG is fully initialized and seeded.
- *
- * @nb: callback definition to be invoked when the LRNG is seeded
- *
- * Return:
- * * 0 if callback is successfully added
- * * -EALREADY if pool is already initialised (callback not called)
- */
-int register_random_ready_notifier(struct notifier_block *nb)
-{
-	unsigned long flags;
-	int err = -EALREADY;
-
-	if (likely(lrng_state_operational()))
-		return err;
-
-	spin_lock_irqsave(&lrng_ready_chain_lock, flags);
-	if (!lrng_state_operational())
-		err = raw_notifier_chain_register(&lrng_ready_chain, nb);
-	spin_unlock_irqrestore(&lrng_ready_chain_lock, flags);
-
-	if (!err)
-		lrng_ready_chain_used++;
-
-	return err;
-}
-EXPORT_SYMBOL(register_random_ready_notifier);
-
 #if IS_ENABLED(CONFIG_VMGENID)
 static BLOCKING_NOTIFIER_HEAD(lrng_vmfork_chain);
 
@@ -277,43 +194,6 @@ int wait_for_random_bytes(void)
 	return lrng_drng_sleep_while_non_min_seeded();
 }
 EXPORT_SYMBOL(wait_for_random_bytes);
-
-/*
- * get_random_bytes_arch() - This function will use the architecture-specific
- * hardware random number generator if it is available.
- *
- * The arch-specific hw RNG will almost certainly be faster than what we can
- * do in software, but it is impossible to verify that it is implemented
- * securely (as opposed, to, say, the AES encryption of a sequence number using
- * a key known by the NSA).  So it's useful if we need the speed, but only if
- * we're willing to trust the hardware manufacturer not to have put in a back
- * door.
- *
- * @buf: buffer allocated by caller to store the random data in
- * @nbytes: length of outbuf
- *
- * Return: number of bytes filled in.
- */
-size_t __must_check get_random_bytes_arch(void *buf, size_t nbytes)
-{
-	size_t left = nbytes;
-	u8 *p = buf;
-
-	while (left) {
-		unsigned long v;
-		size_t chunk = min_t(size_t, left, sizeof(unsigned long));
-
-		if (!arch_get_random_long(&v))
-			break;
-
-		memcpy(p, &v, chunk);
-		p += chunk;
-		left -= chunk;
-	}
-
-	return nbytes - left;
-}
-EXPORT_SYMBOL(get_random_bytes_arch);
 
 /*
  * Returns whether or not the LRNG has been seeded.

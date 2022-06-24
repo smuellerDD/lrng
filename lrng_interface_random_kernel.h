@@ -7,12 +7,8 @@
 #define _LRNG_INTERFACE_RANDOM_H
 
 #ifdef CONFIG_LRNG_RANDOM_IF
-void lrng_process_ready_list(void);
-bool lrng_ready_chain_has_sleeper(void);
 void invalidate_batched_entropy(void);
 #else /* CONFIG_LRNG_RANDOM_IF */
-static inline bool lrng_ready_chain_has_sleeper(void) { return false; }
-static inline void lrng_process_ready_list(void) { }
 static inline void invalidate_batched_entropy(void) { }
 #endif /* CONFIG_LRNG_RANDOM_IF */
 

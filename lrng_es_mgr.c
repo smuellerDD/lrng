@@ -218,7 +218,6 @@ static void lrng_set_operational(void)
 	 */
 	if (lrng_state.lrng_fully_seeded) {
 		lrng_state.lrng_operational = true;
-		lrng_process_ready_list();
 		lrng_init_wakeup();
 		pr_info("LRNG fully operational\n");
 	}
