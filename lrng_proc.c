@@ -34,7 +34,7 @@ static int lrng_proc_type_show(struct seq_file *m, void *v)
 		 "DRNG name: %s\n"
 		 "LRNG security strength in bits: %d\n"
 		 "Number of DRNG instances: %u\n"
-		 "Standards compliance: %s\n"
+		 "Standards compliance: %s%s\n"
 		 "LRNG minimally seeded: %s\n"
 		 "LRNG fully seeded: %s\n"
 		 "LRNG entropy level: %u\n",
@@ -42,6 +42,7 @@ static int lrng_proc_type_show(struct seq_file *m, void *v)
 		 lrng_security_strength(),
 		 numa_drngs,
 		 lrng_sp80090c_compliant() ? "SP800-90C " : "",
+		 lrng_ntg1_compliant() ? "NTG.1 " : "",
 		 lrng_state_min_seeded() ? "true" : "false",
 		 lrng_state_fully_seeded() ? "true" : "false",
 		 lrng_avail_entropy());
