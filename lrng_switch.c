@@ -174,32 +174,6 @@ static int lrng_switch(const void *cb,
 	return 0;
 }
 
-/* Reset LRNG such that all existing entropy is gone */
-static const struct lrng_drng_cb *lrng_drng_cb = NULL;
-static void lrng_set_drng_cb_workfn(struct work_struct *work)
-{
-	if (!lrng_drng_cb)
-		return;
-
-	/*
-	 * Wait until the LRNG becomes operational. The reason is that
-	 * an SP800-90A DRBG shall be fully initialized with full entropy.
-	 * This is only present when the LRNG is fully initialized.
-	 */
-	lrng_drng_sleep_while_nonoperational(0);
-	lrng_switch(lrng_drng_cb, lrng_drng_switch);
-
-	/* The swtich may imply new entropy due to larger DRNG sec strength. */
-	if (!lrng_switch(lrng_drng_cb, lrng_drng_switch))
-		lrng_es_add_entropy();
-
-	lrng_drng_cb = NULL;
-
-	mutex_unlock(&lrng_crypto_cb_update);
-}
-
-static DECLARE_WORK(lrng_set_drng_cb_work, lrng_set_drng_cb_workfn);
-
 /*
  * lrng_set_drng_cb - Register new cryptographic callback functions for DRNG
  * The registering implies that all old DRNG states are replaced with new
@@ -237,12 +211,17 @@ int lrng_set_drng_cb(const struct lrng_drng_cb *drng_cb)
 	if ((drng_cb != lrng_default_drng_cb) &&
 	    (lrng_drng_init->drng_cb != lrng_default_drng_cb)) {
 		pr_warn("disallow setting new DRNG callbacks, unload the old callbacks first!\n");
-		mutex_unlock(&lrng_crypto_cb_update);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto out;
 	}
 
-	lrng_drng_cb = drng_cb;
-	schedule_work(&lrng_set_drng_cb_work);
+	ret = lrng_switch(drng_cb, lrng_drng_switch);
+	/* The swtich may imply new entropy due to larger DRNG sec strength. */
+	if (!ret)
+		lrng_es_add_entropy();
+
+out:
+	mutex_unlock(&lrng_crypto_cb_update);
 	return ret;
 }
 EXPORT_SYMBOL(lrng_set_drng_cb);
