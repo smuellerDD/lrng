@@ -178,6 +178,12 @@ bool lrng_sp80090c_compliant(void)
 	return fips_enabled;
 }
 
+bool lrng_ntg1_compliant(void)
+{
+	/* Implies using of /dev/random with O_SYNC */
+	return true;
+}
+
 /************************* Random Number Generation ***************************/
 
 /* Inject a data buffer into the DRNG - caller must hold its lock */
