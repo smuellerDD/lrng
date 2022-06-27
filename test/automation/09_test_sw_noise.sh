@@ -33,7 +33,7 @@ cap_rate()
 
 	local osr=0
 
-	if [ x"$sp80090c" = x"SP800-90C" ]
+	if ( echo $sp80090c | grep -q "SP800-90C")
 	then
 		osr=64
 	fi
