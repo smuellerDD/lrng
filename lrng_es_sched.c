@@ -47,6 +47,29 @@ static DEFINE_PER_CPU(u32 [LRNG_DATA_ARRAY_SIZE], lrng_sched_array)
 static DEFINE_PER_CPU(u32, lrng_sched_array_ptr) = 0;
 static DEFINE_PER_CPU(atomic_t, lrng_sched_array_events) = ATOMIC_INIT(0);
 
+/*
+ * Per-CPU entropy pool with compressed entropy event
+ *
+ * The per-CPU entropy pool is defined as the hash state. New data is simply
+ * inserted into the entropy pool by performing a hash update operation.
+ * To read the entropy pool, a hash final must be invoked. However, before
+ * the entropy pool is released again after a hash final, the hash init must
+ * be performed.
+ */
+static DEFINE_PER_CPU(u8 [LRNG_POOL_SIZE], lrng_sched_pool)
+						__aligned(LRNG_KCAPI_ALIGN);
+/*
+ * Lock to allow other CPUs to read the pool - as this is only done during
+ * reseed which is infrequent, this lock is hardly contended.
+ */
+static DEFINE_PER_CPU(spinlock_t, lrng_sched_lock);
+static DEFINE_PER_CPU(bool, lrng_sched_lock_init) = false;
+
+static bool lrng_sched_pool_online(int cpu)
+{
+	return per_cpu(lrng_sched_lock_init, cpu);
+}
+
 static void __init lrng_sched_check_compression_state(void)
 {
 	/* One pool should hold sufficient entropy for disabled compression */
@@ -133,6 +156,135 @@ static void lrng_sched_reset(void)
 }
 
 /*
+ * Trigger a switch of the hash implementation for the per-CPU pool.
+ *
+ * For each per-CPU pool, obtain the message digest with the old hash
+ * implementation, initialize the per-CPU pool again with the new hash
+ * implementation and inject the message digest into the new state.
+ *
+ * Assumption: the caller must guarantee that the new_cb is available during the
+ * entire operation (e.g. it must hold the lock against pointer updating).
+ */
+static int
+lrng_sched_switch_hash(struct lrng_drng *drng, int node,
+		       const struct lrng_hash_cb *new_cb, void *new_hash,
+		       const struct lrng_hash_cb *old_cb)
+{
+	u8 digest[LRNG_MAX_DIGESTSIZE];
+	u32 digestsize_events, found_events;
+	int ret = 0, cpu;
+
+	if (!IS_ENABLED(CONFIG_LRNG_SWITCH))
+		return -EOPNOTSUPP;
+
+	for_each_online_cpu(cpu) {
+		struct shash_desc *pcpu_shash;
+
+		/*
+		 * Only switch the per-CPU pools for the current node because
+		 * the hash_cb only applies NUMA-node-wide.
+		 */
+		if (cpu_to_node(cpu) != node || !lrng_sched_pool_online(cpu))
+			continue;
+
+		pcpu_shash = (struct shash_desc *)per_cpu_ptr(lrng_sched_pool,
+							      cpu);
+
+		digestsize_events = old_cb->hash_digestsize(pcpu_shash);
+		digestsize_events = lrng_entropy_to_data(digestsize_events << 3,
+						       lrng_sched_entropy_bits);
+
+		if (pcpu_shash->tfm == new_hash)
+			continue;
+
+		/* Get the per-CPU pool hash with old digest ... */
+		ret = old_cb->hash_final(pcpu_shash, digest) ?:
+		      /* ... re-initialize the hash with the new digest ... */
+		      new_cb->hash_init(pcpu_shash, new_hash) ?:
+		      /*
+		       * ... feed the old hash into the new state. We may feed
+		       * uninitialized memory into the new state, but this is
+		       * considered no issue and even good as we have some more
+		       * uncertainty here.
+		       */
+		      new_cb->hash_update(pcpu_shash, digest, sizeof(digest));
+		if (ret)
+			goto out;
+
+		/*
+		 * In case the new digest is larger than the old one, cap
+		 * the available entropy to the old message digest used to
+		 * process the existing data.
+		 */
+		found_events = atomic_xchg_relaxed(
+				per_cpu_ptr(&lrng_sched_array_events, cpu), 0);
+		found_events = min_t(u32, found_events, digestsize_events);
+		atomic_add_return_relaxed(found_events,
+				per_cpu_ptr(&lrng_sched_array_events, cpu));
+
+		pr_debug("Re-initialize per-CPU scheduler entropy pool for CPU %d on NUMA node %d with hash %s\n",
+			 cpu, node, new_cb->hash_name());
+	}
+
+out:
+	memzero_explicit(digest, sizeof(digest));
+	return ret;
+}
+
+static u32
+lrng_sched_pool_hash_one(const struct lrng_hash_cb *pcpu_hash_cb,
+			 void *pcpu_hash, int cpu, u8 *digest, u32 *digestsize)
+{
+	struct shash_desc *pcpu_shash =
+		(struct shash_desc *)per_cpu_ptr(lrng_sched_pool, cpu);
+	spinlock_t *lock = per_cpu_ptr(&lrng_sched_lock, cpu);
+	unsigned long flags;
+	u32 digestsize_events, found_events;
+
+	if (unlikely(!per_cpu(lrng_sched_lock_init, cpu))) {
+		if (pcpu_hash_cb->hash_init(pcpu_shash, pcpu_hash)) {
+			pr_warn("Initialization of hash failed\n");
+			return 0;
+		}
+		spin_lock_init(lock);
+		per_cpu(lrng_sched_lock_init, cpu) = true;
+		pr_debug("Initializing per-CPU scheduler entropy pool for CPU %d with hash %s\n",
+			 raw_smp_processor_id(), pcpu_hash_cb->hash_name());
+	}
+
+	/* Lock guarding against reading / writing to per-CPU pool */
+	spin_lock_irqsave(lock, flags);
+
+	*digestsize = pcpu_hash_cb->hash_digestsize(pcpu_hash);
+	digestsize_events = lrng_entropy_to_data(*digestsize << 3,
+						 lrng_sched_entropy_bits);
+
+	/* Obtain entropy statement like for the entropy pool */
+	found_events = atomic_xchg_relaxed(
+				per_cpu_ptr(&lrng_sched_array_events, cpu), 0);
+	/* Cap to maximum amount of data we can hold in hash */
+	found_events = min_t(u32, found_events, digestsize_events);
+
+	/* Cap to maximum amount of data we can hold in array */
+	found_events = min_t(u32, found_events, LRNG_DATA_NUM_VALUES);
+
+	/* Store all not-yet compressed data in data array into hash, ... */
+	if (pcpu_hash_cb->hash_update(pcpu_shash,
+				(u8 *)per_cpu_ptr(lrng_sched_array, cpu),
+				LRNG_DATA_ARRAY_SIZE * sizeof(u32)) ?:
+	    /* ... get the per-CPU pool digest, ... */
+	    pcpu_hash_cb->hash_final(pcpu_shash, digest) ?:
+	    /* ... re-initialize the hash, ... */
+	    pcpu_hash_cb->hash_init(pcpu_shash, pcpu_hash) ?:
+	    /* ... feed the old hash into the new state. */
+	    pcpu_hash_cb->hash_update(pcpu_shash, digest, *digestsize))
+		found_events = 0;
+
+	spin_unlock_irqrestore(lock, flags);
+	return found_events;
+}
+
+/*
  * Hash all per-CPU arrays and return the digest to be used as seed data for
  * seeding a DRNG. The caller must guarantee backtracking resistance.
  * The function will only copy as much data as entropy is available into the
@@ -155,11 +307,12 @@ static void lrng_sched_pool_hash(struct entropy_buf *eb, u32 requested_bits,
 {
 	SHASH_DESC_ON_STACK(shash, NULL);
 	const struct lrng_hash_cb *hash_cb;
-	struct lrng_drng *drng = lrng_drng_node_instance();
+	struct lrng_drng **lrng_drng = lrng_drng_instances();
+	struct lrng_drng *drng = lrng_drng_init_instance();
 	u8 digest[LRNG_MAX_DIGESTSIZE];
-	unsigned long flags;
+	unsigned long flags, flags2;
 	u32 found_events, collected_events = 0, collected_ent_bits,
-	    requested_events, returned_ent_bits, digestsize, digestsize_events;
+	    requested_events, returned_ent_bits;
 	int ret, cpu;
 	void *hash;
 
@@ -171,6 +324,7 @@ static void lrng_sched_pool_hash(struct entropy_buf *eb, u32 requested_bits,
 
 	/* Lock guarding replacement of per-NUMA hash */
 	read_lock_irqsave(&drng->hash_lock, flags);
+
 	hash_cb = drng->hash_cb;
 	hash = drng->hash;
 
@@ -179,39 +333,41 @@ static void lrng_sched_pool_hash(struct entropy_buf *eb, u32 requested_bits,
 	if (ret)
 		goto err;
 
-	digestsize = hash_cb->hash_digestsize(shash);
-
 	/* Cap to maximum entropy that can ever be generated with given hash */
-	lrng_cap_requested(digestsize << 3, requested_bits);
+	lrng_cap_requested(hash_cb->hash_digestsize(hash) << 3, requested_bits);
 	requested_events = lrng_entropy_to_data(requested_bits +
 						lrng_compress_osr(),
 						lrng_sched_entropy_bits);
-	digestsize_events = lrng_entropy_to_data(digestsize << 3,
-						 lrng_sched_entropy_bits);
 
 	/*
 	 * Harvest entropy from each per-CPU hash state - even though we may
 	 * have collected sufficient entropy, we will hash all per-CPU pools.
 	 */
 	for_each_online_cpu(cpu) {
-		u32 unused_events = 0;
+		struct lrng_drng *pcpu_drng = drng;
+		u32 digestsize, unused_events = 0;
+		int node = cpu_to_node(cpu);
 
-		ret = hash_cb->hash_update(shash,
-				(u8 *)per_cpu_ptr(lrng_sched_array, cpu),
-				LRNG_DATA_ARRAY_SIZE * sizeof(u32));
+		if (lrng_drng && lrng_drng[node])
+			pcpu_drng = lrng_drng[node];
+
+		if (pcpu_drng == drng) {
+			found_events = lrng_sched_pool_hash_one(hash_cb, hash,
+								cpu, digest,
+								&digestsize);
+		} else {
+			read_lock_irqsave(&pcpu_drng->hash_lock, flags2);
+			found_events =
+				lrng_sched_pool_hash_one(pcpu_drng->hash_cb,
+							 pcpu_drng->hash, cpu,
+							 digest, &digestsize);
+			read_unlock_irqrestore(&pcpu_drng->hash_lock, flags2);
+		}
 
 		/* Store all not-yet compressed data in data array into hash */
 		ret = hash_cb->hash_update(shash, digest, digestsize);
 		if (ret)
 			goto err;
-
-		/* Obtain entropy statement like for the entropy pool */
-		found_events = atomic_xchg_relaxed(
-				per_cpu_ptr(&lrng_sched_array_events, cpu), 0);
-		/* Cap to maximum amount of data we can hold in hash */
-		found_events = min_t(u32, found_events, digestsize_events);
-		/* Cap to maximum amount of data we can hold in array */
-		found_events = min_t(u32, found_events, LRNG_DATA_NUM_VALUES);
 
 		collected_events += found_events;
 		if (collected_events > requested_events) {
@@ -402,5 +558,5 @@ struct lrng_es_cb lrng_es_sched = {
 	.max_entropy		= lrng_sched_avail_pool_size,
 	.state			= lrng_sched_es_state,
 	.reset			= lrng_sched_reset,
-	.switch_hash		= NULL,
+	.switch_hash		= lrng_sched_switch_hash,
 };
