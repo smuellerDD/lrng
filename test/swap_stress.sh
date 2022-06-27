@@ -93,16 +93,16 @@ cleanup() {
 load_drbg() {
 	type=$1
 
-	sudo modprobe lrng_drng_drbg lrng_drbg_type=$type
+	modprobe lrng_drng_drbg lrng_drbg_type=$type
 	rng_name=$(cat /proc/lrng_type  | grep "DRNG name" | cut -d ":" -f2)
-	sudo rmmod lrng_drng_drbg
+	rmmod lrng_drng_drbg
 	rng_name="DRBG LRNG:$rng_name"
 }
 
 load_kcapi() {
-	sudo modprobe lrng_drng_kcapi drng_name="$ANSI_CPRNG" pool_hash="sha512" seed_hash="sha384"
+	modprobe lrng_drng_kcapi drng_name="$ANSI_CPRNG" pool_hash="sha512" seed_hash="sha384"
 	rng_name=$(cat /proc/lrng_type  | grep "DRNG name" | cut -d ":" -f2)
-	sudo rmmod lrng_drng_kcapi
+	rmmod lrng_drng_kcapi
 	rng_name="KCAPI LRNG:$rng_name"
 }
 
