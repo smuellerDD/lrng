@@ -428,10 +428,32 @@ int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen, bool pr)
 				goto out;
 			}
 
+			/*
+			 * Do not produce more than the amount of entropy
+			 * we received.
+			 */
 			todo = min_t(u32, todo, collected_entropy_bits >> 3);
+
+			/*
+			 * Do not produce more than the security strength of
+			 * the DRNG - the DRNG can only produce this amount of
+			 * entropy. This is a bit more strict than SP800-90A
+			 * prediction resistance, but complies with the
+			 * German AIS20/31 as well as when using the DRNG as
+			 * a conditioning component to chain with other DRNGs.
+			 */
+			todo = min_t(u32, todo, lrng_security_strength() >> 3);
 		}
 		ret = drng->drng_cb->drng_generate(drng->drng,
 						   outbuf + processed, todo);
+
+		/*
+		 * In FIPS mode according to IG 7.19, force a reseed after
+		 * generating data as conditioning component.
+		 */
+		if (pr && lrng_sp80090c_compliant())
+			drng->force_reseed = true;
+
 		mutex_unlock(&drng->lock);
 		if (ret <= 0) {
 			pr_warn("getting random data from DRNG failed (%d)\n",
@@ -441,8 +463,17 @@ int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen, bool pr)
 		processed += ret;
 		outbuflen -= ret;
 
-		if (pr && outbuflen)
+		if (pr && outbuflen) {
+			/*
+			 * In FIPS mode, be compliant to FIPS IG 7.19, at most
+			 * only the security strength bits of data are allowed
+			 * to be generated. Thus the processing stops here.
+			 */
+			if (lrng_sp80090c_compliant())
+				goto out;
+
 			cond_resched();
+		}
 	}
 
 out:
