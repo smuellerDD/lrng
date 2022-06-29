@@ -225,7 +225,7 @@ void lrng_drng_inject(struct lrng_drng *drng, const u8 *inbuf, u32 inbuflen,
  * Perform the seeding of the DRNG with data from entropy source.
  * The function returns the entropy injected into the DRNG in bits.
  */
-static u32 lrng_drng_seed_es_unlocked(struct lrng_drng *drng)
+static u32 lrng_drng_seed_es_nolock(struct lrng_drng *drng)
 {
 	struct entropy_buf seedbuf __aligned(LRNG_KCAPI_ALIGN);
 	u32 collected_entropy;
@@ -250,7 +250,7 @@ static u32 lrng_drng_seed_es_unlocked(struct lrng_drng *drng)
 static void lrng_drng_seed_es(struct lrng_drng *drng)
 {
 	mutex_lock(&drng->lock);
-	lrng_drng_seed_es_unlocked(drng);
+	lrng_drng_seed_es_nolock(drng);
 	mutex_unlock(&drng->lock);
 }
 
@@ -394,7 +394,8 @@ int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen, bool pr)
 		u32 todo = min_t(u32, outbuflen, LRNG_DRNG_MAX_REQSIZE);
 		int ret;
 
-		if (lrng_drng_must_reseed(drng)) {
+		/* In normal operation, check whether to reseed */
+		if (!pr && lrng_drng_must_reseed(drng)) {
 			if (lrng_pool_trylock()) {
 				drng->force_reseed = true;
 			} else {
@@ -426,8 +427,7 @@ int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen, bool pr)
 				continue;
 			}
 
-			collected_entropy_bits =
-				lrng_drng_seed_es_unlocked(drng);
+			collected_entropy_bits = lrng_drng_seed_es_nolock(drng);
 
 			lrng_pool_unlock();
 
@@ -472,17 +472,8 @@ int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen, bool pr)
 		processed += ret;
 		outbuflen -= ret;
 
-		if (pr && outbuflen) {
-			/*
-			 * In FIPS mode, be compliant to FIPS IG 7.19, at most
-			 * only the security strength bits of data are allowed
-			 * to be generated. Thus the processing stops here.
-			 */
-			if (lrng_sp80090c_compliant())
-				goto out;
-
+		if (pr && outbuflen)
 			cond_resched();
-		}
 	}
 
 out:
