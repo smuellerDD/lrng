@@ -108,7 +108,6 @@ void add_bootloader_randomness(const void *buf, size_t size)
 			     IS_ENABLED(CONFIG_RANDOM_TRUST_BOOTLOADER) ?
 			     size * 8 : 0);
 }
-EXPORT_SYMBOL_GPL(add_bootloader_randomness);
 
 /*
  * Callback for HID layer -- use the HID event values to stir the entropy pool
