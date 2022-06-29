@@ -11,6 +11,7 @@
 
 #include "lrng_es_aux.h"
 #include "lrng_es_mgr.h"
+#include "lrng_interface_dev_common.h"
 #include "lrng_numa.h"
 
 static int __maybe_unused
@@ -216,7 +217,7 @@ int lrng_set_drng_cb(const struct lrng_drng_cb *drng_cb)
 	}
 
 	ret = lrng_switch(drng_cb, lrng_drng_switch);
-	/* The swtich may imply new entropy due to larger DRNG sec strength. */
+	/* The switch may imply new entropy due to larger DRNG sec strength. */
 	if (!ret)
 		lrng_es_add_entropy();
 
@@ -260,9 +261,15 @@ int lrng_set_hash_cb(const struct lrng_hash_cb *hash_cb)
 	}
 
 	ret = lrng_switch(hash_cb, lrng_hash_switch);
-	/* The swtich may imply new entropy due to larger digest size. */
-	if (!ret)
+	/*
+	 * The switch may imply new entropy due to larger digest size. But
+	 * it may also offer more room in the aux pool which means we ping
+	 * any waiting entropy providers.
+	 */
+	if (!ret) {
 		lrng_es_add_entropy();
+		lrng_writer_wakeup();
+	}
 
 out:
 	mutex_unlock(&lrng_crypto_cb_update);
