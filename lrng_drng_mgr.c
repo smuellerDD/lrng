@@ -419,8 +419,16 @@ int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen, bool pr)
 				goto out;
 			}
 
+			/* If we cannot get the pool lock, try again. */
+			if (lrng_pool_trylock()) {
+				mutex_unlock(&drng->lock);
+				continue;
+			}
+
 			collected_entropy_bits =
 				lrng_drng_seed_es_unlocked(drng);
+
+			lrng_pool_unlock();
 
 			/* If no new entropy was received, stop now. */
 			if (!collected_entropy_bits) {
