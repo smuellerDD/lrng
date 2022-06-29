@@ -36,6 +36,7 @@ KCAPI_SKIP=0
 urandom=0
 lrng_type=0
 dd_random=0
+dd_random_pr=0
 dd_lrng=0
 kcapi_hash=0
 
@@ -69,6 +70,11 @@ cleanup() {
 	if [ $dd_random -gt 0 ]
 	then
 		kill $dd_random > /dev/null 2>&1
+	fi
+
+	if [ $dd_random_pr -gt 0 ]
+	then
+		kill $dd_random_pr > /dev/null 2>&1
 	fi
 
 	if [ $dd_lrng -gt 0 ]
@@ -132,6 +138,10 @@ done
 echo "spawn load on /dev/random"
 ( dd if=/dev/random of=/dev/null bs=4096 > /dev/null 2>&1) &
 dd_random=$!
+
+echo "spawn load on /dev/random - prediction resistance"
+( dd if=/dev/random of=/dev/null bs=41 iflag=sync > /dev/null 2>&1) &
+dd_random_pr=$!
 
 if [ -c /dev/lrng ]
 then
