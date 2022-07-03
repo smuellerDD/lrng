@@ -457,7 +457,18 @@ int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen, bool pr)
 
 		/*
 		 * In FIPS mode according to IG 7.19, force a reseed after
-		 * generating data as conditioning component.
+		 * generating data as conditioning component. When setting
+		 * ->force_reseed = true, it is possible that the subsequent
+		 * reseed may fail if insufficient entropy is available but yet
+		 * random bits are generated. We accept this potential issue
+		 * as bullet-proof solution would be to invoke
+		 * lrng_unset_fully_seeded(drng) which is an easy DoS vector.
+		 * This function would then imply that the respective DRNG
+		 * instance is not usable until a reseed happened. If this is
+		 * the initial DRNG, the entire LRNG goes back to
+		 * non-operational mode, which is the DoS. The other solution
+		 * would be to instantiate a separate DRNG for PR, which is
+		 * a waste.
 		 */
 		if (pr && lrng_sp80090c_compliant())
 			drng->force_reseed = true;
