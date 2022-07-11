@@ -1,0 +1,23 @@
+--- linux-4.9.321/drivers/char/lrng/lrng_drng_mgr.h.orig	2022-07-11 08:01:52.942071441 +0200
++++ linux-4.9.321/drivers/char/lrng/lrng_drng_mgr.h	2022-07-11 08:02:26.378324084 +0200
+@@ -12,7 +12,7 @@
+ 
+ #include "lrng_definitions.h"
+ 
+-extern struct wait_queue_head lrng_init_wait;
++extern wait_queue_head_t lrng_init_wait;
+ extern int lrng_drng_reseed_max_time;
+ extern struct mutex lrng_crypto_cb_update;
+ extern const struct lrng_drng_cb *lrng_default_drng_cb;
+--- linux-4.9.321/drivers/char/lrng/lrng_interface_dev_common.h.orig	2022-07-11 08:01:59.896123986 +0200
++++ linux-4.9.321/drivers/char/lrng/lrng_interface_dev_common.h	2022-07-11 08:03:00.726583613 +0200
+@@ -44,7 +44,7 @@ ssize_t lrng_drng_read_block(struct file
+ ssize_t lrng_read_common(char __user *buf, size_t nbytes);
+ bool lrng_need_entropy(void);
+ 
+-extern struct wait_queue_head lrng_write_wait;
+-extern struct wait_queue_head lrng_init_wait;
++extern wait_queue_head_t lrng_write_wait;
++extern wait_queue_head_t lrng_init_wait;
+ 
+ #endif /* _LRNG_INTERFACE_DEV_COMMON_H */
