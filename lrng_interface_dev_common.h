@@ -46,6 +46,5 @@ ssize_t lrng_read_common(char __user *buf, size_t nbytes, bool pr);
 bool lrng_need_entropy(void);
 
 extern struct wait_queue_head lrng_write_wait;
-extern struct wait_queue_head lrng_init_wait;
 
 #endif /* _LRNG_INTERFACE_DEV_COMMON_H */

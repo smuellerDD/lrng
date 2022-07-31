@@ -72,7 +72,7 @@ void lrng_drng_atomic_seed_drng(struct lrng_drng *regular_drng)
 	 * thus can use the lrng_drng_get function to get random numbers from
 	 * the just freshly seeded DRNG.
 	 */
-	ret = lrng_drng_get(regular_drng, seedbuf, sizeof(seedbuf), false);
+	ret = lrng_drng_get(regular_drng, seedbuf, sizeof(seedbuf));
 
 	if (ret < 0) {
 		pr_warn("Error generating random numbers for atomic DRNG: %d\n",

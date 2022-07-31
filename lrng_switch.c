@@ -21,9 +21,14 @@ lrng_hash_switch(struct lrng_drng *drng_store, const void *cb, int node)
 	const struct lrng_hash_cb *old_cb = drng_store->hash_cb;
 	unsigned long flags;
 	u32 i;
-	void *new_hash = new_cb->hash_alloc();
-	void *old_hash = drng_store->hash;
+	void *new_hash, *old_hash;
 	int ret;
+
+	if (node == -1)
+		return 0;
+
+	new_hash = new_cb->hash_alloc();
+	old_hash = drng_store->hash;
 
 	if (IS_ERR(new_hash)) {
 		pr_warn("could not allocate new LRNG pool hash (%ld)\n",
@@ -159,6 +164,7 @@ static int lrng_switch(const void *cb,
 {
 	struct lrng_drng **lrng_drng = lrng_drng_instances();
 	struct lrng_drng *lrng_drng_init = lrng_drng_init_instance();
+	struct lrng_drng *lrng_drng_pr = lrng_drng_pr_instance();
 	int ret = 0;
 
 	if (lrng_drng) {
@@ -166,13 +172,15 @@ static int lrng_switch(const void *cb,
 
 		for_each_online_node(node) {
 			if (lrng_drng[node])
-				ret = switcher(lrng_drng[node], cb, node);
+				ret |= switcher(lrng_drng[node], cb, node);
 		}
 	} else {
-		ret = switcher(lrng_drng_init, cb, 0);
+		ret |= switcher(lrng_drng_init, cb, 0);
 	}
 
-	return 0;
+	ret |= switcher(lrng_drng_pr, cb, -1);
+
+	return ret;
 }
 
 /*
