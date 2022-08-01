@@ -1,0 +1,13 @@
+--- linux-5.8/kernel/sched/core.c.orig	2022-05-17 09:59:33.887522471 +0200
++++ linux-5.8/kernel/sched/core.c	2022-05-17 10:00:18.241509892 +0200
+@@ -6,6 +6,10 @@
+  *
+  *  Copyright (C) 1991-2002  Linus Torvalds
+  */
++#include <linux/highmem.h>
++#include <linux/hrtimer_api.h>
++#include <linux/ktime_api.h>
++
+ #include <linux/sched.h>
+ #include <linux/sched/clock.h>
+ #include <uapi/linux/sched/types.h>
