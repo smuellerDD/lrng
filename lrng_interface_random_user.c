@@ -66,5 +66,6 @@ SYSCALL_DEFINE3(getrandom, char __user *, buf, size_t, count,
 	if (flags & GRND_INSECURE)
 		return lrng_drng_read(NULL, buf, count, NULL);
 
-	return lrng_read_common_block(flags & GRND_NONBLOCK, 0, buf, count);
+	return lrng_read_common_block(flags & GRND_NONBLOCK,
+				      flags & GRND_RANDOM, buf, count);
 }
