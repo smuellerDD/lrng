@@ -42,6 +42,7 @@ ssize_t lrng_read_common_block(int nonblock, int pr,
 			       char __user *buf, size_t nbytes);
 ssize_t lrng_drng_read_block(struct file *file, char __user *buf, size_t nbytes,
 			     loff_t *ppos);
+ssize_t lrng_read_seed(char __user *buf, size_t nbytes, unsigned int flags);
 ssize_t lrng_read_common(char __user *buf, size_t nbytes, bool pr);
 bool lrng_need_entropy(void);
 

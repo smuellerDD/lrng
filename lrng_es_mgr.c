@@ -40,14 +40,15 @@ struct lrng_state {
 	 */
 
 	atomic_t boot_entropy_thresh;	/* Reseed threshold */
-	atomic_t reseed_in_progress;	/* Flag for on executing reseed */
+	struct mutex reseed_in_progress;	/* Flag for on executing reseed */
 	struct work_struct lrng_seed_work;	/* (re)seed work queue */
 };
 
 static struct lrng_state lrng_state = {
 	false, false, false, false, false, false,
 	.boot_entropy_thresh	= ATOMIC_INIT(LRNG_INIT_ENTROPY_BITS),
-	.reseed_in_progress	= ATOMIC_INIT(0),
+	.reseed_in_progress	=
+		__MUTEX_INITIALIZER(lrng_state.reseed_in_progress),
 };
 
 /*
@@ -107,12 +108,17 @@ void lrng_debug_report_seedlevel(const char *name)
  */
 int lrng_pool_trylock(void)
 {
-	return atomic_cmpxchg(&lrng_state.reseed_in_progress, 0, 1);
+	return mutex_trylock(&lrng_state.reseed_in_progress);
+}
+
+void lrng_pool_lock(void)
+{
+	mutex_lock(&lrng_state.reseed_in_progress);
 }
 
 void lrng_pool_unlock(void)
 {
-	atomic_set(&lrng_state.reseed_in_progress, 0);
+	mutex_unlock(&lrng_state.reseed_in_progress);
 }
 
 /* Set new entropy threshold for reseeding during boot */
@@ -144,6 +150,13 @@ void lrng_reset_state(void)
 void lrng_pool_all_numa_nodes_seeded(bool set)
 {
 	lrng_state.all_online_numa_node_seeded = set;
+	if (set)
+		wake_up_all(&lrng_init_wait);
+}
+
+bool lrng_pool_all_numa_nodes_seeded_get(void)
+{
+	return lrng_state.all_online_numa_node_seeded;
 }
 
 /* Return boolean whether LRNG reached minimally seed level */
@@ -384,7 +397,7 @@ void lrng_es_add_entropy(void)
 		return;
 
 	/* Ensure that the seeding only occurs once at any given time. */
-	if (lrng_pool_trylock())
+	if (!lrng_pool_trylock())
 		return;
 
 	/* Seed the DRNG with any available noise. */

@@ -79,6 +79,23 @@ void lrng_state_exseed_allow_all(void)
 
 /************************ LRNG user output interfaces *************************/
 
+ssize_t lrng_read_seed(char __user *buf, size_t nbytes, unsigned int flags)
+{
+	ssize_t ret = 0;
+	u64 t[(sizeof(struct entropy_buf) + 3 * sizeof(u64) - 1) / sizeof(u64)];
+
+	memset(t, 0, sizeof(t));
+	ret = lrng_get_seed(t, min_t(size_t, nbytes, sizeof(t)), flags);
+	if (ret == -EMSGSIZE && copy_to_user(buf, t, sizeof(u64))) {
+		ret = -EFAULT;
+	} else if (ret > 0 && copy_to_user(buf, t, ret)) {
+		ret = -EFAULT;
+	}
+	memzero_explicit(t, sizeof(t));
+
+	return ret;
+}
+
 ssize_t lrng_read_common(char __user *buf, size_t nbytes, bool pr)
 {
 	ssize_t ret = 0;

@@ -179,7 +179,7 @@ int lrng_drng_initalize(void)
 	pr_debug("LRNG for general use is available\n");
 
 	/* Seed the DRNG with any entropy available */
-	if (!lrng_pool_trylock()) {
+	if (lrng_pool_trylock()) {
 		pr_info("Initial DRNG initialized triggering first seeding\n");
 		lrng_drng_seed_work(NULL);
 	} else {
@@ -421,7 +421,7 @@ int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen)
 
 		/* In normal operation, check whether to reseed */
 		if (!pr && lrng_drng_must_reseed(drng)) {
-			if (lrng_pool_trylock()) {
+			if (!lrng_pool_trylock()) {
 				drng->force_reseed = true;
 			} else {
 				lrng_drng_seed(drng);
@@ -437,7 +437,7 @@ int lrng_drng_get(struct lrng_drng *drng, u8 *outbuf, u32 outbuflen)
 				u32 coll_ent_bits;
 
 				/* If we cannot get the pool lock, try again. */
-				if (lrng_pool_trylock()) {
+				if (!lrng_pool_trylock()) {
 					mutex_unlock(&drng->lock);
 					continue;
 				}
@@ -545,6 +545,17 @@ void lrng_reset(void)
 
 /******************* Generic LRNG kernel output interfaces ********************/
 
+static int lrng_drng_sleep_while_not_all_nodes_seeded(unsigned int nonblock)
+{
+	if (lrng_pool_all_numa_nodes_seeded_get())
+		return 0;
+	if (nonblock)
+		return -EAGAIN;
+	wait_event_interruptible(lrng_init_wait,
+				 lrng_pool_all_numa_nodes_seeded_get());
+	return 0;
+}
+
 int lrng_drng_sleep_while_nonoperational(int nonblock)
 {
 	if (likely(lrng_state_operational()))
@@ -561,6 +572,67 @@ int lrng_drng_sleep_while_non_min_seeded(void)
 		return 0;
 	return wait_event_interruptible(lrng_init_wait,
 					lrng_state_min_seeded());
+}
+
+ssize_t lrng_get_seed(u64 *buf, size_t nbytes, unsigned int flags)
+{
+	struct entropy_buf *eb = (struct entropy_buf *)(buf + 2);
+	u64 buflen = sizeof(struct entropy_buf) + 2 * sizeof(u64);
+	u64 collected_bits = 0;
+	int ret;
+
+	/* Ensure buffer is aligned as required */
+	BUILD_BUG_ON(sizeof(buflen) < LRNG_KCAPI_ALIGN);
+	if (nbytes < sizeof(buflen))
+		return -EINVAL;
+
+	/* Write buffer size into first word */
+	buf[0] = buflen;
+	if (nbytes < buflen)
+		return -EMSGSIZE;
+
+	ret = lrng_drng_sleep_while_not_all_nodes_seeded(
+		flags & LRNG_GET_SEED_NONBLOCK);
+	if (ret)
+		return ret;
+
+	/* Try to get the pool lock and sleep on it to get it. */
+	lrng_pool_lock();
+
+	/* If an LRNG DRNG becomes unseeded, give this DRNG precedence. */
+	if (!lrng_pool_all_numa_nodes_seeded_get()) {
+		lrng_pool_unlock();
+		return 0;
+	}
+
+	/*
+	 * Try to get seed data - a rarely used busyloop is cheaper than a wait
+	 * queue that is constantly woken up by the hot code path of
+	 * lrng_init_ops.
+	 */
+	for (;;) {
+		lrng_fill_seed_buffer(eb,
+			lrng_get_seed_entropy_osr(flags &
+						  LRNG_GET_SEED_FULLY_SEEDED));
+		collected_bits = lrng_entropy_rate_eb(eb);
+
+		/* Break the collection loop if we got entropy, ... */
+		if (collected_bits ||
+		    /* ... a DRNG becomes unseeded, give DRNG precedence, ... */
+		    !lrng_pool_all_numa_nodes_seeded_get() ||
+		    /* ... if the caller does not want a blocking behavior. */
+		    (flags & LRNG_GET_SEED_NONBLOCK))
+			break;
+
+		schedule();
+	}
+
+	lrng_pool_unlock();
+
+	/* Write collected entropy size into second word */
+	buf[1] = collected_bits;
+
+	return (ssize_t)buflen;
 }
 
 void lrng_get_random_bytes_full(void *buf, int nbytes)
