@@ -215,6 +215,62 @@ exec_test2()
 	fi
 }
 
+#
+# Test gathering seed from ES
+#
+exec_test3()
+{
+	local locdir=$(dirname $0)
+	local size
+	local data
+
+	# Request 1 byte from kernel
+	# Expected: EINVAL as buffer is too small
+	$locdir/syscall_test -b 1 -y > /dev/null 2>&1
+	if [ $? -ne 22 ]
+	then
+		echo_fail "lrng_get_seed does not indicate that the buffer is too small"
+	fi
+
+	# Request 8 bytes from char kernel
+	# Expected: EMSGSIZE as error, but also an uint64_t holding a buffer size
+	size=$($locdir/syscall_test -b 8 -y 2>/dev/null)
+	if [ $? -ne 90 ]
+	then
+		echo_fail "lrng_get_seed does not indicate that the buffer is too small"
+	fi
+	if [ $size -gt 500 ]
+	then
+		echo_fail "lrng_get_seed specifies a buffer that is too large: $size"
+	else
+		echo_pass "lrng_get_seed specifies reasonable buffer size: $size"
+	fi
+
+	create_irqs
+
+	# Request the seed data with potentially oversampling
+	# Expected: no error, filled buffer
+	data=$($locdir/syscall_test -b $size -y 2>/dev/null)
+	if [ $? -ne 0 ]
+	then
+		echo_fail "lrng_get_seed returned an error: $?"
+	else
+		echo_pass "lrng_get_seed returned data"
+	fi
+
+	create_irqs
+
+	# Request the seed data without oversampling
+	# Expected: no error, filled buffer
+	data=$($locdir/syscall_test -z $size -y 2>/dev/null)
+	if [ $? -ne 0 ]
+	then
+		echo_fail "lrng_get_seed returned an error: $?"
+	else
+		echo_pass "lrng_get_seed returned data"
+	fi
+}
+
 $(in_hypervisor)
 if [ $? -eq 1 ]
 then
@@ -224,6 +280,9 @@ then
 			;;
 		"test2")
 			exec_test2
+			;;
+		"test3")
+			exec_test3
 			;;
 		*)
 			echo_fail "Test $1 not found"
@@ -261,6 +320,12 @@ else
 	# Verify first seed operation during initialization
 	#
 	write_cmd "test2"
+	execvirt $(full_scriptname $0)
+
+	#
+	# Verify gathering of seed data
+	#
+	write_cmd "test3"
 	execvirt $(full_scriptname $0)
 
 	rm -f syscall_test
