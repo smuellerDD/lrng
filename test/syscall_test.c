@@ -40,6 +40,7 @@
 #endif
 
 #include <errno.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <linux/random.h>
 #include <stdint.h>
@@ -57,25 +58,15 @@
 static inline ssize_t __getrandom(uint8_t *buffer, size_t bufferlen,
 				  unsigned int flags)
 {
-	ssize_t ret, totallen = 0;
+	ssize_t ret;
 
-	if (bufferlen > INT_MAX)
-		return -EINVAL;
-
-	do {
 #ifdef USE_GLIBC_GETRANDOM
-		ret = getrandom(buffer, bufferlen, flags);
+	ret = getrandom(buffer, bufferlen, flags);
 #else
-		ret = syscall(__NR_getrandom, buffer, bufferlen, flags);
+	ret = syscall(__NR_getrandom, buffer, bufferlen, flags);
 #endif
-		if (ret > 0) {
-			bufferlen -= ret;
-			buffer += ret;
-			totallen += ret;
-		}
-	} while ((ret > 0 || errno == EINTR) && bufferlen);
 
-	return ((ret < 0) ? -errno : totallen);
+	return ((ret < 0) ? -errno : ret);
 }
 
 static inline ssize_t getrandom_urandom(uint8_t *buffer, size_t bufferlen)
@@ -97,6 +88,16 @@ static inline ssize_t getrandom_random_noblock(uint8_t *buffer,
 static inline ssize_t getrandom_insecure(uint8_t *buffer, size_t bufferlen)
 {
 	return __getrandom(buffer, bufferlen, GRND_INSECURE);
+}
+
+static inline ssize_t getrandom_init_seed(uint8_t *buffer, size_t bufferlen)
+{
+	return __getrandom(buffer, bufferlen, 0x10);
+}
+
+static inline ssize_t getrandom_reseed(uint8_t *buffer, size_t bufferlen)
+{
+	return __getrandom(buffer, bufferlen, 0x30);
 }
 
 static size_t read_entropy_avail(int fd)
@@ -295,8 +296,8 @@ static int print_status(size_t buflen,
 
 	memset(byteseconds, 0, sizeof(byteseconds));
 	bytes2string(processed_bytes, totaltime, byteseconds, VALLEN);
-	printf("%8lu bytes | %*s/s | %12lu bytes |%12lu ns\n", buflen,
-	       VALLEN, byteseconds, processed_bytes, totaltime);
+	fprintf(stderr, "%8lu bytes | %*s/s | %12lu bytes |%12lu ns\n", buflen,
+		VALLEN, byteseconds, processed_bytes, totaltime);
 
 	return 0;
 }
@@ -310,7 +311,7 @@ int main(int argc, char *argv[])
 {
 #define MAXLEN	65536
 	uint64_t totaltime = 0;
-	uint8_t buffer[MAXLEN];
+	uint64_t i, buffer[MAXLEN/sizeof(uint64_t)];
 	size_t bufferlen = MAXLEN, tmp;
 	struct timespec start, end;
 	int c = 0;
@@ -330,9 +331,11 @@ int main(int argc, char *argv[])
 			{"random_noblock", 0, 0, 's'},
 			{"ntg1", 0, 0, 'n'},
 			{"buflen", 1, 0, 'b'},
+			{"seed", 1, 0, 'y'},
+			{"reseed", 1, 0, 'z'},
 			{0, 0, 0, 0}
 		};
-		c = getopt_long(argc, argv, "uirsnb:", options, &opt_index);
+		c = getopt_long(argc, argv, "uirsnb:yz", options, &opt_index);
 		if (c == -1)
 			break;
 		switch (c)
@@ -352,6 +355,12 @@ int main(int argc, char *argv[])
 			case 'n':
 				rnd = &__getrandom_ntg1;
 				break;
+			case 'y':
+				rnd = &getrandom_init_seed;
+				break;
+			case 'z':
+				rnd = &getrandom_reseed;
+				break;
 			case 'b':
 				tmp = strtoul(optarg, NULL, 10);
 				if (tmp >= MAXLEN)
@@ -367,12 +376,21 @@ int main(int argc, char *argv[])
 		return EINVAL;
 
 	start_time(&start);
-	ret = rnd(buffer, bufferlen);
+	ret = rnd((uint8_t *)buffer, bufferlen);
 	end_time(&end);
+
+	totaltime += (ts2u64(&end) - ts2u64(&start));
+
+	if (ret == -EMSGSIZE) {
+		printf("%08" PRIu64 "\n", buffer[0]);
+	}
 
 	if (ret < 0)
 		goto out;
-	totaltime += (ts2u64(&end) - ts2u64(&start));
+
+	for (i = 0; i < (ret/sizeof(uint64_t)); i++) {
+		printf("%08lx\n", buffer[i]);
+	}
 
 	ret = print_status(ret, ret, totaltime);
 
