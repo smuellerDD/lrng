@@ -65,7 +65,8 @@ static u32 lrng_cpu_poolsize(void)
 
 static u32 lrng_get_cpu_data(u8 *outbuf, u32 requested_bits)
 {
-	u32 i;
+	size_t longs = 0;
+	u32 i,  req = requested_bits >> 3;
 
 	/* operate on full blocks */
 	BUILD_BUG_ON(LRNG_DRNG_SECURITY_STRENGTH_BYTES % sizeof(unsigned long));
@@ -73,10 +74,14 @@ static u32 lrng_get_cpu_data(u8 *outbuf, u32 requested_bits)
 	/* ensure we have aligned buffers */
 	BUILD_BUG_ON(LRNG_KCAPI_ALIGN % sizeof(unsigned long));
 
-	for (i = 0; i < (requested_bits >> 3);
-	     i += sizeof(unsigned long)) {
-		if (!arch_get_random_seed_long((unsigned long *)(outbuf + i)) &&
-		    !arch_get_random_long((unsigned long *)(outbuf + i))) {
+	for (i = 0; i < req; i += longs) {
+		longs = arch_get_random_seed_longs(
+			(unsigned long *)(outbuf + i), req - i);
+		if (longs)
+			continue;
+		longs = arch_get_random_longs((unsigned long *)(outbuf + i),
+					      req - i);
+		if (!longs) {
 			cpu_entropy = 0;
 			return 0;
 		}
@@ -175,7 +180,7 @@ static u32 lrng_cpu_multiplier(void)
 	if (data_multiplier > 0)
 		return data_multiplier;
 
-	if (IS_ENABLED(CONFIG_X86) && !arch_get_random_seed_long(&v)) {
+	if (IS_ENABLED(CONFIG_X86) && !arch_get_random_seed_longs(&v, 1)) {
 		/*
 		 * Intel SPEC: pulling 512 blocks from RDRAND ensures
 		 * one reseed making it logically equivalent to RDSEED.

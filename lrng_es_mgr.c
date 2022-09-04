@@ -347,19 +347,33 @@ int __init lrng_rand_initialize(void)
 				    sizeof(unsigned long))];
 		struct new_utsname utsname;
 	} seed __aligned(LRNG_KCAPI_ALIGN);
+	size_t longs = 0;
 	unsigned int i;
 
 	seed.time = ktime_get_real();
 
-	for (i = 0; i < ARRAY_SIZE(seed.data); i++) {
+	for (i = 0; i < ARRAY_SIZE(seed.data); i += longs) {
 #ifdef CONFIG_LRNG_RANDOM_IF
-		if (!arch_get_random_seed_long_early(&(seed.data[i])) &&
-		    !arch_get_random_long_early(&seed.data[i]))
+		longs = arch_get_random_seed_longs_early(
+			seed.data + i, ARRAY_SIZE(seed.data) - i);
+		if (longs)
+			continue;
+		longs = arch_get_random_longs_early(seed.data + i,
+						    ARRAY_SIZE(seed.data) - i);
+		if (longs)
+			continue;
 #else
-		if (!arch_get_random_seed_long(&(seed.data[i])) &&
-		    !arch_get_random_long(&seed.data[i]))
+		longs = arch_get_random_seed_longs(seed.data + i,
+						   ARRAY_SIZE(seed.data) - i);
+		if (longs)
+			continue;
+		longs = arch_get_random_longs(seed.data + i,
+					      ARRAY_SIZE(seed.data) - i);
+		if (longs)
+			continue;
 #endif
-			seed.data[i] = random_get_entropy();
+		seed.data[i] = random_get_entropy();
+		longs = 1;
 	}
 	memcpy(&seed.utsname, utsname(), sizeof(*(utsname())));
 
