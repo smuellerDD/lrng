@@ -7,6 +7,7 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <linux/module.h>
 #include <linux/random.h>
 #include <linux/utsname.h>
 #include <linux/workqueue.h>
@@ -81,7 +82,19 @@ struct lrng_es_cb *lrng_es[] = {
 	&lrng_es_aux
 };
 
+static bool ntg1 = false;
+#ifdef CONFIG_LRNG_AIS2031_NTG1_SEEDING_STRATEGY
+module_param(ntg1, bool, 0444);
+MODULE_PARM_DESC(ntg1, "Enable AIS20/31 NTG.1 compliant seeding strategy\n");
+#endif
+
 /********************************** Helper ***********************************/
+
+bool lrng_ntg1_compliant(void)
+{
+	/* Implies use of /dev/random w/ O_SYNC / getrandom w/ GRND_RANDOM */
+	return ntg1;
+}
 
 void lrng_debug_report_seedlevel(const char *name)
 {
@@ -183,8 +196,37 @@ static void lrng_init_wakeup(void)
 	lrng_init_wakeup_dev();
 }
 
-bool lrng_fully_seeded(bool fully_seeded, u32 collected_entropy)
+static u32 lrng_avail_entropy_thresh(void)
 {
+	u32 ent_thresh = lrng_security_strength();
+
+	/*
+	 * Apply oversampling during initialization according to SP800-90C as
+	 * we request a larger buffer from the ES.
+	 */
+	if (lrng_sp80090c_compliant() &&
+	    !lrng_state.all_online_numa_node_seeded)
+		ent_thresh += LRNG_SEED_BUFFER_INIT_ADD_BITS;
+
+	return ent_thresh;
+}
+
+bool lrng_fully_seeded(bool fully_seeded, u32 collected_entropy,
+		       struct entropy_buf *eb)
+{
+	/* AIS20/31 NTG.1: two entropy sources with each delivering 220 bits */
+	if (ntg1) {
+		u32 i, result = 0, ent_thresh = lrng_avail_entropy_thresh();
+
+		for_each_lrng_es(i) {
+			result += (eb ? eb->e_bits[i] :
+				        lrng_es[i]->curr_entropy(ent_thresh)) >=
+				  LRNG_AIS2031_NPTRNG_MIN_ENTROPY;
+		}
+
+		return (result >= 2);
+	}
+
 	return (collected_entropy >= lrng_get_seed_entropy_osr(fully_seeded));
 }
 
@@ -236,21 +278,6 @@ static void lrng_set_operational(void)
 	}
 }
 
-static u32 lrng_avail_entropy_thresh(void)
-{
-	u32 ent_thresh = lrng_security_strength();
-
-	/*
-	 * Apply oversampling during initialization according to SP800-90C as
-	 * we request a larger buffer from the ES.
-	 */
-	if (lrng_sp80090c_compliant() &&
-	    !lrng_state.all_online_numa_node_seeded)
-		ent_thresh += LRNG_SEED_BUFFER_INIT_ADD_BITS;
-
-	return ent_thresh;
-}
-
 /* Available entropy in the entire LRNG considering all entropy sources */
 u32 lrng_avail_entropy(void)
 {
@@ -288,12 +315,14 @@ void lrng_init_ops(struct entropy_buf *eb)
 	if (state->lrng_operational)
 		return;
 
-	requested_bits = lrng_get_seed_entropy_osr(
-					state->all_online_numa_node_seeded);
+	requested_bits = ntg1 ?
+		/* Approximation so that two ES should deliver 220 bits each */
+		(lrng_avail_entropy() + LRNG_AIS2031_NPTRNG_MIN_ENTROPY) :
+		/* Apply SP800-90C oversampling if applicable */
+		lrng_get_seed_entropy_osr(state->all_online_numa_node_seeded);
 
 	if (eb) {
-		for_each_lrng_es(i)
-			seed_bits += eb->e_bits[i];
+		seed_bits = lrng_entropy_rate_eb(eb);
 	} else {
 		u32 ent_thresh = lrng_avail_entropy_thresh();
 
@@ -306,7 +335,7 @@ void lrng_init_ops(struct entropy_buf *eb)
 		lrng_set_operational();
 		lrng_set_entropy_thresh(requested_bits);
 	} else if (lrng_fully_seeded(state->all_online_numa_node_seeded,
-				     seed_bits)) {
+				     seed_bits, eb)) {
 		if (state->can_invalidate)
 			invalidate_batched_entropy();
 

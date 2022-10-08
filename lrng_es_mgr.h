@@ -23,6 +23,7 @@ extern struct lrng_es_cb *lrng_es[];
 #define for_each_lrng_es(ctr)		\
 	for ((ctr) = 0; (ctr) < lrng_ext_es_last; (ctr)++)
 
+bool lrng_ntg1_compliant(void);
 bool lrng_pool_all_numa_nodes_seeded_get(void);
 bool lrng_state_min_seeded(void);
 void lrng_debug_report_seedlevel(const char *name);
@@ -42,7 +43,8 @@ void lrng_pool_lock(void);
 void lrng_pool_unlock(void);
 void lrng_pool_all_numa_nodes_seeded(bool set);
 
-bool lrng_fully_seeded(bool fully_seeded, u32 collected_entropy);
+bool lrng_fully_seeded(bool fully_seeded, u32 collected_entropy,
+		       struct entropy_buf *eb);
 u32 lrng_entropy_rate_eb(struct entropy_buf *eb);
 void lrng_unset_fully_seeded(struct lrng_drng *drng);
 void lrng_fill_seed_buffer(struct entropy_buf *eb, u32 requested_bits);

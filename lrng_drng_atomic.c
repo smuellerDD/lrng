@@ -122,7 +122,8 @@ void lrng_drng_atomic_seed_es(void)
 	spin_lock_irqsave(&drng->spin_lock, flags);
 	lrng_drng_inject(&lrng_drng_atomic, (u8 *)&seedbuf, sizeof(seedbuf),
 			 lrng_fully_seeded(drng->fully_seeded,
-					   lrng_entropy_rate_eb(&seedbuf)),
+					   lrng_entropy_rate_eb(&seedbuf),
+					   &seedbuf),
 			 "atomic");
 	spin_unlock_irqrestore(&drng->spin_lock, flags);
 	lrng_init_ops(&seedbuf);

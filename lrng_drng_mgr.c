@@ -201,12 +201,6 @@ bool lrng_sp80090c_compliant(void)
 	return fips_enabled;
 }
 
-bool lrng_ntg1_compliant(void)
-{
-	/* Implies using of /dev/random with O_SYNC */
-	return true;
-}
-
 /************************* Random Number Generation ***************************/
 
 /* Inject a data buffer into the DRNG - caller must hold its lock */
@@ -259,7 +253,7 @@ static u32 lrng_drng_seed_es_nolock(struct lrng_drng *drng)
 	collected_entropy = lrng_entropy_rate_eb(&seedbuf);
 	lrng_drng_inject(drng, (u8 *)&seedbuf, sizeof(seedbuf),
 			 lrng_fully_seeded(drng->fully_seeded,
-					   collected_entropy),
+					   collected_entropy, &seedbuf),
 			 "regular");
 
 	/* Set the seeding state of the LRNG */

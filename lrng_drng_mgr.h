@@ -59,7 +59,6 @@ int lrng_drng_alloc_common(struct lrng_drng *drng,
 			   const struct lrng_drng_cb *crypto_cb);
 int lrng_drng_initalize(void);
 bool lrng_sp80090c_compliant(void);
-bool lrng_ntg1_compliant(void);
 bool lrng_get_available(void);
 void lrng_drng_reset(struct lrng_drng *drng);
 void lrng_drng_inject(struct lrng_drng *drng, const u8 *inbuf, u32 inbuflen,
