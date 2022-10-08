@@ -229,7 +229,7 @@ exec_test3()
 	$locdir/syscall_test -b 1 -y > /dev/null 2>&1
 	if [ $? -ne 22 ]
 	then
-		echo_fail "lrng_get_seed does not indicate that the buffer is too small"
+		echo_fail "lrng_get_seed does not indicate that the buffer is too small - return code $?"
 	fi
 
 	# Request 8 bytes from char kernel
@@ -314,7 +314,7 @@ else
 	# Validating LRNG_DRNG_MAX_WITHOUT_RESEED enforced after two reseeds
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "lrng_drng_mgr.max_wo_reseed=2"
+	execvirt $(full_scriptname $0) "lrng_drng_mgr.max_wo_reseed=2 lrng_es_cpu.cpu_entropy=8 lrng_es_jent.jent_entropy=16"
 
 	#
 	# Verify first seed operation during initialization
@@ -326,7 +326,7 @@ else
 	# Verify gathering of seed data
 	#
 	write_cmd "test3"
-	execvirt $(full_scriptname $0)
+	execvirt $(full_scriptname $0) "lrng_es_cpu.cpu_entropy=8 lrng_es_jent.jent_entropy=16"
 
 	rm -f syscall_test
 fi

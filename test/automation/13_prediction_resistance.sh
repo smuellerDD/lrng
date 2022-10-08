@@ -34,7 +34,7 @@ check_testing()
 
 	#execute read with PR
 	dd if=/dev/random of=/dev/null count=1 bs=32 iflag=sync
-	if [ ]$? -ne 0 ]
+	if [ $? -ne 0 ]
 	then
 		echo_fail "Reading with O_SYNC from /dev/random failed"
 		return 1

@@ -81,6 +81,24 @@ FAILUREFILE_GLOBAL="${HOMEDIR}/failurecount_global"
 LOGFILE="${HOMEDIR}/logfile"
 
 EUDYPTULA=$(type -p "eudyptula-boot")
+if [ -z "$EUDYPTULA" ]
+then
+	EUDYPTULA="/usr/bin/eudyptula-boot"
+fi
+
+if [ ! -x "$EUDYPTULA" ]
+then
+	EUDYPTULA="/usr/local/bin/eudyptula-boot"
+fi
+if [ ! -x "$EUDYPTULA" ]
+then
+	EUDYPTULA="${HOME}/bin/eudyptula-boot"
+fi
+
+if [ ! -x "$EUDYPTULA" ]
+then
+	echo_fail "Cannot find eudyptula-boot"
+fi
 
 color()
 {
@@ -302,7 +320,7 @@ execvirt()
 	echo_log "Executing test with kernel command line $@"
 	echo_log "Executing test case $script"
 
-	$EUDYPTULA -m 2G "-c \\\"dyndbg=file drivers/char/lrng/* +p\\\" $@" --kernel $kernel_binary $script
+	$EUDYPTULA "-c \\\"dyndbg=file drivers/char/lrng/* +p\\\" $@" --kernel $kernel_binary $script
 	if [ $? -ne 0 ]
 	then
 		local ret=$?

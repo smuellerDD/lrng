@@ -27,9 +27,12 @@
  */
 
 /*
- * Shall the GLIBC getrandom stub be used (requires GLIBC >= 2.25)
+ * Shall the GLIBC getrandom stub be used (requires GLIBC >= 2.25)?
+ *
+ * This is unset in case the system uses the ESDM - if the ESDM is used,
+ * the getrandom function call is redirected to ESDM and not to the kernel.
  */
-#define USE_GLIBC_GETRANDOM
+#undef USE_GLIBC_GETRANDOM
 
 #ifdef USE_GLIBC_GETRANDOM
 #include <sys/random.h>
