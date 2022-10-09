@@ -1,6 +1,6 @@
-From 37df03a925ddb8efcbc92746fe37a50963b048ed Mon Sep 17 00:00:00 2001
+From d90bbdd1b899b8fad6780ad88432c475843f936b Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
-Date: Sun, 9 Oct 2022 10:04:29 +0200
+Date: Sun, 9 Oct 2022 18:30:55 +0200
 Subject: [PATCH v47 01/26] crypto: Entropy Source and DRNG Manager
 
 The kernel crypto API contains deterministic random number generators
@@ -168,8 +168,8 @@ Signed-off-by: Stephan Mueller <smueller@chronox.de>
  drivers/char/lrng/lrng_sha1.c                 |  88 ++
  drivers/char/lrng/lrng_sha256.c               |  72 ++
  drivers/char/lrng/lrng_sysctl.h               |  15 +
- include/linux/lrng.h                          | 177 ++++
- 31 files changed, 3753 insertions(+)
+ include/linux/lrng.h                          | 251 +++++
+ 31 files changed, 3827 insertions(+)
  create mode 100644 drivers/char/lrng/Kconfig
  create mode 100644 drivers/char/lrng/Makefile
  create mode 100644 drivers/char/lrng/lrng_definitions.h
@@ -3964,10 +3964,10 @@ index 000000000000..4b487e5077ed
 +#endif /* _LRNG_SYSCTL_H */
 diff --git a/include/linux/lrng.h b/include/linux/lrng.h
 new file mode 100644
-index 000000000000..8ec50ac7d83c
+index 000000000000..c0d31a03d51f
 --- /dev/null
 +++ b/include/linux/lrng.h
-@@ -0,0 +1,177 @@
+@@ -0,0 +1,251 @@
 +/* SPDX-License-Identifier: GPL-2.0 OR BSD-2-Clause */
 +/*
 + * Copyright (C) 2022, Stephan Mueller <smueller@chronox.de>
@@ -4142,6 +4142,80 @@ index 000000000000..8ec50ac7d83c
 + */
 +#ifdef CONFIG_LRNG
 +int lrng_get_random_bytes_pr(void *buf, int nbytes);
++#endif
++
++/*
++ * lrng_get_seed() - Fill buffer with data from entropy sources
++ *
++ * This call allows accessing the entropy sources directly and fill the buffer
++ * with data from all available entropy sources. This filled buffer is
++ * identical to the temporary seed buffer used by the LRNG to seed its DRNGs.
++ *
++ * The call is to allows users to seed their DRNG directly from the entropy
++ * sources in case the caller does not want to use the LRNG's DRNGs. This
++ * buffer can be directly used to seed the caller's DRNG from.
++ *
++ * The call blocks as long as one LRNG DRNG is not yet fully seeded. If
++ * LRNG_GET_SEED_NONBLOCK is specified, it does not block in this case, but
++ * returns with an error.
++ *
++ * Considering SP800-90C, there is a differentiation between the seeding
++ * requirements during instantiating a DRNG and at runtime of the DRNG. When
++ * specifying LRNG_GET_SEED_FULLY_SEEDED the caller indicates the DRNG was
++ * already fully seeded and the regular amount of entropy is requested.
++ * Otherwise, the LRNG will obtain the entropy rate required for initial
++ * seeding. The following minimum entropy rates will be obtained:
++ *
++ * * FIPS mode:
++ *	* Initial seeding: 384 bits of entropy
++ *	* Runtime seeding: 256 bits of entropy
++ * * Non-FIPS mode:
++ *	* 128 bits of entropy in any case
++ *
++ * Albeit these are minimum entropy rates, the LRNG tries to request the
++ * given amount of entropy from each entropy source individually. If the
++ * minimum amount of entropy cannot be obtained collectively by all entropy
++ * sources, the LRNG will not fill the buffer.
++ *
++ * The return data in buf is structurally equivalent to the following
++ * definition:
++ *
++ * struct {
++ *	u64 seedlen;
++ *	u64 entropy_rate;
++ *	struct entropy_buf seed;
++ * } __attribute((__packed__));
++ *
++ * As struct entropy_buf is not known outsize of the LRNG, the LRNG fills
++ * seedlen first with the size of struct entropy_buf. If the caller-provided
++ * buffer buf is smaller than u64, then -EINVAL is returned
++ * and buf is not touched. If it is u64 or larger but smaller
++ * than the size of the structure above, -EMSGSIZE is returned and seedlen
++ * is filled with the size of the buffer. Finally, if buf is large
++ * enough to hold all data, it is filled with the seed data and the seedlen
++ * is set to sizeof(struct entropy_buf). The entropy rate is returned with
++ * the variable entropy_rate and provides the value in bits.
++ *
++ * The seed buffer is the data that should be handed to the caller's DRNG as
++ * seed data.
++ *
++ * @buf [out] Buffer to be filled with data from the entropy sources - note, the
++ *	      buffer is marked as u64 to ensure it is aligned to 64 bits.
++ * @nbytes [in] Size of the buffer allocated by the caller - this value
++ *		provides size of @param buf in bytes.
++ * @flags [in] Flags field to adjust the behavior
++ *
++ * @return -EINVAL or -EMSGSIZE indicating the buffer is too small, -EAGAIN when
++ *	   the call would block, but NONBLOCK is specified, > 0 the size of
++ *	   the filled buffer.
++ */
++#ifdef CONFIG_LRNG
++enum lrng_get_seed_flags {
++	LRNG_GET_SEED_NONBLOCK = 0x0001, /**< Do not block the call */
++	LRNG_GET_SEED_FULLY_SEEDED = 0x0002, /**< DRNG is fully seeded */
++};
++
++ssize_t lrng_get_seed(u64 *buf, size_t nbytes, unsigned int flags);
 +#endif
 +
 +#endif /* _LRNG_H */

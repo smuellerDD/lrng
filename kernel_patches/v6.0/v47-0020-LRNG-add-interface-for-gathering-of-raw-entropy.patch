@@ -1,4 +1,4 @@
-From e17d64ee687f5f152b9461b1a63d5d64002cd9d4 Mon Sep 17 00:00:00 2001
+From 3210dd3d86bcc7a6ff1fdad309536259bf14420c Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 18:05:58 +0200
 Subject: [PATCH v47 20/26] LRNG - add interface for gathering of raw entropy

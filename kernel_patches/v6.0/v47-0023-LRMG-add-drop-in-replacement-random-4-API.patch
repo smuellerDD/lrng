@@ -1,4 +1,4 @@
-From adef96393de70eaa0c1b95a95bd9680cd811558a Mon Sep 17 00:00:00 2001
+From 2b798627b9c15a9ed74e6440f6c99e58725cbe9c Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 9 Oct 2022 10:21:13 +0200
 Subject: [PATCH v47 23/26] LRMG - add drop-in replacement random(4) API

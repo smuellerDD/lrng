@@ -1,4 +1,4 @@
-From 36e59746ad72779b2f7a0dd73effb599e86aff6d Mon Sep 17 00:00:00 2001
+From 8634853ec1e4e59cd23d93663f57057b0902cb17 Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 16:09:02 +0200
 Subject: [PATCH v47 07/26] LRNG - add SP800-90A DRBG extension

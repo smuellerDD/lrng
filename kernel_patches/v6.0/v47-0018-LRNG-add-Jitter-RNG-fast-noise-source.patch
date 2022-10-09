@@ -1,4 +1,4 @@
-From 79e44fe5ef3d6625253e9926590dcf24a66a2faa Mon Sep 17 00:00:00 2001
+From 8106cc448596c4b6b58793994841f092e79f7a3e Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 17:51:58 +0200
 Subject: [PATCH v47 18/26] LRNG - add Jitter RNG fast noise source

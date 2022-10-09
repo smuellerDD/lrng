@@ -1,4 +1,4 @@
-From 7cf3db0c30038716dc79d9af85fc9c4e5800ca00 Mon Sep 17 00:00:00 2001
+From a5eea1b895793cd2d5a9df9b4057ed5210495f4f Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Tue, 15 Sep 2020 22:17:43 +0200
 Subject: [PATCH v47 06/26] crypto: DRBG - externalize DRBG functions for LRNG

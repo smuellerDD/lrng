@@ -1,4 +1,4 @@
-From df803f6231b61522b31edf9188dc93928d89b98b Mon Sep 17 00:00:00 2001
+From 18a3d7693870628d2267aefcd3ebd5384cdd2c4d Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 9 Oct 2022 10:17:06 +0200
 Subject: [PATCH v47 16/26] LRNG - CPU entropy source

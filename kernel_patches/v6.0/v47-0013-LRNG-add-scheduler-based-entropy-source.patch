@@ -1,4 +1,4 @@
-From 32ea15e93775629922d86747a44c8b34125dc237 Mon Sep 17 00:00:00 2001
+From 72676c52711ed936d0cc2c00cffe7bf30740d3e3 Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 31 Jul 2022 22:27:27 +0200
 Subject: [PATCH v47 13/26] LRNG - add scheduler-based entropy source

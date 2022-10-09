@@ -1,4 +1,4 @@
-From 67282fef69cf27e46ed4275839047ab19d43d103 Mon Sep 17 00:00:00 2001
+From 8b238ba6ce39ce1221982f5c5b328872fd9a0abd Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 9 Oct 2022 10:07:59 +0200
 Subject: [PATCH v47 03/26] LRNG - /proc interface
