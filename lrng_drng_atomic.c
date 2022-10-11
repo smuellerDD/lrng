@@ -118,7 +118,7 @@ void lrng_drng_atomic_seed_es(void)
 	pr_debug("atomic DRNG seeding attempt to pull %u bits of entropy directly from entropy sources\n",
 		 requested_bits);
 
-	lrng_fill_seed_buffer(&seedbuf, requested_bits);
+	lrng_fill_seed_buffer(&seedbuf, requested_bits, false);
 	spin_lock_irqsave(&drng->spin_lock, flags);
 	lrng_drng_inject(&lrng_drng_atomic, (u8 *)&seedbuf, sizeof(seedbuf),
 			 lrng_fully_seeded(drng->fully_seeded,

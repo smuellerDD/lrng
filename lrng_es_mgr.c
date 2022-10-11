@@ -28,8 +28,8 @@ struct lrng_state {
 	bool perform_seedwork;		/* Can seed work be performed? */
 	bool lrng_operational;		/* Is DRNG operational? */
 	bool lrng_fully_seeded;		/* Is DRNG fully seeded? */
-	bool lrng_min_seeded;		/* Is DRNG minimally seeded? */
 	bool all_online_numa_node_seeded;/* All NUMA DRNGs seeded? */
+	unsigned char lrng_min_seeded;	/* Is DRNG minimally seeded? */
 
 	/*
 	 * To ensure that external entropy providers cannot dominate the
@@ -154,7 +154,7 @@ void lrng_reset_state(void)
 	}
 	lrng_state.lrng_operational = false;
 	lrng_state.lrng_fully_seeded = false;
-	lrng_state.lrng_min_seeded = false;
+	lrng_state.lrng_min_seeded = 0;
 	lrng_state.all_online_numa_node_seeded = false;
 	pr_debug("reset LRNG\n");
 }
@@ -165,6 +165,12 @@ void lrng_pool_all_numa_nodes_seeded(bool set)
 	lrng_state.all_online_numa_node_seeded = set;
 	if (set)
 		wake_up_all(&lrng_init_wait);
+	/*
+	 * Once all DRNGs are fully seeded, the forced seeding is not needed
+	 * any more. Thus, set the min_seeded level below the
+	 * LRNG_FORCE_FULLY_SEEDED_ATTEMPT threshold.
+	 */
+	lrng_state.lrng_min_seeded = 1;
 }
 
 bool lrng_pool_all_numa_nodes_seeded_get(void)
@@ -173,7 +179,7 @@ bool lrng_pool_all_numa_nodes_seeded_get(void)
 }
 
 /* Return boolean whether LRNG reached minimally seed level */
-bool lrng_state_min_seeded(void)
+unsigned int lrng_state_min_seeded(void)
 {
 	return lrng_state.lrng_min_seeded;
 }
@@ -334,6 +340,8 @@ void lrng_init_ops(struct entropy_buf *eb)
 	if (state->lrng_fully_seeded) {
 		lrng_set_operational();
 		lrng_set_entropy_thresh(requested_bits);
+
+		state->lrng_min_seeded = 1;
 	} else if (lrng_fully_seeded(state->all_online_numa_node_seeded,
 				     seed_bits, eb)) {
 		if (state->can_invalidate)
@@ -341,7 +349,13 @@ void lrng_init_ops(struct entropy_buf *eb)
 
 		state->lrng_fully_seeded = true;
 		lrng_set_operational();
-		state->lrng_min_seeded = true;
+
+		/*
+		 * Reset min-seeded trigger to allow it being counted up for
+		 * the next DRNG. This gives other entropy sources time to
+		 * collect entropy to seed the DRNG as well.
+		 */
+		state->lrng_min_seeded = 1;
 		pr_info("LRNG fully seeded with %u bits of entropy\n",
 			seed_bits);
 		lrng_set_entropy_thresh(requested_bits);
@@ -352,7 +366,7 @@ void lrng_init_ops(struct entropy_buf *eb)
 			if (state->can_invalidate)
 				invalidate_batched_entropy();
 
-			state->lrng_min_seeded = true;
+			state->lrng_min_seeded++;
 			pr_info("LRNG minimally seeded with %u bits of entropy\n",
 				seed_bits);
 			lrng_set_entropy_thresh(requested_bits);
@@ -427,6 +441,9 @@ early_initcall(lrng_rand_initialize);
 /* Interface requesting a reseed of the DRNG */
 void lrng_es_add_entropy(void)
 {
+	struct lrng_state *state = &lrng_state;
+	u32 avail_entropy;
+
 	/*
 	 * Once all DRNGs are fully seeded, the system-triggered arrival of
 	 * entropy will not cause any reseeding any more.
@@ -434,9 +451,16 @@ void lrng_es_add_entropy(void)
 	if (likely(lrng_state.all_online_numa_node_seeded))
 		return;
 
-	/* Only trigger the DRNG reseed if we have collected entropy. */
-	if (lrng_avail_entropy() <
-	    atomic_read_u32(&lrng_state.boot_entropy_thresh))
+	/*
+	 * Only trigger the DRNG reseed if we have collected entropy. If
+	 * we have several min-seeded entropy requests without reaching fully
+	 * seeded, we force the seeding with the available entropy.
+	 */
+	state->lrng_min_seeded++;
+	avail_entropy = lrng_avail_entropy();
+	if ((state->lrng_min_seeded < 5 &&
+	    (avail_entropy < atomic_read_u32(&lrng_state.boot_entropy_thresh))) ||
+	     avail_entropy == 0)
 		return;
 
 	/* Ensure that the seeding only occurs once at any given time. */
@@ -451,7 +475,8 @@ void lrng_es_add_entropy(void)
 }
 
 /* Fill the seed buffer with data from the noise sources */
-void lrng_fill_seed_buffer(struct entropy_buf *eb, u32 requested_bits)
+void lrng_fill_seed_buffer(struct entropy_buf *eb, u32 requested_bits,
+			   bool force)
 {
 	struct lrng_state *state = &lrng_state;
 	u32 i, req_ent = lrng_sp80090c_compliant() ?
@@ -468,7 +493,8 @@ void lrng_fill_seed_buffer(struct entropy_buf *eb, u32 requested_bits)
 	 * operated SP800-90C compliant we want to comply with SP800-90A section
 	 * 9.2 mandating that DRNG is reseeded with the security strength.
 	 */
-	if (state->lrng_fully_seeded && (lrng_avail_entropy() < req_ent)) {
+	if (!force &&
+	    state->lrng_fully_seeded && (lrng_avail_entropy() < req_ent)) {
 		for_each_lrng_es(i)
 			eb->e_bits[i] = 0;
 

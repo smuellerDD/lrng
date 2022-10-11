@@ -244,20 +244,50 @@ void lrng_drng_inject(struct lrng_drng *drng, const u8 *inbuf, u32 inbuflen,
  */
 static u32 lrng_drng_seed_es_nolock(struct lrng_drng *drng)
 {
-	struct entropy_buf seedbuf __aligned(LRNG_KCAPI_ALIGN);
-	u32 collected_entropy;
+	struct entropy_buf seedbuf __aligned(LRNG_KCAPI_ALIGN),
+			   collected_seedbuf;
+	u32 collected_entropy = 0, collected_entropy_one;
+	unsigned int i;
+	bool force = lrng_state_min_seeded() > LRNG_FORCE_FULLY_SEEDED_ATTEMPT;
 
-	lrng_fill_seed_buffer(&seedbuf,
-			      lrng_get_seed_entropy_osr(drng->fully_seeded));
+	for_each_lrng_es(i)
+		collected_seedbuf.e_bits[i] = 0;
 
-	collected_entropy = lrng_entropy_rate_eb(&seedbuf);
-	lrng_drng_inject(drng, (u8 *)&seedbuf, sizeof(seedbuf),
-			 lrng_fully_seeded(drng->fully_seeded,
-					   collected_entropy, &seedbuf),
-			 "regular");
+	do {
+		if (collected_entropy)
+			pr_debug("Force fully seeding level by repeatedly pull entropy from available entropy sources\n");
 
-	/* Set the seeding state of the LRNG */
-	lrng_init_ops(&seedbuf);
+		lrng_fill_seed_buffer(&seedbuf,
+			lrng_get_seed_entropy_osr(drng->fully_seeded), force);
+
+		collected_entropy_one = lrng_entropy_rate_eb(&seedbuf);
+		collected_entropy += collected_entropy_one;
+
+		/* Sum iterations up. */
+		for_each_lrng_es(i)
+			collected_seedbuf.e_bits[i] += seedbuf.e_bits[i];
+
+		lrng_drng_inject(drng, (u8 *)&seedbuf, sizeof(seedbuf),
+				 lrng_fully_seeded(drng->fully_seeded,
+						   collected_entropy,
+						   &collected_seedbuf),
+				 "regular");
+
+		/* Set the seeding state of the LRNG */
+		lrng_init_ops(&collected_seedbuf);
+
+	/*
+	 * Emergency reseeding: If we reached the min seed threshold now
+	 * multiple times but never reached fully seeded level and we collect
+	 * entropy, keep doing it until we reached fully seeded level for
+	 * at least one DRNG.
+	 *
+	 * The emergency reseeding implies that the consecutively injected
+	 * entropy can be added up. This is applicable due to the fact that
+	 * the entire operation is atomic which means that the DRNG is not
+	 * producing data while this is ongoing.
+	 */
+	} while (force && collected_entropy_one && !drng->fully_seeded);
 
 	memzero_explicit(&seedbuf, sizeof(seedbuf));
 
@@ -541,6 +571,7 @@ void lrng_reset(void)
 
 static int lrng_drng_sleep_while_not_all_nodes_seeded(unsigned int nonblock)
 {
+	lrng_es_add_entropy();
 	if (lrng_pool_all_numa_nodes_seeded_get())
 		return 0;
 	if (nonblock)
@@ -552,6 +583,7 @@ static int lrng_drng_sleep_while_not_all_nodes_seeded(unsigned int nonblock)
 
 int lrng_drng_sleep_while_nonoperational(int nonblock)
 {
+	lrng_es_add_entropy();
 	if (likely(lrng_state_operational()))
 		return 0;
 	if (nonblock)
@@ -562,6 +594,7 @@ int lrng_drng_sleep_while_nonoperational(int nonblock)
 
 int lrng_drng_sleep_while_non_min_seeded(void)
 {
+	lrng_es_add_entropy();
 	if (likely(lrng_state_min_seeded()))
 		return 0;
 	return wait_event_interruptible(lrng_init_wait,
@@ -607,7 +640,8 @@ ssize_t lrng_get_seed(u64 *buf, size_t nbytes, unsigned int flags)
 	for (;;) {
 		lrng_fill_seed_buffer(eb,
 			lrng_get_seed_entropy_osr(flags &
-						  LRNG_GET_SEED_FULLY_SEEDED));
+						  LRNG_GET_SEED_FULLY_SEEDED),
+						  false);
 		collected_bits = lrng_entropy_rate_eb(eb);
 
 		/* Break the collection loop if we got entropy, ... */
