@@ -23,7 +23,7 @@ extern struct lrng_es_cb *lrng_es[];
 #define for_each_lrng_es(ctr)		\
 	for ((ctr) = 0; (ctr) < lrng_ext_es_last; (ctr)++)
 
-bool lrng_ntg1_compliant(void);
+bool lrng_ntg1_2022_compliant(void);
 bool lrng_pool_all_numa_nodes_seeded_get(void);
 unsigned int lrng_state_min_seeded(void);
 void lrng_debug_report_seedlevel(const char *name);

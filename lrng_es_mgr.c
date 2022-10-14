@@ -90,7 +90,7 @@ MODULE_PARM_DESC(ntg1, "Enable AIS20/31 NTG.1 compliant seeding strategy\n");
 
 /********************************** Helper ***********************************/
 
-bool lrng_ntg1_compliant(void)
+bool lrng_ntg1_2022_compliant(void)
 {
 	/* Implies use of /dev/random w/ O_SYNC / getrandom w/ GRND_RANDOM */
 	return ntg1;
@@ -459,8 +459,9 @@ void lrng_es_add_entropy(void)
 	state->lrng_min_seeded++;
 	avail_entropy = lrng_avail_entropy();
 	if ((state->lrng_min_seeded < 5 &&
-	    (avail_entropy < atomic_read_u32(&lrng_state.boot_entropy_thresh))) ||
-	     avail_entropy == 0)
+	    (avail_entropy <
+	     atomic_read_u32(&lrng_state.boot_entropy_thresh))) ||
+	    avail_entropy == 0)
 		return;
 
 	/* Ensure that the seeding only occurs once at any given time. */

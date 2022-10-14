@@ -246,26 +246,30 @@ static u32 lrng_drng_seed_es_nolock(struct lrng_drng *drng)
 {
 	struct entropy_buf seedbuf __aligned(LRNG_KCAPI_ALIGN),
 			   collected_seedbuf;
-	u32 collected_entropy = 0, collected_entropy_one;
-	unsigned int i;
+	u32 collected_entropy = 0;
+	unsigned int i, num_es_delivered = 0;
 	bool force = lrng_state_min_seeded() > LRNG_FORCE_FULLY_SEEDED_ATTEMPT;
 
 	for_each_lrng_es(i)
 		collected_seedbuf.e_bits[i] = 0;
 
 	do {
+		/* Count the number of ES which delivered entropy */
+		num_es_delivered = 0;
+
 		if (collected_entropy)
 			pr_debug("Force fully seeding level by repeatedly pull entropy from available entropy sources\n");
 
 		lrng_fill_seed_buffer(&seedbuf,
 			lrng_get_seed_entropy_osr(drng->fully_seeded), force);
 
-		collected_entropy_one = lrng_entropy_rate_eb(&seedbuf);
-		collected_entropy += collected_entropy_one;
+		collected_entropy += lrng_entropy_rate_eb(&seedbuf);
 
 		/* Sum iterations up. */
-		for_each_lrng_es(i)
+		for_each_lrng_es(i) {
 			collected_seedbuf.e_bits[i] += seedbuf.e_bits[i];
+			num_es_delivered += !!seedbuf.e_bits[i];
+		}
 
 		lrng_drng_inject(drng, (u8 *)&seedbuf, sizeof(seedbuf),
 				 lrng_fully_seeded(drng->fully_seeded,
@@ -280,14 +284,18 @@ static u32 lrng_drng_seed_es_nolock(struct lrng_drng *drng)
 	 * Emergency reseeding: If we reached the min seed threshold now
 	 * multiple times but never reached fully seeded level and we collect
 	 * entropy, keep doing it until we reached fully seeded level for
-	 * at least one DRNG.
+	 * at least one DRNG. This operation is not continued if the
+	 * ES do not deliver entropy such that we cannot reach the fully seeded
+	 * level.
 	 *
 	 * The emergency reseeding implies that the consecutively injected
 	 * entropy can be added up. This is applicable due to the fact that
 	 * the entire operation is atomic which means that the DRNG is not
 	 * producing data while this is ongoing.
 	 */
-	} while (force && collected_entropy_one && !drng->fully_seeded);
+	} while (force &&
+		 num_es_delivered >= (lrng_ntg1_2022_compliant() ? 2 : 1) &&
+		 !drng->fully_seeded);
 
 	memzero_explicit(&seedbuf, sizeof(seedbuf));
 
