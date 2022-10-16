@@ -202,6 +202,13 @@ check_reseed()
 
 exec_test1()
 {
+	$(check_kernel_config "CONFIG_LRNG_RUNTIME_FORCE_SEEDING_DISABLE=y")
+	if [ $? -ne 0 ]
+	then
+		echo_deact "$TESTNAME: tests skipped"
+		exit
+	fi
+
 	check_reseed
 }
 
@@ -314,7 +321,7 @@ else
 	# Validating LRNG_DRNG_MAX_WITHOUT_RESEED enforced after two reseeds
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0) "lrng_drng_mgr.max_wo_reseed=2 lrng_es_cpu.cpu_entropy=8 lrng_es_jent.jent_entropy=16"
+	execvirt $(full_scriptname $0) "lrng_drng_mgr.max_wo_reseed=2 lrng_es_cpu.cpu_entropy=8 lrng_es_jent.jent_entropy=16 lrng_drng_mgr.force_seeding=0"
 
 	#
 	# Verify first seed operation during initialization

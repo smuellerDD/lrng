@@ -238,5 +238,5 @@ else
 	# Validating that IRQ ES alone does not provide sufficient seed
 	#
 	write_cmd "test2"
-	execvirt $(full_scriptname $0) "lrng_es_mgr.ntg1=1 lrng_es_cpu.cpu_entropy=8 lrng_es_jent.jent_entropy=8"
+	execvirt $(full_scriptname $0) "lrng_es_mgr.ntg1=1 lrng_es_cpu.cpu_entropy=0 lrng_es_jent.jent_entropy=0 lrng_es_sched.sched_entropy=256 lrng_es_irq.irq_entropy=4294967295 lrng_es_krng.krng_entropy=0"
 fi
