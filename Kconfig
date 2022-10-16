@@ -890,6 +890,13 @@ config LRNG_RUNTIME_MAX_WO_RESEED_CONFIG
 	  operations without a reseed that has full entropy. The
 	  interface is lrng_drng.max_wo_reseed.
 
+config LRNG_RUNTIME_FORCE_SEEDING_DISABLE
+	bool "Enable runtime configuration of force seeding"
+	help
+	  When enabling this option, the LRNG provides an interface
+	  allowing the disabling of the force seeding when the DRNG
+	  is not fully seeded but entropy is available.
+
 config LRNG_TEST_CPU_ES_COMPRESSION
 	bool "Force CPU ES compression operation"
 	help

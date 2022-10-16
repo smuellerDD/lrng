@@ -25,7 +25,7 @@ extern struct lrng_es_cb *lrng_es[];
 
 bool lrng_ntg1_2022_compliant(void);
 bool lrng_pool_all_numa_nodes_seeded_get(void);
-unsigned int lrng_state_min_seeded(void);
+bool lrng_state_min_seeded(void);
 void lrng_debug_report_seedlevel(const char *name);
 int lrng_rand_initialize(void);
 bool lrng_state_operational(void);
