@@ -10,6 +10,12 @@ config RANDOM_DEFAULT_IMPL
 	  The default random number generator as provided with
 	  drivers/char/random.c is selected with this option.
 
+config LRNG_AUTO_SELECTED
+	bool
+	default y if !RANDOM_DEFAULT_IMPL
+	default n if RANDOM_DEFAULT_IMPL
+	select LRNG
+
 config LRNG
 	bool "Linux Random Number Generator"
 	default n
