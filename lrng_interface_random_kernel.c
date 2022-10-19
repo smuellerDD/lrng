@@ -30,12 +30,15 @@ static int __init lrng_parse_trust_bootloader(char *arg)
 }
 early_param("random.trust_bootloader", lrng_parse_trust_bootloader);
 
-int __init random_init(const char *command_line)
+void __init random_init_early(const char *command_line)
 {
-	int ret = lrng_rand_initialize();
-
+	lrng_rand_initialize_early();
 	lrng_pool_insert_aux(command_line, strlen(command_line), 0);
-	return ret;
+}
+
+void __init random_init(void)
+{
+	lrng_rand_initialize();
 }
 
 /************************ LRNG kernel input interfaces ************************/

@@ -27,7 +27,8 @@ bool lrng_ntg1_2022_compliant(void);
 bool lrng_pool_all_numa_nodes_seeded_get(void);
 bool lrng_state_min_seeded(void);
 void lrng_debug_report_seedlevel(const char *name);
-int lrng_rand_initialize(void);
+void lrng_rand_initialize_early(void);
+void lrng_rand_initialize(void);
 bool lrng_state_operational(void);
 
 extern u32 lrng_write_wakeup_bits;

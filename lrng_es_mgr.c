@@ -367,10 +367,9 @@ void lrng_init_ops(struct entropy_buf *eb)
 	}
 }
 
-int __init lrng_rand_initialize(void)
+void __init lrng_rand_initialize_early(void)
 {
 	struct seed {
-		ktime_t time;
 		unsigned long data[((LRNG_MAX_DIGESTSIZE +
 				     sizeof(unsigned long) - 1) /
 				    sizeof(unsigned long))];
@@ -379,19 +378,7 @@ int __init lrng_rand_initialize(void)
 	size_t longs = 0;
 	unsigned int i;
 
-	seed.time = ktime_get_real();
-
 	for (i = 0; i < ARRAY_SIZE(seed.data); i += longs) {
-#ifdef CONFIG_LRNG_RANDOM_IF
-		longs = arch_get_random_seed_longs_early(
-			seed.data + i, ARRAY_SIZE(seed.data) - i);
-		if (longs)
-			continue;
-		longs = arch_get_random_longs_early(seed.data + i,
-						    ARRAY_SIZE(seed.data) - i);
-		if (longs)
-			continue;
-#else
 		longs = arch_get_random_seed_longs(seed.data + i,
 						   ARRAY_SIZE(seed.data) - i);
 		if (longs)
@@ -400,14 +387,21 @@ int __init lrng_rand_initialize(void)
 					      ARRAY_SIZE(seed.data) - i);
 		if (longs)
 			continue;
-#endif
-		seed.data[i] = random_get_entropy();
 		longs = 1;
 	}
-	memcpy(&seed.utsname, utsname(), sizeof(*(utsname())));
+	memcpy(&seed.utsname, init_utsname(), sizeof(*(init_utsname())));
 
 	lrng_pool_insert_aux((u8 *)&seed, sizeof(seed), 0);
 	memzero_explicit(&seed, sizeof(seed));
+}
+
+void __init lrng_rand_initialize(void)
+{
+	unsigned long entropy = random_get_entropy();
+	ktime_t time = ktime_get_real();
+
+	lrng_pool_insert_aux((u8 *)&entropy, sizeof(entropy), 0);
+	lrng_pool_insert_aux((u8 *)&time, sizeof(time), 0);
 
 	/* Initialize the seed work queue */
 	INIT_WORK(&lrng_state.lrng_seed_work, lrng_drng_seed_work);
@@ -416,12 +410,17 @@ int __init lrng_rand_initialize(void)
 	invalidate_batched_entropy();
 
 	lrng_state.can_invalidate = true;
-
-	return 0;
 }
 
 #ifndef CONFIG_LRNG_RANDOM_IF
-early_initcall(lrng_rand_initialize);
+static int __init lrng_rand_initialize_call(void)
+{
+	lrng_rand_initialize_early();
+	lrng_rand_initialize();
+	return 0;
+}
+
+early_initcall(lrng_rand_initialize_call);
 #endif
 
 /* Interface requesting a reseed of the DRNG */
