@@ -19,6 +19,8 @@ struct batched_entropy {
 	union {
 		u64 entropy_u64[LRNG_DRNG_BLOCKSIZE / sizeof(u64)];
 		u32 entropy_u32[LRNG_DRNG_BLOCKSIZE / sizeof(u32)];
+		u16 entropy_u16[LRNG_DRNG_BLOCKSIZE / sizeof(u16)];
+		u8 entropy_u8[LRNG_DRNG_BLOCKSIZE / sizeof(u8)];
 	};
 	unsigned int position;
 	spinlock_t batch_lock;
@@ -76,6 +78,54 @@ u32 get_random_u32(void)
 	return ret;
 }
 EXPORT_SYMBOL(get_random_u32);
+
+static DEFINE_PER_CPU(struct batched_entropy, batched_entropy_u16) = {
+	.batch_lock	= __SPIN_LOCK_UNLOCKED(batched_entropy_u16.lock),
+};
+
+u16 get_random_u16(void)
+{
+	u16 ret;
+	unsigned long flags;
+	struct batched_entropy *batch;
+
+	lrng_debug_report_seedlevel("get_random_u16");
+
+	batch = raw_cpu_ptr(&batched_entropy_u16);
+	spin_lock_irqsave(&batch->batch_lock, flags);
+	if (batch->position % ARRAY_SIZE(batch->entropy_u16) == 0) {
+		lrng_get_random_bytes(batch->entropy_u16, LRNG_DRNG_BLOCKSIZE);
+		batch->position = 0;
+	}
+	ret = batch->entropy_u16[batch->position++];
+	spin_unlock_irqrestore(&batch->batch_lock, flags);
+	return ret;
+}
+EXPORT_SYMBOL(get_random_u16);
+
+static DEFINE_PER_CPU(struct batched_entropy, batched_entropy_u8) = {
+	.batch_lock	= __SPIN_LOCK_UNLOCKED(batched_entropy_u8.lock),
+};
+
+u8 get_random_u8(void)
+{
+	u8 ret;
+	unsigned long flags;
+	struct batched_entropy *batch;
+
+	lrng_debug_report_seedlevel("get_random_u8");
+
+	batch = raw_cpu_ptr(&batched_entropy_u8);
+	spin_lock_irqsave(&batch->batch_lock, flags);
+	if (batch->position % ARRAY_SIZE(batch->entropy_u8) == 0) {
+		lrng_get_random_bytes(batch->entropy_u8, LRNG_DRNG_BLOCKSIZE);
+		batch->position = 0;
+	}
+	ret = batch->entropy_u8[batch->position++];
+	spin_unlock_irqrestore(&batch->batch_lock, flags);
+	return ret;
+}
+EXPORT_SYMBOL(get_random_u8);
 
 #ifdef CONFIG_SMP
 /*
