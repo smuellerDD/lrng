@@ -379,12 +379,12 @@ void __init lrng_rand_initialize_early(void)
 	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(seed.data); i += longs) {
-		longs = arch_get_random_seed_longs(seed.data + i,
-						   ARRAY_SIZE(seed.data) - i);
+		longs = arch_get_random_seed_longs_early(seed.data + i,
+						ARRAY_SIZE(seed.data) - i);
 		if (longs)
 			continue;
-		longs = arch_get_random_longs(seed.data + i,
-					      ARRAY_SIZE(seed.data) - i);
+		longs = arch_get_random_longs_early(seed.data + i,
+						    ARRAY_SIZE(seed.data) - i);
 		if (longs)
 			continue;
 		longs = 1;
