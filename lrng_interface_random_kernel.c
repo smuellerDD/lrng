@@ -59,12 +59,13 @@ void add_hwgenerator_randomness(const void *buffer, size_t count,
 				size_t entropy_bits)
 {
 	/*
-	 * Suspend writing if we are fully loaded with entropy.
-	 * We'll be woken up again once below lrng_write_wakeup_thresh,
-	 * or when the calling thread is about to terminate.
+	 * Suspend writing if we are fully loaded with entropy or if caller
+	 * did not provide any entropy. We'll be woken up again once below
+	 * lrng_write_wakeup_thresh, or when the calling thread is about to
+	 * terminate.
 	 */
 	wait_event_interruptible(lrng_write_wait,
-				lrng_need_entropy() ||
+				(lrng_need_entropy() && entropy_bits) ||
 				lrng_state_exseed_allow(lrng_noise_source_hw) ||
 				kthread_should_stop());
 	lrng_state_exseed_set(lrng_noise_source_hw, false);
