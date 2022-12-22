@@ -1,4 +1,4 @@
-From 58929447a71c590ec39c57f2bc4e3245cd3e77be Mon Sep 17 00:00:00 2001
+From 8c3ca4f52a164f3987c3b27a67bdf24e95dd56ea Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 18:39:30 +0200
 Subject: [PATCH v48 25/26] LRNG - add /dev/lrng device file support

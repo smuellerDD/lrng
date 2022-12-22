@@ -1,4 +1,4 @@
-From 145e6678166c713840c7d2949426ef4d4a5341f0 Mon Sep 17 00:00:00 2001
+From 975bd2dc89a3fce660abdb3fccee8e46c6a011ed Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
 Date: Sun, 15 May 2022 16:13:37 +0200
 Subject: [PATCH v48 08/26] LRNG - add kernel crypto API PRNG extension

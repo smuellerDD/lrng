@@ -1,6 +1,6 @@
-From dd7dd2536015c5bc2373899a28c5a594572084e8 Mon Sep 17 00:00:00 2001
+From 2fe4f4ca1e1bb9d6f6b1fde51b209ce6fe9a1d29 Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
-Date: Sun, 18 Dec 2022 21:09:53 +0100
+Date: Thu, 22 Dec 2022 16:43:49 +0100
 Subject: [PATCH v48 01/26] crypto: Entropy Source and DRNG Manager
 
 The kernel crypto API contains deterministic random number generators
@@ -2987,7 +2987,7 @@ index 000000000000..cf982b9eea05
 +#endif /* _LRNG_ES_RANDOM_H */
 diff --git a/drivers/char/lrng/lrng_es_mgr.c b/drivers/char/lrng/lrng_es_mgr.c
 new file mode 100644
-index 000000000000..3eda5fe19f7f
+index 000000000000..5d1ab84c97cb
 --- /dev/null
 +++ b/drivers/char/lrng/lrng_es_mgr.c
 @@ -0,0 +1,490 @@
@@ -3372,12 +3372,12 @@ index 000000000000..3eda5fe19f7f
 +	unsigned int i;
 +
 +	for (i = 0; i < ARRAY_SIZE(seed.data); i += longs) {
-+		longs = arch_get_random_seed_longs(seed.data + i,
-+						   ARRAY_SIZE(seed.data) - i);
++		longs = arch_get_random_seed_longs_early(seed.data + i,
++						ARRAY_SIZE(seed.data) - i);
 +		if (longs)
 +			continue;
-+		longs = arch_get_random_longs(seed.data + i,
-+					      ARRAY_SIZE(seed.data) - i);
++		longs = arch_get_random_longs_early(seed.data + i,
++						    ARRAY_SIZE(seed.data) - i);
 +		if (longs)
 +			continue;
 +		longs = 1;

@@ -1,6 +1,6 @@
-From e54fcf84b5c7e5ee6cf8853b24574b457f60aa9e Mon Sep 17 00:00:00 2001
+From 9e9c717c223e0ee637f3a9c0c4094c41ec683a13 Mon Sep 17 00:00:00 2001
 From: Stephan Mueller <smueller@chronox.de>
-Date: Sun, 18 Dec 2022 21:35:00 +0100
+Date: Thu, 22 Dec 2022 16:46:07 +0100
 Subject: [PATCH v48 00/26] /dev/random - a new approach
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
@@ -340,13 +340,13 @@ Stephan Mueller (26):
  drivers/char/lrng/lrng_hash_kcapi.c           | 140 +++
  drivers/char/lrng/lrng_health.c               | 420 ++++++++
  drivers/char/lrng/lrng_health.h               |  42 +
- drivers/char/lrng/lrng_interface_aux.c        | 176 ++++
+ drivers/char/lrng/lrng_interface_aux.c        | 196 ++++
  drivers/char/lrng/lrng_interface_dev.c        |  35 +
  drivers/char/lrng/lrng_interface_dev_common.c | 314 ++++++
  drivers/char/lrng/lrng_interface_dev_common.h |  51 +
  drivers/char/lrng/lrng_interface_hwrand.c     |  68 ++
  drivers/char/lrng/lrng_interface_kcapi.c      | 129 +++
- .../char/lrng/lrng_interface_random_kernel.c  | 217 ++++
+ .../char/lrng/lrng_interface_random_kernel.c  | 218 ++++
  .../char/lrng/lrng_interface_random_kernel.h  |  15 +
  .../char/lrng/lrng_interface_random_user.c    | 104 ++
  drivers/char/lrng/lrng_numa.c                 | 124 +++
@@ -366,7 +366,7 @@ Stephan Mueller (26):
  .../crypto/internal}/jitterentropy.h          |   0
  include/linux/lrng.h                          | 251 +++++
  kernel/sched/core.c                           |   3 +
- 64 files changed, 10155 insertions(+), 10 deletions(-)
+ 64 files changed, 10176 insertions(+), 10 deletions(-)
  create mode 100644 drivers/char/lrng/Kconfig
  create mode 100644 drivers/char/lrng/Makefile
  create mode 100644 drivers/char/lrng/lrng_definitions.h
