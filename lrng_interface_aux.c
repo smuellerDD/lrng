@@ -15,6 +15,14 @@
 #include "lrng_es_mgr.h"
 #include "lrng_interface_random_kernel.h"
 
+/*
+ * Fill a buffer with random numbers and tokenize it to provide random numbers
+ * to callers in fixed chunks. This approach is provided to be consistent with
+ * the Linux kernel interface requirements. Yet, this approach violate the
+ * backtracking resistance of the random number generator. Thus, the provided
+ * random numbers are not considered to be as strong as those requested directly
+ * from the LRNG.
+ */
 struct batched_entropy {
 	union {
 		u64 entropy_u64[LRNG_DRNG_BLOCKSIZE / sizeof(u64)];
@@ -138,6 +146,8 @@ int random_prepare_cpu(unsigned int cpu)
 	 * When the cpu comes back online, immediately invalidate all batches,
 	 * so that we serve fresh randomness.
 	 */
+	per_cpu_ptr(&batched_entropy_u8, cpu)->position = 0;
+	per_cpu_ptr(&batched_entropy_u16, cpu)->position = 0;
 	per_cpu_ptr(&batched_entropy_u32, cpu)->position = 0;
 	per_cpu_ptr(&batched_entropy_u64, cpu)->position = 0;
 	return 0;
@@ -162,6 +172,16 @@ void invalidate_batched_entropy(void)
 
 	for_each_possible_cpu(cpu) {
 		struct batched_entropy *batched_entropy;
+
+		batched_entropy = per_cpu_ptr(&batched_entropy_u8, cpu);
+		spin_lock_irqsave(&batched_entropy->batch_lock, flags);
+		batched_entropy->position = 0;
+		spin_unlock(&batched_entropy->batch_lock);
+
+		batched_entropy = per_cpu_ptr(&batched_entropy_u16, cpu);
+		spin_lock_irqsave(&batched_entropy->batch_lock, flags);
+		batched_entropy->position = 0;
+		spin_unlock(&batched_entropy->batch_lock);
 
 		batched_entropy = per_cpu_ptr(&batched_entropy_u32, cpu);
 		spin_lock_irqsave(&batched_entropy->batch_lock, flags);
