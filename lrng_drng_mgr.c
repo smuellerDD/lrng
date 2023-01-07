@@ -147,7 +147,7 @@ int lrng_drng_alloc_common(struct lrng_drng *drng,
 	drng->drng_cb = drng_cb;
 	drng->drng = drng_cb->drng_alloc(LRNG_DRNG_SECURITY_STRENGTH_BYTES);
 	if (IS_ERR(drng->drng))
-		return PTR_ERR(drng->drng);
+		return -PTR_ERR(drng->drng);
 
 	lrng_drng_reset(drng);
 	return 0;

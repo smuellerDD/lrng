@@ -246,7 +246,7 @@ ssize_t lrng_drng_write(struct file *file, const char __user *buffer,
 long lrng_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 {
 	u32 digestsize_bits;
-	int size, ent_count_bits;
+	int size, ent_count_bits, ret;
 	int __user *p = (int __user *)arg;
 
 	switch (cmd) {
@@ -281,8 +281,9 @@ long lrng_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 			return -EINVAL;
 		/* there cannot be more entropy than data */
 		ent_count_bits = min(ent_count_bits, size<<3);
-		return lrng_drng_write_common((const char __user *)p, size,
-					      ent_count_bits);
+		ret = lrng_drng_write_common((const char __user *)p, size,
+					     ent_count_bits);
+		return (ret < 0) ? ret : 0;
 	case RNDZAPENTCNT:
 	case RNDCLEARPOOL:
 		/* Clear the entropy pool counter. */
