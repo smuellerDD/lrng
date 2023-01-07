@@ -274,6 +274,10 @@ are visible at https://github.com/smuellerDD/lrng/commits/master:
 
 - update for API changes of kernel 6.1
 
+- fix: properly unlock in invalidate_batched_entropy
+
+- fix: ABI-incompatibility in RNDADDENTROPY - LRNG returns now 0 on success
+
 Stephan Mueller (26):
   crypto: Entropy Source and DRNG Manager
   LRNG - allocate one DRNG instance per NUMA node
@@ -342,7 +346,7 @@ Stephan Mueller (26):
  drivers/char/lrng/lrng_health.h               |  42 +
  drivers/char/lrng/lrng_interface_aux.c        | 196 ++++
  drivers/char/lrng/lrng_interface_dev.c        |  35 +
- drivers/char/lrng/lrng_interface_dev_common.c | 314 ++++++
+ drivers/char/lrng/lrng_interface_dev_common.c | 315 ++++++
  drivers/char/lrng/lrng_interface_dev_common.h |  51 +
  drivers/char/lrng/lrng_interface_hwrand.c     |  68 ++
  drivers/char/lrng/lrng_interface_kcapi.c      | 129 +++
@@ -366,7 +370,7 @@ Stephan Mueller (26):
  .../crypto/internal}/jitterentropy.h          |   0
  include/linux/lrng.h                          | 251 +++++
  kernel/sched/core.c                           |   3 +
- 64 files changed, 10176 insertions(+), 10 deletions(-)
+ 64 files changed, 10177 insertions(+), 10 deletions(-)
  create mode 100644 drivers/char/lrng/Kconfig
  create mode 100644 drivers/char/lrng/Makefile
  create mode 100644 drivers/char/lrng/lrng_definitions.h
