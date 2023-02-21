@@ -666,7 +666,7 @@ ssize_t lrng_get_seed(u64 *buf, size_t nbytes, unsigned int flags)
 	int ret;
 
 	/* Ensure buffer is aligned as required */
-	BUILD_BUG_ON(sizeof(buflen) < LRNG_KCAPI_ALIGN);
+	BUILD_BUG_ON(sizeof(buflen) > LRNG_KCAPI_ALIGN);
 	if (nbytes < sizeof(buflen))
 		return -EINVAL;
 
