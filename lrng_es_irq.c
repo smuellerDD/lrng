@@ -707,13 +707,16 @@ static void lrng_irq_es_state(unsigned char *buf, size_t buflen)
 		 " per-CPU interrupt collection size: %u\n"
 		 " Standards compliance: %s\n"
 		 " High-resolution timer: %s\n"
-		 " Continuous compression: %s\n",
+		 " Continuous compression: %s\n"
+		 " Health test passed: %s\n",
 		 lrng_drng_init->hash_cb->hash_name(),
 		 lrng_irq_avail_entropy(0),
 		 LRNG_DATA_NUM_VALUES,
 		 lrng_sp80090b_compliant(lrng_int_es_irq) ? "SP800-90B " : "",
 		 lrng_highres_timer() ? "true" : "false",
-		 lrng_irq_continuous_compression ? "true" : "false");
+		 lrng_irq_continuous_compression ? "true" : "false",
+		 lrng_sp80090b_startup_complete_es(lrng_int_es_irq) ? "true" :
+								      "false");
 }
 
 struct lrng_es_cb lrng_es_irq = {
