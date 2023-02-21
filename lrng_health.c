@@ -51,6 +51,9 @@ struct lrng_health_es_state {
 					LRNG_APT_WINDOW_SIZE)
 	bool sp80090b_startup_done;
 	atomic_t sp80090b_startup_blocks;
+
+#define LRNG_MAX_SUCCESSIVE_HEALTH_FAILURES	1024
+	atomic_t successive_failures;
 };
 
 #define LRNG_HEALTH_ES_INIT(x) \
@@ -60,7 +63,8 @@ struct lrng_health_es_state {
 	x.apt.apt_trigger = ATOMIC_INIT(LRNG_APT_WINDOW_SIZE), \
 	x.apt.apt_base_set = false, \
 	x.sp80090b_startup_blocks = ATOMIC_INIT(LRNG_SP80090B_STARTUP_BLOCKS), \
-	x.sp80090b_startup_done = false,
+	x.sp80090b_startup_done = false, \
+	x.successive_failures = ATOMIC_INIT(0),
 
 /* The health test code must operate lock-less */
 struct lrng_health {
@@ -125,6 +129,8 @@ static void lrng_sp80090b_startup(struct lrng_health *health,
 			es);
 		lrng_drng_force_reseed();
 
+		atomic_set(&es_state->successive_failures, 0);
+
 		/*
 		 * We cannot call lrng_es_add_entropy() as this may cause a
 		 * schedule operation while in scheduler context for the
@@ -154,6 +160,13 @@ static void lrng_sp80090b_startup_failure(struct lrng_health *health,
 	 */
 	atomic_set(&es_state->sp80090b_startup_blocks,
 		   LRNG_SP80090B_STARTUP_BLOCKS);
+
+	if (fips_enabled &&
+	    (atomic_add_return(1, &es_state->successive_failures) >
+	     LRNG_MAX_SUCCESSIVE_HEALTH_FAILURES)) {
+		panic("Too many successive SP800-90B health test errors for internal entropy source %u\n",
+		      es);
+	}
 }
 
 /*
