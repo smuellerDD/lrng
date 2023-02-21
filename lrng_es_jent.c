@@ -30,6 +30,7 @@ MODULE_PARM_DESC(jent_entropy, "Entropy in bits of 256 data bits from Jitter RNG
 #endif
 
 static bool lrng_jent_initialized = false;
+static u32 lrng_jent_health_test_failure = 0;
 static struct rand_data *lrng_jent_state;
 
 static int __init lrng_jent_initialize(void)
@@ -98,6 +99,20 @@ static void lrng_jent_get(struct entropy_buf *eb, u32 requested_bits,
 
 	ret = jent_read_entropy(lrng_jent_state, eb->e[lrng_ext_es_jitter],
 				requested_bits >> 3);
+
+	/* Check if health test errors are identified */
+	/* RCT failure */
+	if (ret == -2 ||
+	    /* APT failure */
+	    ret == -3 ||
+	    /* Startup health failure */
+	    ret == 9) {
+		lrng_jent_health_test_failure++;
+
+		if (fips_enabled && (lrng_jent_health_test_failure > 1<<10))
+			panic("Jitter RNG had too many health failures\n");
+	} else
+		lrng_jent_health_test_failure = 0;
 	spin_unlock_irqrestore(&lrng_jent_lock, flags);
 
 	if (ret) {
@@ -119,9 +134,11 @@ static void lrng_jent_es_state(unsigned char *buf, size_t buflen)
 {
 	snprintf(buf, buflen,
 		 " Available entropy: %u\n"
-		 " Enabled: %s\n",
+		 " Enabled: %s\n"
+		 " Health test passed: %s\n",
 		 lrng_jent_poolsize(),
-		 lrng_jent_initialized ? "true" : "false");
+		 lrng_jent_initialized ? "true" : "false",
+		 lrng_jent_health_test_failure ? "false" : "true");
 }
 
 struct lrng_es_cb lrng_es_jent = {
