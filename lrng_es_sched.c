@@ -543,12 +543,16 @@ static void lrng_sched_es_state(unsigned char *buf, size_t buflen)
 		 " Available entropy: %u\n"
 		 " per-CPU scheduler event collection size: %u\n"
 		 " Standards compliance: %s\n"
-		 " High-resolution timer: %s\n",
+		 " High-resolution timer: %s\n"
+		 " Health test passed: %s\n",
 		 lrng_drng_init->hash_cb->hash_name(),
 		 lrng_sched_avail_entropy(0),
 		 LRNG_DATA_NUM_VALUES,
 		 lrng_sp80090b_compliant(lrng_int_es_sched) ? "SP800-90B " : "",
-		 lrng_highres_timer() ? "true" : "false");
+		 lrng_highres_timer() ? "true" : "false",
+		 lrng_sp80090b_startup_complete_es(lrng_int_es_sched) ?
+								      "true" :
+								      "false");
 }
 
 struct lrng_es_cb lrng_es_sched = {
