@@ -214,6 +214,12 @@ exec_test1()
 
 exec_test2()
 {
+	if (dmesg | grep "Initial DRNG initialized without seeding")
+	then
+		echo_pass "$TESTNAME: Initial seeding not performed due to forced seeding"
+		return
+	fi
+
 	if (dmesg | grep "Initial DRNG initialized triggering first seeding")
 	then
 		echo_pass "$TESTNAME: Initial seeding performed"

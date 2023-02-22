@@ -27,7 +27,7 @@ TESTNAME="Forced Seeding"
 verify_forced()
 {
 
-	if (dmesg | grep -q "lrng_drng_mgr: Force fully seeding level by repeatedly pull entropy from available entropy sources")
+	if (dmesg | grep -q "lrng_drng_mgr: Force fully seeding level for")
 	then
 		echo_pass "$TESTNAME: Forced seeding triggered"
 	else
@@ -45,7 +45,7 @@ verify_forced()
 verify_forced_ntg1()
 {
 
-	if (dmesg | grep -q "lrng_drng_mgr: Force fully seeding level by repeatedly pull entropy from available entropy sources")
+	if (dmesg | grep -q "lrng_drng_mgr: Force fully seeding level for")
 	then
 		echo_fail "$TESTNAME: Forced seeding triggered"
 	else
