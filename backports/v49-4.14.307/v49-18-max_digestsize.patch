@@ -1,0 +1,11 @@
+--- linux-4.19/drivers/char/lrng/lrng_drng_kcapi.c.orig	2022-05-17 16:35:46.342402331 -0400
++++ linux-4.19/drivers/char/lrng/lrng_drng_kcapi.c	2022-05-17 16:36:17.228489094 -0400
+@@ -38,7 +38,7 @@ static int lrng_kcapi_drng_seed_helper(v
+ 	struct crypto_shash *hash_tfm = lrng_drng_info->hash_tfm;
+ 	SHASH_DESC_ON_STACK(shash, hash_tfm);
+ 	u32 digestsize;
+-	u8 digest[HASH_MAX_DIGESTSIZE] __aligned(8);
++	u8 digest[64] __aligned(8);
+ 	int ret;
+ 
+ 	if (!hash_tfm)
