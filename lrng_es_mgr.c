@@ -2,7 +2,7 @@
 /*
  * LRNG Entropy sources management
  *
- * Copyright (C) 2022, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2022 - 2023, Stephan Mueller <smueller@chronox.de>
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -90,7 +90,17 @@ module_param(ntg1, bool, 0444);
 MODULE_PARM_DESC(ntg1, "Enable AIS20/31 NTG.1 compliant seeding strategy\n");
 #endif
 
+/* Only panic the kernel on permanent health failure if this variable is true */
+static bool lrng_panic_on_permanent_health_failure = false;
+module_param(lrng_panic_on_permanent_health_failure, bool, 0444);
+MODULE_PARM_DESC(ntg1, "Panic on reaching permanent health failure - only required if LRNG is part of a FIPS 140-3 module\n");
+
 /********************************** Helper ***********************************/
+
+bool lrng_enforce_panic_on_permanent_health_failure(void)
+{
+	return lrng_panic_on_permanent_health_failure;
+}
 
 bool lrng_ntg1_2022_compliant(void)
 {

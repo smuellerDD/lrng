@@ -2,7 +2,7 @@
 /*
  * LRNG Fast Entropy Source: Jitter RNG
  *
- * Copyright (C) 2022, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2022 - 2023, Stephan Mueller <smueller@chronox.de>
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -15,6 +15,7 @@
 #include "lrng_definitions.h"
 #include "lrng_es_aux.h"
 #include "lrng_es_jent.h"
+#include "lrng_es_mgr.h"
 
 /*
  * Estimated entropy of data is a 16th of LRNG_DRNG_SECURITY_STRENGTH_BITS.
@@ -109,7 +110,9 @@ static void lrng_jent_get(struct entropy_buf *eb, u32 requested_bits,
 	    ret == 9) {
 		lrng_jent_health_test_failure++;
 
-		if (fips_enabled && (lrng_jent_health_test_failure > 1<<10))
+		if (lrng_enforce_panic_on_permanent_health_failure() &&
+		    (lrng_jent_health_test_failure >
+		     LRNG_PERMANENT_HEALTH_FAILURES))
 			panic("Jitter RNG had too many health failures\n");
 	} else
 		lrng_jent_health_test_failure = 0;

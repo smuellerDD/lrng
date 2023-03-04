@@ -2,7 +2,7 @@
 /*
  * Entropy Source and DRNG Manager (LRNG) Health Testing
  *
- * Copyright (C) 2022, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2022 - 2023, Stephan Mueller <smueller@chronox.de>
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -10,6 +10,7 @@
 #include <linux/fips.h>
 #include <linux/module.h>
 
+#include "lrng_definitions.h"
 #include "lrng_es_mgr.h"
 #include "lrng_health.h"
 
@@ -23,6 +24,8 @@ struct lrng_stuck_test {
 /* Repetition Count Test */
 struct lrng_rct {
 	atomic_t rct_count;	/* Number of stuck values */
+
+	atomic_t successive_failures;	/* Permanent health failures */
 };
 
 /* Adaptive Proportion Test */
@@ -34,6 +37,8 @@ struct lrng_apt {
 #define LRNG_APT_WORD_MASK	(LRNG_APT_LSB - 1)
 	atomic_t apt_count;		/* APT counter */
 	atomic_t apt_base;		/* APT base reference */
+
+	atomic_t successive_failures;	/* Permanent health failures */
 
 	atomic_t apt_trigger;
 	bool apt_base_set;	/* Is APT base set? */
@@ -51,20 +56,18 @@ struct lrng_health_es_state {
 					LRNG_APT_WINDOW_SIZE)
 	bool sp80090b_startup_done;
 	atomic_t sp80090b_startup_blocks;
-
-#define LRNG_MAX_SUCCESSIVE_HEALTH_FAILURES	1024
-	atomic_t successive_failures;
 };
 
 #define LRNG_HEALTH_ES_INIT(x) \
 	x.rct.rct_count = ATOMIC_INIT(0), \
+	x.rct.successive_failures = ATOMIC_INIT(0), \
 	x.apt.apt_count = ATOMIC_INIT(0), \
 	x.apt.apt_base = ATOMIC_INIT(-1), \
+	x.apt.successive_failures = ATOMIC_INIT(0), \
 	x.apt.apt_trigger = ATOMIC_INIT(LRNG_APT_WINDOW_SIZE), \
 	x.apt.apt_base_set = false, \
 	x.sp80090b_startup_blocks = ATOMIC_INIT(LRNG_SP80090B_STARTUP_BLOCKS), \
-	x.sp80090b_startup_done = false, \
-	x.successive_failures = ATOMIC_INIT(0),
+	x.sp80090b_startup_done = false,
 
 /* The health test code must operate lock-less */
 struct lrng_health {
@@ -129,8 +132,6 @@ static void lrng_sp80090b_startup(struct lrng_health *health,
 			es);
 		lrng_drng_force_reseed();
 
-		atomic_set(&es_state->successive_failures, 0);
-
 		/*
 		 * We cannot call lrng_es_add_entropy() as this may cause a
 		 * schedule operation while in scheduler context for the
@@ -147,6 +148,7 @@ static void lrng_sp80090b_startup_failure(struct lrng_health *health,
 {
 	struct lrng_health_es_state *es_state = &health->es_state[es];
 
+
 	/* Reset of LRNG and its entropy - NOTE: we are in atomic context */
 	lrng_reset();
 
@@ -161,11 +163,17 @@ static void lrng_sp80090b_startup_failure(struct lrng_health *health,
 	atomic_set(&es_state->sp80090b_startup_blocks,
 		   LRNG_SP80090B_STARTUP_BLOCKS);
 
-	if (fips_enabled &&
-	    (atomic_add_return(1, &es_state->successive_failures) >
-	     LRNG_MAX_SUCCESSIVE_HEALTH_FAILURES)) {
-		panic("Too many successive SP800-90B health test errors for internal entropy source %u\n",
-		      es);
+	if (lrng_enforce_panic_on_permanent_health_failure()) {
+		struct lrng_apt *apt = &es_state->apt;
+		struct lrng_rct *rct = &es_state->rct;
+
+		if ((atomic_read(&apt->successive_failures) >=
+		     LRNG_PERMANENT_HEALTH_FAILURES) ||
+		    (atomic_read(&rct->successive_failures) >=
+		     LRNG_PERMANENT_HEALTH_FAILURES)) {
+			panic("Too many successive SP800-90B health test errors for internal entropy source %u\n",
+			      es);
+		}
 	}
 }
 
@@ -270,8 +278,13 @@ static void lrng_apt_insert(struct lrng_health *health,
 	if (now_time == (unsigned int)atomic_read(&apt->apt_base)) {
 		u32 apt_val = (u32)atomic_inc_return_relaxed(&apt->apt_count);
 
-		if (apt_val >= CONFIG_LRNG_APT_CUTOFF)
+		if (apt_val >= CONFIG_LRNG_APT_CUTOFF) {
+			atomic_inc(&apt->successive_failures);
 			lrng_sp80090b_failure(health, es);
+		} else {
+			/* Reset any successive failure count */
+			atomic_set(&apt->successive_failures, 0);
+		}
 	}
 
 	if (atomic_dec_and_test(&apt->apt_trigger)) {
@@ -336,10 +349,13 @@ static void lrng_rct(struct lrng_health *health, enum lrng_internal_es es,
 			 */
 			lrng_apt_restart(&es_state->apt);
 
+			atomic_inc(&rct->successive_failures);
 			lrng_sp80090b_failure(health, es);
 		}
 	} else {
 		atomic_set(&rct->rct_count, 0);
+		/* Reset any successive failure count */
+		atomic_set(&rct->successive_failures, 0);
 	}
 }
 

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 OR BSD-2-Clause */
 /*
- * Copyright (C) 2022, Stephan Mueller <smueller@chronox.de>
+ * Copyright (C) 2022 - 2023, Stephan Mueller <smueller@chronox.de>
  */
 
 #ifndef _LRNG_DEFINITIONS_H
@@ -120,6 +120,15 @@
  * as it will be casted into a struct shash_desc.
  */
 #define LRNG_POOL_SIZE	(sizeof(struct shash_desc) + HASH_MAX_DESCSIZE)
+
+/*
+ * Identification of a permanent health falure.
+ *
+ * Allow the given number of back-to-back health failures until incuring a
+ * permanent health failure. The chosen value implies an alpha of 2^-60
+ * considering that the alpha of one health failure is 2^-30
+ */
+#define LRNG_PERMANENT_HEALTH_FAILURES	2
 
 /****************************** Helper code ***********************************/
 
