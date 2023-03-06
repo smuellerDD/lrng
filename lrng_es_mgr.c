@@ -93,7 +93,7 @@ MODULE_PARM_DESC(ntg1, "Enable AIS20/31 NTG.1 compliant seeding strategy\n");
 /* Only panic the kernel on permanent health failure if this variable is true */
 static bool lrng_panic_on_permanent_health_failure = false;
 module_param(lrng_panic_on_permanent_health_failure, bool, 0444);
-MODULE_PARM_DESC(ntg1, "Panic on reaching permanent health failure - only required if LRNG is part of a FIPS 140-3 module\n");
+MODULE_PARM_DESC(lrng_panic_on_permanent_health_failure, "Panic on reaching permanent health failure - only required if LRNG is part of a FIPS 140-3 module\n");
 
 /********************************** Helper ***********************************/
 
