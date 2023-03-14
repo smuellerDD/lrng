@@ -24,8 +24,6 @@ struct lrng_stuck_test {
 /* Repetition Count Test */
 struct lrng_rct {
 	atomic_t rct_count;	/* Number of stuck values */
-
-	atomic_t successive_failures;	/* Permanent health failures */
 };
 
 /* Adaptive Proportion Test */
@@ -37,8 +35,6 @@ struct lrng_apt {
 #define LRNG_APT_WORD_MASK	(LRNG_APT_LSB - 1)
 	atomic_t apt_count;		/* APT counter */
 	atomic_t apt_base;		/* APT base reference */
-
-	atomic_t successive_failures;	/* Permanent health failures */
 
 	atomic_t apt_trigger;
 	bool apt_base_set;	/* Is APT base set? */
@@ -60,10 +56,8 @@ struct lrng_health_es_state {
 
 #define LRNG_HEALTH_ES_INIT(x) \
 	x.rct.rct_count = ATOMIC_INIT(0), \
-	x.rct.successive_failures = ATOMIC_INIT(0), \
 	x.apt.apt_count = ATOMIC_INIT(0), \
 	x.apt.apt_base = ATOMIC_INIT(-1), \
-	x.apt.successive_failures = ATOMIC_INIT(0), \
 	x.apt.apt_trigger = ATOMIC_INIT(LRNG_APT_WINDOW_SIZE), \
 	x.apt.apt_base_set = false, \
 	x.sp80090b_startup_blocks = ATOMIC_INIT(LRNG_SP80090B_STARTUP_BLOCKS), \
@@ -162,19 +156,6 @@ static void lrng_sp80090b_startup_failure(struct lrng_health *health,
 	 */
 	atomic_set(&es_state->sp80090b_startup_blocks,
 		   LRNG_SP80090B_STARTUP_BLOCKS);
-
-	if (lrng_enforce_panic_on_permanent_health_failure()) {
-		struct lrng_apt *apt = &es_state->apt;
-		struct lrng_rct *rct = &es_state->rct;
-
-		if ((atomic_read(&apt->successive_failures) >=
-		     LRNG_PERMANENT_HEALTH_FAILURES) ||
-		    (atomic_read(&rct->successive_failures) >=
-		     LRNG_PERMANENT_HEALTH_FAILURES)) {
-			panic("Too many successive SP800-90B health test errors for internal entropy source %u\n",
-			      es);
-		}
-	}
 }
 
 /*
@@ -189,16 +170,40 @@ static void lrng_sp80090b_runtime_failure(struct lrng_health *health,
 	es_state->sp80090b_startup_done = false;
 }
 
+static void lrng_rct_reset(struct lrng_rct *rct);
+static void lrng_apt_reset(struct lrng_apt *apt, unsigned int time_masked);
+static void lrng_apt_restart(struct lrng_apt *apt);
+static void lrng_sp80090b_permanent_failure(struct lrng_health *health,
+					    enum lrng_internal_es es)
+{
+	struct lrng_health_es_state *es_state = &health->es_state[es];
+	struct lrng_apt *apt = &es_state->apt;
+	struct lrng_rct *rct = &es_state->rct;
+
+	if (lrng_enforce_panic_on_permanent_health_failure()) {
+		panic("SP800-90B permanent health test failure for internal entropy source %u\n",
+		      es);
+	}
+
+	pr_err("SP800-90B permanent health test failure for internal entropy source %u - invalidating all existing entropy and initiate SP800-90B startup\n",
+	       es);
+	lrng_sp80090b_runtime_failure(health, es);
+
+	lrng_rct_reset(rct);
+	lrng_apt_reset(apt, 0);
+	lrng_apt_restart(apt);
+}
+
 static void lrng_sp80090b_failure(struct lrng_health *health,
 				  enum lrng_internal_es es)
 {
 	struct lrng_health_es_state *es_state = &health->es_state[es];
 
 	if (es_state->sp80090b_startup_done) {
-		pr_err("SP800-90B runtime health test failure for internal entropy source %u - invalidating all existing entropy and initiate SP800-90B startup\n", es);
+		pr_warn("SP800-90B runtime health test failure for internal entropy source %u - invalidating all existing entropy and initiate SP800-90B startup\n", es);
 		lrng_sp80090b_runtime_failure(health, es);
 	} else {
-		pr_err("SP800-90B startup test failure for internal entropy source %u - resetting\n", es);
+		pr_warn("SP800-90B startup test failure for internal entropy source %u - resetting\n", es);
 		lrng_sp80090b_startup_failure(health, es);
 	}
 }
@@ -278,13 +283,10 @@ static void lrng_apt_insert(struct lrng_health *health,
 	if (now_time == (unsigned int)atomic_read(&apt->apt_base)) {
 		u32 apt_val = (u32)atomic_inc_return_relaxed(&apt->apt_count);
 
-		if (apt_val >= CONFIG_LRNG_APT_CUTOFF) {
-			atomic_inc(&apt->successive_failures);
+		if (apt_val >= CONFIG_LRNG_APT_CUTOFF_PERMANENT)
+			lrng_sp80090b_permanent_failure(health, es);
+		else if (apt_val >= CONFIG_LRNG_APT_CUTOFF)
 			lrng_sp80090b_failure(health, es);
-		} else {
-			/* Reset any successive failure count */
-			atomic_set(&apt->successive_failures, 0);
-		}
 	}
 
 	if (atomic_dec_and_test(&apt->apt_trigger)) {
@@ -310,6 +312,12 @@ static void lrng_apt_insert(struct lrng_health *health,
  * that no data can be extracted from the entropy pool unless new entropy
  * is received.
  ***************************************************************************/
+
+static void lrng_rct_reset(struct lrng_rct *rct)
+{
+	/* Reset RCT */
+	atomic_set(&rct->rct_count, 0);
+}
 
 /*
  * Hot code path - Insert data for Repetition Count Test
@@ -340,22 +348,12 @@ static void lrng_rct(struct lrng_health *health, enum lrng_internal_es es,
 		 * Hence we need to subtract one from the cutoff value as
 		 * calculated following SP800-90B.
 		 */
-		if (rct_count >= CONFIG_LRNG_RCT_CUTOFF) {
-			atomic_set(&rct->rct_count, 0);
-
-			/*
-			 * APT must start anew as we consider all previously
-			 * recorded data to contain no entropy.
-			 */
-			lrng_apt_restart(&es_state->apt);
-
-			atomic_inc(&rct->successive_failures);
+		if (rct_count >= CONFIG_LRNG_RCT_CUTOFF_PERMANENT)
+			lrng_sp80090b_permanent_failure(health, es);
+		else if (rct_count >= CONFIG_LRNG_RCT_CUTOFF)
 			lrng_sp80090b_failure(health, es);
-		}
 	} else {
-		atomic_set(&rct->rct_count, 0);
-		/* Reset any successive failure count */
-		atomic_set(&rct->successive_failures, 0);
+		lrng_rct_reset(rct);
 	}
 }
 
