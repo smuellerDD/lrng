@@ -7,10 +7,10 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <crypto/rng.h>
 #include <linux/fips.h>
 #include <linux/module.h>
 #include <linux/types.h>
-#include <crypto/internal/jitterentropy.h>
 
 #include "lrng_definitions.h"
 #include "lrng_es_aux.h"
@@ -31,18 +31,16 @@ MODULE_PARM_DESC(jent_entropy, "Entropy in bits of 256 data bits from Jitter RNG
 #endif
 
 static bool lrng_jent_initialized = false;
-static u32 lrng_jent_health_test_failure = 0;
-static struct rand_data *lrng_jent_state;
+static struct crypto_rng *jent;
 
 static int __init lrng_jent_initialize(void)
 {
-	/* Initialize the Jitter RNG after the clocksources are initialized. */
-	if (jent_entropy_init() ||
-	    (lrng_jent_state = jent_entropy_collector_alloc(1, 0)) == NULL) {
-		jent_entropy = 0;
-		pr_info("Jitter RNG unusable on current system\n");
-		return 0;
+	jent = crypto_alloc_rng("jitterentropy_rng", 0, 0);
+	if (IS_ERR(jent)) {
+		pr_err("Cannot allocate Jitter RNG\n");
+		return PTR_ERR(jent);
 	}
+
 	lrng_jent_initialized = true;
 	pr_debug("Jitter RNG working on current system\n");
 
@@ -98,24 +96,9 @@ static void lrng_jent_get(struct entropy_buf *eb, u32 requested_bits,
 		goto err;
 	}
 
-	ret = jent_read_entropy(lrng_jent_state, eb->e[lrng_ext_es_jitter],
-				requested_bits >> 3);
+	ret = crypto_rng_get_bytes(jent, eb->e[lrng_ext_es_jitter],
+				   requested_bits >> 3);
 
-	/* Check if health test errors are identified */
-	/* RCT failure */
-	if (ret == -2 ||
-	    /* APT failure */
-	    ret == -3 ||
-	    /* Startup health failure */
-	    ret == 9) {
-		lrng_jent_health_test_failure++;
-
-		if (lrng_enforce_panic_on_permanent_health_failure() &&
-		    (lrng_jent_health_test_failure >
-		     LRNG_PERMANENT_HEALTH_FAILURES))
-			panic("Jitter RNG had too many health failures\n");
-	} else
-		lrng_jent_health_test_failure = 0;
 	spin_unlock_irqrestore(&lrng_jent_lock, flags);
 
 	if (ret) {
@@ -137,11 +120,9 @@ static void lrng_jent_es_state(unsigned char *buf, size_t buflen)
 {
 	snprintf(buf, buflen,
 		 " Available entropy: %u\n"
-		 " Enabled: %s\n"
-		 " Health test passed: %s\n",
+		 " Enabled: %s\n",
 		 lrng_jent_poolsize(),
-		 lrng_jent_initialized ? "true" : "false",
-		 lrng_jent_health_test_failure ? "false" : "true");
+		 lrng_jent_initialized ? "true" : "false");
 }
 
 struct lrng_es_cb lrng_es_jent = {
