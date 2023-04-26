@@ -315,7 +315,7 @@ int main(int argc, char *argv[])
 #define MAXLEN	65536
 	uint64_t totaltime = 0;
 	uint64_t i, buffer[MAXLEN/sizeof(uint64_t)];
-	size_t bufferlen = MAXLEN, tmp;
+	size_t bufferlen = MAXLEN, tmp, dumplen = 0;
 	struct timespec start, end;
 	int c = 0;
 	ssize_t ret = 0;
@@ -334,11 +334,12 @@ int main(int argc, char *argv[])
 			{"random_noblock", 0, 0, 's'},
 			{"ntg1", 0, 0, 'n'},
 			{"buflen", 1, 0, 'b'},
+			{"buflendump", 1, 0, 'd'},
 			{"seed", 1, 0, 'y'},
 			{"reseed", 1, 0, 'z'},
 			{0, 0, 0, 0}
 		};
-		c = getopt_long(argc, argv, "uirsnb:yz", options, &opt_index);
+		c = getopt_long(argc, argv, "uirsnb:d:yz", options, &opt_index);
 		if (c == -1)
 			break;
 		switch (c)
@@ -370,6 +371,12 @@ int main(int argc, char *argv[])
 					return -EINVAL;
 				bufferlen = tmp;
 				break;
+			case 'd':
+				tmp = strtoul(optarg, NULL, 10);
+				if (tmp >= ULONG_MAX)
+					return -EINVAL;
+				dumplen = tmp;
+				break;
 			default:
 				return -EINVAL;
 		}
@@ -377,6 +384,26 @@ int main(int argc, char *argv[])
 
 	if (!rnd)
 		return EINVAL;
+
+	if (dumplen) {
+		while (dumplen) {
+			size_t todo = (dumplen < sizeof(buffer)) ?
+				      dumplen : sizeof(buffer);
+
+			ret = rnd((uint8_t *)buffer, todo);
+			if (ret < 0)
+				return -errno;
+			if (ret == 0) {
+				printf("Kernel returned NO data!\n");
+				sleep(1);
+			}
+
+			fwrite(buffer, todo, 1, stdout);
+			dumplen -= ret;
+		}
+
+		return 0;
+	}
 
 	start_time(&start);
 	ret = rnd((uint8_t *)buffer, bufferlen);
