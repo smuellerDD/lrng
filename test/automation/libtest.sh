@@ -320,7 +320,7 @@ execvirt()
 	echo_log "Executing test with kernel command line $@"
 	echo_log "Executing test case $script"
 
-	$EUDYPTULA "-c \\\"dyndbg=file drivers/char/lrng/* +p\\\" $@" --kernel $kernel_binary $script
+	$EUDYPTULA -m 1G "-c \\\"dyndbg=file drivers/char/lrng/* +p\\\" $@" --kernel $kernel_binary $script
 	if [ $? -ne 0 ]
 	then
 		local ret=$?
