@@ -7,11 +7,11 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
-#include <asm/archrandom.h>
 #include <linux/module.h>
 #include <linux/random.h>
 #include <linux/utsname.h>
 #include <linux/workqueue.h>
+#include <asm/archrandom.h>
 
 #include "lrng_drng_atomic.h"
 #include "lrng_drng_mgr.h"
