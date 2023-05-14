@@ -1,0 +1,10 @@
+--- linux-5.4/drivers/char/lrng/lrng_interface_dev_common.c.orig	2022-05-17 15:42:53.065862532 -0400
++++ linux-5.4/drivers/char/lrng/lrng_interface_dev_common.c	2022-05-17 15:43:35.844969625 -0400
+@@ -8,6 +8,7 @@
+ #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+ 
+ #include <linux/random.h>
++#include <linux/sched/signal.h>
+ #include <linux/slab.h>
+ 
+ #include "lrng_drng_mgr.h"

@@ -1,0 +1,37 @@
+--- linux-4.14.286/drivers/char/lrng/lrng_interface_dev_common.c.orig	2022-07-10 23:20:11.240800222 +0200
++++ linux-4.14.286/drivers/char/lrng/lrng_interface_dev_common.c	2022-07-10 23:25:44.250524865 +0200
+@@ -163,19 +163,19 @@ ssize_t lrng_drng_read_block(struct file
+ 	return lrng_read_common_block(file->f_flags & O_NONBLOCK, buf, nbytes);
+ }
+ 
+-__poll_t lrng_random_poll(struct file *file, poll_table *wait)
++unsigned int lrng_random_poll(struct file *file, poll_table *wait)
+ {
+-	__poll_t mask;
++	unsigned int mask;
+ 
+ 	poll_wait(file, &lrng_init_wait, wait);
+ 	poll_wait(file, &lrng_write_wait, wait);
+ 	mask = 0;
+ 	if (lrng_state_operational())
+-		mask |= EPOLLIN | EPOLLRDNORM;
++		mask |= POLLIN | POLLRDNORM;
+ 	if (lrng_need_entropy() ||
+ 	    lrng_state_exseed_allow(lrng_noise_source_user)) {
+ 		lrng_state_exseed_set(lrng_noise_source_user, false);
+-		mask |= EPOLLOUT | EPOLLWRNORM;
++		mask |= POLLOUT | POLLWRNORM;
+ 	}
+ 	return mask;
+ }
+--- linux-4.14.286/drivers/char/lrng/lrng_interface_dev_common.h.orig	2022-07-10 23:27:00.229069256 +0200
++++ linux-4.14.286/drivers/char/lrng/lrng_interface_dev_common.h	2022-07-10 23:21:25.400420920 +0200
+@@ -37,7 +37,7 @@ ssize_t lrng_drng_write(struct file *fil
+ 			size_t count, loff_t *ppos);
+ ssize_t lrng_drng_write_common(const char __user *buffer, size_t count,
+ 			       u32 entropy_bits);
+-__poll_t lrng_random_poll(struct file *file, poll_table *wait);
++unsigned int lrng_random_poll(struct file *file, poll_table *wait);
+ ssize_t lrng_read_common_block(int nonblock, int pr,
+ 			       char __user *buf, size_t nbytes);
+ ssize_t lrng_drng_read_block(struct file *file, char __user *buf, size_t nbytes,
