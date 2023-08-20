@@ -27,9 +27,9 @@ Afterwards, simply execute `make` to compile the `lrng_drng_lc.ko` module.
 ## Usage
 
 It must be ensured that the `leancrypto.ko` module is inserted into the kernel
-prior to inserting the `lrng_drng_kmac.ko` module.
+prior to inserting the `lrng_drng_lc.ko` module.
 
-Once this is ensured simply `insmod lrng_drng_kmac.ko`. This command registers
+Once this is ensured simply `insmod lrng_drng_lc.ko`. This command registers
 the KMAC DRNG automatically with the LRNG which in turn starts using it.
 
 # References
