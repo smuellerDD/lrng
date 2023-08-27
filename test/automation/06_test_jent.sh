@@ -23,13 +23,20 @@
 . $(dirname $0)/libtest.sh
 
 SYSFS="/sys/module/lrng_es_jent/parameters/jent_entropy"
+RESEED_CTR=1
 
 verify_entropyrate()
 {
 	local expected_rate=$1
+	local i=0
 
-	# Force reseed
-	echo >/dev/random; dd if=/dev/random of=/dev/null bs=32 count=1
+	while [ $i -lt $RESEED_CTR ]
+	do
+		# Force reseed
+		echo >/dev/random; dd if=/dev/random of=/dev/null bs=32 count=1 > /dev/null 2>&1
+		i=$((i+1))
+		echo "Async Jitter RNG reseed: Reseed operation $i of $RESEED_CTR"
+	done
 
 	local found=$(dmesg | grep "lrng_es_jent: obtained" | tail -n 1 | sed 's/^.* obtained \([0-9]\+\) bits.*$/\1/')
 
@@ -128,6 +135,42 @@ verify_jent()
 $(in_hypervisor)
 if [ $? -eq 1 ]
 then
+	$(check_kernel_config "CONFIG_LRNG_JENT_ENTROPY_BLOCKS_NO_32=y")
+	if [ $? -eq 0 ]
+	then
+		RESEED_CTR=32
+	fi
+
+	$(check_kernel_config "CONFIG_LRNG_JENT_ENTROPY_BLOCKS_NO_64=y")
+	if [ $? -eq 0 ]
+	then
+		RESEED_CTR=64
+	fi
+
+	$(check_kernel_config "CONFIG_LRNG_JENT_ENTROPY_BLOCKS_NO_128=y")
+	if [ $? -eq 0 ]
+	then
+		RESEED_CTR=128
+	fi
+
+	$(check_kernel_config "CONFIG_LRNG_JENT_ENTROPY_BLOCKS_NO_256=y")
+	if [ $? -eq 0 ]
+	then
+		RESEED_CTR=256
+	fi
+
+	$(check_kernel_config "CONFIG_LRNG_JENT_ENTROPY_BLOCKS_NO_512=y")
+	if [ $? -eq 0 ]
+	then
+		RESEED_CTR=512
+	fi
+
+	$(check_kernel_config "CONFIG_LRNG_JENT_ENTROPY_BLOCKS_NO_1024=y")
+	if [ $? -eq 0 ]
+	then
+		RESEED_CTR=1024
+	fi
+
 	case $(read_cmd) in
 		"test1")
 			verify_jent

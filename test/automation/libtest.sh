@@ -314,6 +314,10 @@ execvirt()
 
 	if [ $depmod -ne 0 ]
 	then
+		cwd=$(pwd)
+		cd ${kernel_build}
+		ln -s . usr
+		cd $cwd
 		depmod -b ${kernel_build} $version
 	fi
 
