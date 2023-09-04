@@ -290,6 +290,12 @@ execvirt()
 	# Build and install fully configured kernel
 	if [ ! -d ${kernel_build} ]
 	then
+		mkdir -p ${kernel_build}
+		cwd=$(pwd)
+		cd ${kernel_build}
+		ln -s . usr
+		cd $cwd
+
 		make -j2
 		make modules_install install INSTALL_MOD_PATH=${kernel_build} INSTALL_PATH=${kernel_build}
 		depmod=1
@@ -314,10 +320,6 @@ execvirt()
 
 	if [ $depmod -ne 0 ]
 	then
-		cwd=$(pwd)
-		cd ${kernel_build}
-		ln -s . usr
-		cd $cwd
 		depmod -b ${kernel_build} $version
 	fi
 
