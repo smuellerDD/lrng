@@ -9,8 +9,8 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <crypto/drbg.h>
-#include <linux/lrng.h>
 #include <linux/init.h>
+#include <linux/lrng.h>
 #include <linux/module.h>
 
 #include "lrng_drng_drbg.h"
@@ -45,130 +45,133 @@ module_param(lrng_drbg_type, uint, 0444);
 MODULE_PARM_DESC(lrng_drbg_type, "DRBG type used for LRNG (0->CTR_DRBG, 1->HMAC_DRBG, 2->Hash_DRBG)");
 
 struct lrng_drbg {
-	const char *hash_name;
-	const char *drbg_core;
+    const char* hash_name;
+    const char* drbg_core;
 };
 
 static const struct lrng_drbg lrng_drbg_types[] = {
-	{	/* CTR_DRBG with AES-256 using derivation function */
-		.drbg_core = "drbg_nopr_ctr_aes256",
-	}, {	/* HMAC_DRBG with SHA-512 */
-		.drbg_core = "drbg_nopr_hmac_sha512",
-	}, {	/* Hash_DRBG with SHA-512 using derivation function */
-		.drbg_core = "drbg_nopr_sha512"
-	}
+    {
+        /* CTR_DRBG with AES-256 using derivation function */
+        .drbg_core = "drbg_nopr_ctr_aes256",
+    },
+    {
+        /* HMAC_DRBG with SHA-512 */
+        .drbg_core = "drbg_nopr_hmac_sha512",
+    },
+    { /* Hash_DRBG with SHA-512 using derivation function */
+        .drbg_core = "drbg_nopr_sha512" }
 };
 
-static int lrng_drbg_drng_seed_helper(void *drng, const u8 *inbuf, u32 inbuflen)
+static int lrng_drbg_drng_seed_helper(void* drng, const u8* inbuf, u32 inbuflen)
 {
-	struct drbg_state *drbg = (struct drbg_state *)drng;
-	LIST_HEAD(seedlist);
-	struct drbg_string data;
-	int ret;
+    struct drbg_state* drbg = (struct drbg_state*)drng;
+    LIST_HEAD(seedlist);
+    struct drbg_string data;
+    int ret;
 
-	drbg_string_fill(&data, inbuf, inbuflen);
-	list_add_tail(&data.list, &seedlist);
-	ret = drbg->d_ops->update(drbg, &seedlist, drbg->seeded);
+    drbg_string_fill(&data, inbuf, inbuflen);
+    list_add_tail(&data.list, &seedlist);
+    ret = drbg->d_ops->update(drbg, &seedlist, drbg->seeded);
 
-	if (ret >= 0)
-		drbg->seeded = true;
+    if (ret >= 0)
+        drbg->seeded = DRBG_SEED_STATE_FULL;
 
-	return ret;
+    return ret;
 }
 
-static int lrng_drbg_drng_generate_helper(void *drng, u8 *outbuf, u32 outbuflen)
+static int lrng_drbg_drng_generate_helper(void* drng, u8* outbuf, u32 outbuflen)
 {
-	struct drbg_state *drbg = (struct drbg_state *)drng;
+    struct drbg_state* drbg = (struct drbg_state*)drng;
 
-	return drbg->d_ops->generate(drbg, outbuf, outbuflen, NULL);
+    return drbg->d_ops->generate(drbg, outbuf, outbuflen, NULL);
 }
 
-static void *lrng_drbg_drng_alloc(u32 sec_strength)
+static void* lrng_drbg_drng_alloc(u32 sec_strength)
 {
-	struct drbg_state *drbg;
-	int coreref = -1;
-	bool pr = false;
-	int ret;
+    struct drbg_state* drbg;
+    int coreref = -1;
+    bool pr = false;
+    int ret;
 
-	drbg_convert_tfm_core(lrng_drbg_types[lrng_drbg_type].drbg_core,
-			      &coreref, &pr);
-	if (coreref < 0)
-		return ERR_PTR(-EFAULT);
+    drbg_convert_tfm_core(lrng_drbg_types[lrng_drbg_type].drbg_core,
+        &coreref, &pr);
+    if (coreref < 0)
+        return ERR_PTR(-EFAULT);
 
-	drbg = kzalloc(sizeof(struct drbg_state), GFP_KERNEL);
-	if (!drbg)
-		return ERR_PTR(-ENOMEM);
+    drbg = kzalloc(sizeof(struct drbg_state), GFP_KERNEL);
+    if (!drbg)
+        return ERR_PTR(-ENOMEM);
 
-	drbg->core = &drbg_cores[coreref];
-	drbg->seeded = false;
-	ret = drbg_alloc_state(drbg);
-	if (ret)
-		goto err;
+    drbg->core = &drbg_cores[coreref];
+    drbg->seeded = DRBG_SEED_STATE_UNSEEDED;
+    ret = drbg_alloc_state(drbg);
+    if (ret)
+        goto err;
 
-	if (sec_strength > drbg_sec_strength(drbg->core->flags)) {
-		pr_err("Security strength of DRBG (%u bits) lower than requested by LRNG (%u bits)\n",
-			drbg_sec_strength(drbg->core->flags) * 8,
-			sec_strength * 8);
-		goto dealloc;
-	}
+    if (sec_strength > drbg_sec_strength(drbg->core->flags)) {
+        pr_err("Security strength of DRBG (%u bits) lower than requested by LRNG (%u bits)\n",
+            drbg_sec_strength(drbg->core->flags) * 8,
+            sec_strength * 8);
+        goto dealloc;
+    }
 
-	if (sec_strength < drbg_sec_strength(drbg->core->flags))
-		pr_warn("Security strength of DRBG (%u bits) higher than requested by LRNG (%u bits)\n",
-			drbg_sec_strength(drbg->core->flags) * 8,
-			sec_strength * 8);
+    if (sec_strength < drbg_sec_strength(drbg->core->flags))
+        pr_warn("Security strength of DRBG (%u bits) higher than requested by LRNG (%u bits)\n",
+            drbg_sec_strength(drbg->core->flags) * 8,
+            sec_strength * 8);
 
-	pr_info("DRBG with %s core allocated\n", drbg->core->backend_cra_name);
+    pr_info("DRBG with %s core allocated\n", drbg->core->backend_cra_name);
 
-	return drbg;
+    return drbg;
 
 dealloc:
-	if (drbg->d_ops)
-		drbg->d_ops->crypto_fini(drbg);
-	drbg_dealloc_state(drbg);
+    if (drbg->d_ops)
+        drbg->d_ops->crypto_fini(drbg);
+    drbg_dealloc_state(drbg);
 err:
-	kfree(drbg);
-	return ERR_PTR(-EINVAL);
+    kfree(drbg);
+    return ERR_PTR(-EINVAL);
 }
 
-static void lrng_drbg_drng_dealloc(void *drng)
+static void lrng_drbg_drng_dealloc(void* drng)
 {
-	struct drbg_state *drbg = (struct drbg_state *)drng;
+    struct drbg_state* drbg = (struct drbg_state*)drng;
 
-	if (drbg && drbg->d_ops)
-		drbg->d_ops->crypto_fini(drbg);
-	drbg_dealloc_state(drbg);
-	kfree_sensitive(drbg);
-	pr_info("DRBG deallocated\n");
+    if (drbg && drbg->d_ops)
+        drbg->d_ops->crypto_fini(drbg);
+    drbg_dealloc_state(drbg);
+    kfree_sensitive(drbg);
+    pr_info("DRBG deallocated\n");
 }
 
-static const char *lrng_drbg_name(void)
+static const char* lrng_drbg_name(void)
 {
-	return lrng_drbg_types[lrng_drbg_type].drbg_core;
+    return lrng_drbg_types[lrng_drbg_type].drbg_core;
 }
 
 const struct lrng_drng_cb lrng_drbg_cb = {
-	.drng_name	= lrng_drbg_name,
-	.drng_alloc	= lrng_drbg_drng_alloc,
-	.drng_dealloc	= lrng_drbg_drng_dealloc,
-	.drng_seed	= lrng_drbg_drng_seed_helper,
-	.drng_generate	= lrng_drbg_drng_generate_helper,
+    .drng_name = lrng_drbg_name,
+    .drng_alloc = lrng_drbg_drng_alloc,
+    .drng_dealloc = lrng_drbg_drng_dealloc,
+    .drng_seed = lrng_drbg_drng_seed_helper,
+    .drng_generate = lrng_drbg_drng_generate_helper,
 };
 
 #ifndef CONFIG_LRNG_DFLT_DRNG_DRBG
 static int __init lrng_drbg_init(void)
 {
-	if (lrng_drbg_type >= ARRAY_SIZE(lrng_drbg_types)) {
-		pr_err("lrng_drbg_type parameter too large (given %u - max: %lu)",
-		       lrng_drbg_type,
-		       (unsigned long)ARRAY_SIZE(lrng_drbg_types) - 1);
-		return -EAGAIN;
-	}
-	return lrng_set_drng_cb(&lrng_drbg_cb);
+    if (lrng_drbg_type >= ARRAY_SIZE(lrng_drbg_types)) {
+        pr_err("lrng_drbg_type parameter too large (given %u - max: %lu)",
+            lrng_drbg_type,
+            (unsigned long)ARRAY_SIZE(lrng_drbg_types) - 1);
+        return -EAGAIN;
+    }
+    return lrng_set_drng_cb(&lrng_drbg_cb);
 }
 
 static void __exit lrng_drbg_exit(void)
 {
-	lrng_set_drng_cb(NULL);
+    lrng_set_drng_cb(NULL);
 }
 
 late_initcall(lrng_drbg_init);
