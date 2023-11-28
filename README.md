@@ -62,7 +62,7 @@ The used cryptographic algorithms are testable with the acvpparser [3].
 
 # References
 
-[1] `doc/lrng.pdf`
+[1] `doc/lrng-<version number>.pdf`
 
 [2] [ChaCha20 DRNG](https://github.com/smuellerDD/chacha20_drng)
 
