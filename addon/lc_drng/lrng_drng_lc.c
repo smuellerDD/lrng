@@ -20,9 +20,13 @@ struct lrng_drng_info {
 	struct lc_rng_ctx *lc_ctx;
 };
 
+// XDRBG 256 DRNG
+#define LC_DRNG_NAME "Leancrypto XDRBG 256"
+#define LC_DRNG_ALLOC lc_xdrbg256_drng_alloc
+
 // KMAC 256 DRNG
-#define LC_DRNG_NAME "Leancrypto KMAC 256 DRNG"
-#define LC_DRNG_ALLOC lc_kmac256_drng_alloc
+//#define LC_DRNG_NAME "Leancrypto KMAC 256 DRNG"
+//#define LC_DRNG_ALLOC lc_kmac256_drng_alloc
 
 // cSHAKE 256 DRNG
 //#define LC_DRNG_NAME "Leancrypto cSHAKE 256 DRNG"
