@@ -129,7 +129,6 @@ static struct ctl_table random_table[] = {
 		.proc_handler   = proc_dointvec,
 		.extra1		= &lrng_drng_reseed_max_min,
 	},
-	{ }
 };
 
 static int __init random_sysctls_init(void)
