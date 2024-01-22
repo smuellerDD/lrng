@@ -90,6 +90,9 @@ drain_drng1()
 	local max_attempts=30
 	local fetch=32
 
+	# Disable the in-kernel hwrng thread
+	echo 0 > /sys/module/rng_core/parameters/current_quality
+
 	while [ $max_attempts -gt 0 ]
 	do
 		echo > /dev/random
