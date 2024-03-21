@@ -93,6 +93,17 @@ drain_drng1()
 	# Disable the in-kernel hwrng thread
 	echo 0 > /sys/module/rng_core/parameters/current_quality
 
+	# Drain truly all entropy sources to ensure a reseed has no entropy
+	while [ $max_attempts -gt 0 ]
+	do
+		echo > /dev/random
+		data=$(dd if=/dev/urandom of=/dev/null bs=$fetch count=1 2>&1 | grep "bytes copied" | cut -d " " -f 1)
+
+		max_attempts=$(($max_attempts-1))
+	done
+
+	# Now drain it again to wait for the non-operational statement
+	max_attempts=30
 	while [ $max_attempts -gt 0 ]
 	do
 		echo > /dev/random
