@@ -202,6 +202,6 @@ index 000000000000..70f3ff074fe6
 +	return 0;
 +}
 +core_initcall(lrng_init_time_source);
--- 
+--
 2.45.2
 

@@ -125,7 +125,7 @@ index 320cf9639ba0..2c0b0442340a 100644
 @@ -229,80 +229,80 @@ config LRNG_COLLECTION_SIZE
  	default 4096 if LRNG_COLLECTION_SIZE_4096
  	default 8192 if LRNG_COLLECTION_SIZE_8192
- 
+
 -# config LRNG_HEALTH_TESTS
 -# 	bool "Enable internal entropy source online health tests"
 -# 	depends on LRNG_TIMER_COMMON
@@ -270,9 +270,9 @@ index 320cf9639ba0..2c0b0442340a 100644
 +	int
 +	default 371 if !LRNG_APT_BROKEN
 +	default 33 if LRNG_APT_BROKEN
- 
+
  comment "Interrupt Entropy Source"
- 
+
 diff --git a/drivers/char/lrng/Makefile b/drivers/char/lrng/Makefile
 index c14a056fea95..6dc38c1b70e9 100644
 --- a/drivers/char/lrng/Makefile
@@ -736,6 +736,6 @@ index 000000000000..2c884d1c15c1
 +
 +	return lrng_health_pass;
 +}
--- 
+--
 2.45.2
 

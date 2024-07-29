@@ -162,6 +162,6 @@ index 000000000000..290d346ea128
 +	lrng_debug_report_seedlevel("lrng_get_random_bytes");
 +}
 +EXPORT_SYMBOL(lrng_get_random_bytes);
--- 
+--
 2.45.2
 

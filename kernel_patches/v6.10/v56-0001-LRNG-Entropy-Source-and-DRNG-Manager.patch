@@ -207,7 +207,7 @@ index 7c8dd0abcfdf..ffdd6ca797cd 100644
 @@ -422,4 +422,6 @@ config ADI
  	  and SSM (Silicon Secured Memory).  Intended consumers of this
  	  driver include crash and makedumpfile.
- 
+
 +source "drivers/char/lrng/Kconfig"
 +
  endmenu
@@ -4425,6 +4425,6 @@ index 000000000000..c0d31a03d51f
 +#endif
 +
 +#endif /* _LRNG_H */
--- 
+--
 2.45.2
 

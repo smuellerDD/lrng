@@ -31,7 +31,7 @@ index ee08348a94b8..f00df53befb3 100644
 @@ -3,7 +3,8 @@
  # Makefile for the kernel character device drivers.
  #
- 
+
 -obj-y				+= mem.o random.o
 +obj-y				+= mem.o
 +obj-$(CONFIG_RANDOM_DEFAULT_IMPL) += random.o
@@ -952,6 +952,6 @@ index 000000000000..d12e883804d9
 +	return lrng_read_common_block(flags & GRND_NONBLOCK,
 +				      flags & GRND_RANDOM, buf, count);
 +}
--- 
+--
 2.45.2
 

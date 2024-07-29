@@ -36,7 +36,7 @@ index 809e1911d370..60effabb1372 100644
 @@ -8,4 +8,6 @@ obj-y					+= lrng_es_mgr.o lrng_drng_mgr.o \
  obj-$(CONFIG_LRNG_SHA256)		+= lrng_sha256.o
  obj-$(CONFIG_LRNG_SHA1)			+= lrng_sha1.o
- 
+
 +obj-$(CONFIG_NUMA)			+= lrng_numa.o
 +
  obj-$(CONFIG_LRNG_DRNG_CHACHA20)	+= lrng_drng_chacha20.o
@@ -177,13 +177,13 @@ index bfbb9a489031..dc8dff9816ee 100644
 @@ -6,6 +6,10 @@
  #ifndef _LRNG_NUMA_H
  #define _LRNG_NUMA_H
- 
+
 +#ifdef CONFIG_NUMA
 +struct lrng_drng **lrng_drng_instances(void);
 +#else	/* CONFIG_NUMA */
  static inline struct lrng_drng **lrng_drng_instances(void) { return NULL; }
 +#endif /* CONFIG_NUMA */
- 
+
  #endif /* _LRNG_NUMA_H */
 diff --git a/drivers/char/lrng/lrng_proc.h b/drivers/char/lrng/lrng_proc.h
 new file mode 100644
@@ -202,6 +202,6 @@ index 000000000000..e8097abe7fbd
 +static inline void lrng_pool_inc_numa_node(void) { }
 +
 +#endif /* _LRNG_PROC_H */
--- 
+--
 2.45.2
 

@@ -35,7 +35,7 @@ index cd79e735a4ff..6611e4f86241 100644
 @@ -620,11 +620,11 @@ endmenu # "Specific DRNG seeding strategies"
  config LRNG_DRNG_CHACHA20
  	tristate
- 
+
 -# config LRNG_DRBG
 -# 	tristate
 -# 	depends on CRYPTO
@@ -50,9 +50,9 @@ index cd79e735a4ff..6611e4f86241 100644
  # 	tristate
  # 	depends on CRYPTO
 @@ -653,33 +653,33 @@ config LRNG_HASH_KCAPI
- 
+
  endif # LRNG_SWITCH_HASH
- 
+
 -# menuconfig LRNG_SWITCH_DRNG
 -# 	bool "Support DRNG runtime switching"
 -# 	select LRNG_SWITCH
@@ -118,13 +118,13 @@ index cd79e735a4ff..6611e4f86241 100644
 -# endif # LRNG_SWITCH_DRNG
 +
 +endif # LRNG_SWITCH_DRNG
- 
+
  choice
  	prompt "LRNG Default DRNG"
 @@ -707,11 +707,11 @@ choice
  		bool "ChaCha20-based DRNG"
  		select LRNG_DRNG_CHACHA20
- 
+
 -# 	config LRNG_DFLT_DRNG_DRBG
 -# 		depends on RANDOM_DEFAULT_IMPL
 -# 		bool "SP800-90A DRBG"
@@ -368,6 +368,6 @@ index 000000000000..0da8150e0d42
 +late_initcall(lrng_drbg_selftest);
 +
 +#endif /* CONFIG_LRNG_DFLT_DRNG_DRBG */
--- 
+--
 2.45.2
 

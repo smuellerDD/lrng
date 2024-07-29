@@ -27,7 +27,7 @@ index 0c9da7bf4e0e..bfaa15259f4c 100644
 @@ -410,92 +410,92 @@ config LRNG_IRQ_ENTROPY_RATE
  	  interrupt entropy source will still deliver data but without
  	  being credited with entropy.
- 
+
 -# comment "Jitter RNG Entropy Source"
 -#
 -# config LRNG_JENT
@@ -201,7 +201,7 @@ index 0c9da7bf4e0e..bfaa15259f4c 100644
 +	  entropy.
 +
  comment "CPU Entropy Source"
- 
+
  config LRNG_CPU
 diff --git a/drivers/char/lrng/Makefile b/drivers/char/lrng/Makefile
 index 101c323ea1f2..96652f3aefd9 100644
@@ -212,7 +212,7 @@ index 101c323ea1f2..96652f3aefd9 100644
  obj-$(CONFIG_LRNG_SCHED)		+= lrng_es_sched.o
  obj-$(CONFIG_LRNG_CPU)			+= lrng_es_cpu.o
 +obj-$(CONFIG_LRNG_JENT)			+= lrng_es_jent.o
- 
+
  obj-$(CONFIG_LRNG_HEALTH_TESTS)		+= lrng_health.o
 diff --git a/drivers/char/lrng/lrng_es_jent.c b/drivers/char/lrng/lrng_es_jent.c
 new file mode 100644
@@ -576,6 +576,6 @@ index 000000000000..250a8fc6e249
 +	.reset			= NULL,
 +	.switch_hash		= NULL,
 +};
--- 
+--
 2.45.2
 

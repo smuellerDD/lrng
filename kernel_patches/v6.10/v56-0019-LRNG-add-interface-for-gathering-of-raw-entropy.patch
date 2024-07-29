@@ -84,7 +84,7 @@ index 5aab08fa0d15..3093f5d52970 100644
 @@ -718,273 +718,273 @@ choice
  		select LRNG_DRNG_KCAPI
  endchoice
- 
+
 -# menuconfig LRNG_TESTING_MENU
 -# 	bool "LRNG testing interfaces"
 -# 	depends on DEBUG_FS
@@ -628,7 +628,7 @@ index 96652f3aefd9..552ad7232d0d 100644
 +++ b/drivers/char/lrng/Makefile
 @@ -26,3 +26,4 @@ obj-$(CONFIG_LRNG_CPU)			+= lrng_es_cpu.o
  obj-$(CONFIG_LRNG_JENT)			+= lrng_es_jent.o
- 
+
  obj-$(CONFIG_LRNG_HEALTH_TESTS)		+= lrng_health.o
 +obj-$(CONFIG_LRNG_TESTING)		+= lrng_testing.o
 diff --git a/drivers/char/lrng/lrng_testing.c b/drivers/char/lrng/lrng_testing.c
@@ -1538,6 +1538,6 @@ index 000000000000..101140085d81
 +}
 +
 +module_init(lrng_raw_init);
--- 
+--
 2.45.2
 

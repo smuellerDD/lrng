@@ -23,7 +23,7 @@ index 4bdb2bd169e6..a8bbefafb35c 100644
 @@ -101,16 +101,16 @@ config LRNG_KCAPI_IF
  	  is intended to be higher than the existing RNG
  	  implementations.
- 
+
 -# config LRNG_HWRAND_IF
 -# 	tristate "Interface with Hardware Random Number Generator Framework"
 -# 	depends on HW_RANDOM
@@ -44,7 +44,7 @@ index 4bdb2bd169e6..a8bbefafb35c 100644
 +	  with the name "lrng" that is accessible via the framework.
 +	  For example it allows pulling data from the LRNG via the
 +	  /dev/hwrng file.
- 
+
  config LRNG_DEV_IF
  	bool "Character device file interface"
 diff --git a/drivers/char/lrng/Makefile b/drivers/char/lrng/Makefile
@@ -130,6 +130,6 @@ index 000000000000..e841eea13348
 +MODULE_LICENSE("Dual BSD/GPL");
 +MODULE_AUTHOR("Stephan Mueller <smueller@chronox.de>");
 +MODULE_DESCRIPTION("Entropy Source and DRNG Manager HW-Random Interface");
--- 
+--
 2.45.2
 

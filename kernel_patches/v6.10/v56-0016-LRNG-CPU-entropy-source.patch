@@ -106,7 +106,7 @@ index 787c3f0361bc..0c9da7bf4e0e 100644
 +	  CONFIG_RANDOM_TRUST_CPU is set.
 +
  comment "Scheduler Entropy Source"
- 
+
  config LRNG_SCHED
 diff --git a/drivers/char/lrng/Makefile b/drivers/char/lrng/Makefile
 index 811208f38005..101c323ea1f2 100644
@@ -117,7 +117,7 @@ index 811208f38005..101c323ea1f2 100644
  obj-$(CONFIG_LRNG_KERNEL_RNG)		+= lrng_es_krng.o
  obj-$(CONFIG_LRNG_SCHED)		+= lrng_es_sched.o
 +obj-$(CONFIG_LRNG_CPU)			+= lrng_es_cpu.o
- 
+
  obj-$(CONFIG_LRNG_HEALTH_TESTS)		+= lrng_health.o
 diff --git a/drivers/char/lrng/lrng_es_cpu.c b/drivers/char/lrng/lrng_es_cpu.c
 new file mode 100644
@@ -406,6 +406,6 @@ index 000000000000..96a621c16feb
 +	.reset			= NULL,
 +	.switch_hash		= lrng_cpu_switch_hash,
 +};
--- 
+--
 2.45.2
 

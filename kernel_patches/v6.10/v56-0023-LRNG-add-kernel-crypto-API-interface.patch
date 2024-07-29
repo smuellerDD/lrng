@@ -21,9 +21,9 @@ index 3d4ace3f0d0b..e55e61eada2a 100644
 --- a/drivers/char/lrng/Kconfig
 +++ b/drivers/char/lrng/Kconfig
 @@ -89,18 +89,18 @@ config LRNG_AIS2031_NTG1_SEEDING_STRATEGY
- 
+
  endmenu # "Specific DRNG seeding strategies"
- 
+
 -# menu "LRNG Interfaces"
 -#
 -# config LRNG_KCAPI_IF
@@ -57,9 +57,9 @@ index 3d4ace3f0d0b..e55e61eada2a 100644
  #
 -# endmenu # "LRNG Interfaces"
 +endmenu # "LRNG Interfaces"
- 
+
  menu "Entropy Source Configuration"
- 
+
 diff --git a/drivers/char/lrng/Makefile b/drivers/char/lrng/Makefile
 index 6242262d577e..6a163038ffb4 100644
 --- a/drivers/char/lrng/Makefile
@@ -204,6 +204,6 @@ index 000000000000..4cb511f8088e
 +MODULE_ALIAS_CRYPTO("lrng");
 +MODULE_ALIAS_CRYPTO("lrng_atomic");
 +MODULE_ALIAS_CRYPTO("stdrng");
--- 
+--
 2.45.2
 

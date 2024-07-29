@@ -29,12 +29,12 @@ index 59ce0841eb1f..bc43288a6859 100644
 @@ -3725,6 +3726,8 @@ ttwu_stat(struct task_struct *p, int cpu, int wake_flags)
  {
  	struct rq *rq;
- 
+
 +	add_sched_randomness(p, cpu);
 +
  	if (!schedstat_enabled())
  		return;
- 
--- 
+
+--
 2.45.2
 

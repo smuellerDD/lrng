@@ -41,7 +41,7 @@ index e55e61eada2a..4bdb2bd169e6 100644
 +	  operations.
 +
  endmenu # "LRNG Interfaces"
- 
+
  menu "Entropy Source Configuration"
 diff --git a/drivers/char/lrng/Makefile b/drivers/char/lrng/Makefile
 index 6a163038ffb4..9dd87363a97e 100644
@@ -93,6 +93,6 @@ index 000000000000..e60060d402b3
 +	return misc_register(&lrng_miscdev);
 +}
 +device_initcall(lrng_dev_if_mod_init);
--- 
+--
 2.45.2
 
