@@ -42,7 +42,7 @@ KERNEL_BASE="/home/sm/hacking/testing"
 # The TESTKERN points to the subdirectory found in KERNEL_BASE that holds
 # the actual compiled binary. For example, you unpack the linux-5.12.tar.xz
 # in the KERNEL_BASE directory. Then you set TESTKERN to "linux-5.12"
-TESTKERN="linux"
+TESTKERN="linux-6.10"
 
 # Directory relative to your user's $HOME that will be used as a temporary
 # file directory for the test harness. This directory will also hold
@@ -326,7 +326,7 @@ execvirt()
 	echo_log "Executing test with kernel command line $@"
 	echo_log "Executing test case $script"
 
-	$EUDYPTULA -m 1G "-c \\\"dyndbg=file drivers/char/lrng/* +p\\\" $@" --kernel $kernel_binary $script
+	$EUDYPTULA --cpus=1 -m 1G "-c \\\"dyndbg=file drivers/char/lrng/* +p\\\" $@" --kernel $kernel_binary $script
 	if [ $? -ne 0 ]
 	then
 		local ret=$?

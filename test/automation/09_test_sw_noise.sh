@@ -100,7 +100,7 @@ verify_entropyrate_boot()
 {
 	local rate=256
 
-	for i in $(cat /proc/cmdline)
+	for i in $(cat /proc/cmdline | sed 's/*//')
 	do
 		if (echo $i | grep -q irq_entropy)
 		then
@@ -116,7 +116,7 @@ verify_entropyrate_boot_underflow()
 {
 	local rate=256
 
-	for i in $(cat /proc/cmdline)
+	for i in $(cat /proc/cmdline | sed 's/*//')
 	do
 		if (echo $i | grep -q irq_entropy)
 		then

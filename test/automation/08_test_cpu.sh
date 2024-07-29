@@ -66,7 +66,7 @@ verify_entropyrate_boot()
 {
 	local rate=8
 
-	for i in $(cat /proc/cmdline)
+	for i in $(cat /proc/cmdline | sed 's/*//')
 	do
 		if (echo $i | grep -q cpu)
 		then
