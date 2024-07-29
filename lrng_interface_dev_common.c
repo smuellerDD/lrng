@@ -111,7 +111,7 @@ ssize_t lrng_read_common(char __user *buf, size_t nbytes, bool pr)
 	 * request sizes, such as 16 or 32 bytes, avoid a kmalloc overhead for
 	 * those by using the stack variable of tmpbuf.
 	 */
-	if (!CONFIG_BASE_SMALL && (nbytes > sizeof(tmpbuf))) {
+	if (!IS_ENABLED(CONFIG_BASE_SMALL) && (nbytes > sizeof(tmpbuf))) {
 		tmplen = min_t(u32, nbytes, LRNG_DRNG_MAX_REQSIZE);
 		tmp_large = kmalloc(tmplen + LRNG_KCAPI_ALIGN, GFP_KERNEL);
 		if (!tmp_large)
