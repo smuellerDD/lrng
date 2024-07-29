@@ -120,7 +120,7 @@ static void* lrng_drbg_drng_alloc(u32 sec_strength)
 			drbg_sec_strength(drbg->core->flags) * 8,
 			sec_strength * 8);
 
-		pr_info("DRBG with %s core allocated\n", drbg->core->backend_cra_name);
+	pr_info("DRBG with %s core allocated\n", drbg->core->backend_cra_name);
 
 	return drbg;
 
@@ -157,9 +157,31 @@ const struct lrng_drng_cb lrng_drbg_cb = {
 	.drng_generate = lrng_drbg_drng_generate_helper,
 };
 
+static int __init lrng_drbg_selftest(void)
+{
+	struct crypto_rng *drbg;
+
+	/* Allocate the DRBG once to trigger the kernel crypto API self test */
+	drbg = crypto_alloc_rng(lrng_drbg_types[lrng_drbg_type].drbg_core, 0,
+				0);
+	if (IS_ERR(drbg)) {
+		pr_err("could not allocate DRBG and trigger self-test: %ld\n",
+		       PTR_ERR(drbg));
+		return PTR_ERR(drbg);
+	}
+	crypto_free_rng(drbg);
+
+	return 0;
+}
+
 #ifndef CONFIG_LRNG_DFLT_DRNG_DRBG
 static int __init lrng_drbg_init(void)
 {
+	int ret = lrng_drbg_selftest();
+
+	if (ret)
+		return ret;
+
 	if (lrng_drbg_type >= ARRAY_SIZE(lrng_drbg_types)) {
 		pr_err("lrng_drbg_type parameter too large (given %u - max: %lu)",
 		       lrng_drbg_type,
@@ -179,4 +201,15 @@ module_exit(lrng_drbg_exit);
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Stephan Mueller <smueller@chronox.de>");
 MODULE_DESCRIPTION("Entropy Source and DRNG Manager - SP800-90A DRBG backend");
+#else
+
+/*
+ * Note, this call may result in the use of the DRBG before the self-test is
+ * run. However, that usage is not relevant to any FIPS-140 consideration as
+ * the data is used for non-cryptographic purposes. The call below guarantees
+ * that the self-tests are run before user space is started and thus callers
+ * with needs to comply with FIPS-140 appear.
+ */
+late_initcall(lrng_drbg_selftest);
+
 #endif /* CONFIG_LRNG_DFLT_DRNG_DRBG */
