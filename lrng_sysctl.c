@@ -23,7 +23,7 @@
  * returned as an ASCII string in the standard UUID format; if via the
  * sysctl system call, as 16 bytes of binary data.
  */
-static int lrng_sysctl_do_uuid(struct ctl_table *table, int write,
+static int lrng_sysctl_do_uuid(const struct ctl_table *table, int write,
 			       void *buffer, size_t *lenp, loff_t *ppos)
 {
 	struct ctl_table fake_table;
@@ -50,8 +50,8 @@ static int lrng_sysctl_do_uuid(struct ctl_table *table, int write,
 	return proc_dostring(&fake_table, write, buffer, lenp, ppos);
 }
 
-static int lrng_sysctl_do_entropy(struct ctl_table *table, int write,
-				void *buffer, size_t *lenp, loff_t *ppos)
+static int lrng_sysctl_do_entropy(const struct ctl_table *table, int write,
+				  void *buffer, size_t *lenp, loff_t *ppos)
 {
 	struct ctl_table fake_table;
 	int entropy_count = lrng_avail_entropy_aux();
@@ -62,7 +62,7 @@ static int lrng_sysctl_do_entropy(struct ctl_table *table, int write,
 	return proc_dointvec(&fake_table, write, buffer, lenp, ppos);
 }
 
-static int lrng_sysctl_do_poolsize(struct ctl_table *table, int write,
+static int lrng_sysctl_do_poolsize(const struct ctl_table *table, int write,
 				   void *buffer, size_t *lenp, loff_t *ppos)
 {
 	struct ctl_table fake_table;
