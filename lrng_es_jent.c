@@ -151,6 +151,8 @@ static void lrng_jent_async_monitor(struct work_struct *__unused)
 
 		pr_debug("Jitter RNG ES monitor: filled slot %u with %u bits of entropy\n",
 			 i, requested_bits);
+
+		schedule();
 	}
 
 	pr_debug("Jitter RNG block filling completed\n");
