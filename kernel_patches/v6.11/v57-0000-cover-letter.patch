@@ -1,0 +1,159 @@
+From 305da0e66acd2ab8cd5c4db7232128cfb3ae7feb Mon Sep 17 00:00:00 2001
+From: Stephan Mueller <smueller@chronox.de>
+Date: Sat, 28 Sep 2024 21:42:54 +0200
+Subject: [PATCH v57 00/25] *** SUBJECT HERE ***
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+*** BLURB HERE ***
+
+Stephan Mueller (25):
+  LRNG: Entropy Source and DRNG Manager
+  LRNG - allocate one DRNG instance per NUMA node
+  LRNG - /proc interface
+  LRNG - add switchable DRNG support
+  LRNG - add common generic hash support
+  crypto: DRBG - externalize DRBG functions for LRNG
+  LRNG - add SP800-90A DRBG extension
+  LRNG - add kernel crypto API PRNG extension
+  LRNG - add atomic DRNG implementation
+  LRNG - add common timer-based entropy source code
+  LRNG - add interrupt entropy source
+  scheduler - add entropy sampling hook
+  LRNG - add scheduler-based entropy source
+  LRNG - add SP800-90B compliant health tests
+  LRNG - add random.c entropy source support
+  LRNG - CPU entropy source
+  LRNG - add Jitter RNG fast noise source
+  LRNG - add option to enable runtime entropy rate configuration
+  LRNG - add interface for gathering of raw entropy
+  LRNG - add power-on and runtime self-tests
+  LRNG - sysctls and /proc interface
+  LRMG - add drop-in replacement random(4) API
+  LRNG - add kernel crypto API interface
+  LRNG - add /dev/lrng device file support
+  LRNG - add hwrand framework interface
+
+ crypto/drbg.c                                 |   16 +-
+ drivers/char/Kconfig                          |    2 +
+ drivers/char/Makefile                         |    5 +-
+ drivers/char/lrng/Kconfig                     | 1017 +++++++++++++++++
+ drivers/char/lrng/Makefile                    |   39 +
+ drivers/char/lrng/lrng_definitions.h          |  163 +++
+ drivers/char/lrng/lrng_drng_atomic.c          |  130 +++
+ drivers/char/lrng/lrng_drng_atomic.h          |   23 +
+ drivers/char/lrng/lrng_drng_chacha20.c        |  195 ++++
+ drivers/char/lrng/lrng_drng_chacha20.h        |   42 +
+ drivers/char/lrng/lrng_drng_drbg.c            |  215 ++++
+ drivers/char/lrng/lrng_drng_drbg.h            |   13 +
+ drivers/char/lrng/lrng_drng_kcapi.c           |  208 ++++
+ drivers/char/lrng/lrng_drng_kcapi.h           |   13 +
+ drivers/char/lrng/lrng_drng_mgr.c             |  742 ++++++++++++
+ drivers/char/lrng/lrng_drng_mgr.h             |   86 ++
+ drivers/char/lrng/lrng_es_aux.c               |  335 ++++++
+ drivers/char/lrng/lrng_es_aux.h               |   44 +
+ drivers/char/lrng/lrng_es_cpu.c               |  281 +++++
+ drivers/char/lrng/lrng_es_cpu.h               |   17 +
+ drivers/char/lrng/lrng_es_irq.c               |  730 ++++++++++++
+ drivers/char/lrng/lrng_es_irq.h               |   24 +
+ drivers/char/lrng/lrng_es_jent.c              |  358 ++++++
+ drivers/char/lrng/lrng_es_jent.h              |   17 +
+ drivers/char/lrng/lrng_es_krng.c              |  100 ++
+ drivers/char/lrng/lrng_es_krng.h              |   17 +
+ drivers/char/lrng/lrng_es_mgr.c               |  506 ++++++++
+ drivers/char/lrng/lrng_es_mgr.h               |   56 +
+ drivers/char/lrng/lrng_es_mgr_cb.h            |   87 ++
+ drivers/char/lrng/lrng_es_sched.c             |  566 +++++++++
+ drivers/char/lrng/lrng_es_sched.h             |   20 +
+ drivers/char/lrng/lrng_es_timer_common.c      |  144 +++
+ drivers/char/lrng/lrng_es_timer_common.h      |   83 ++
+ drivers/char/lrng/lrng_hash_kcapi.c           |  140 +++
+ drivers/char/lrng/lrng_health.c               |  447 ++++++++
+ drivers/char/lrng/lrng_health.h               |   42 +
+ drivers/char/lrng/lrng_interface_aux.c        |  210 ++++
+ drivers/char/lrng/lrng_interface_dev.c        |   35 +
+ drivers/char/lrng/lrng_interface_dev_common.c |  315 +++++
+ drivers/char/lrng/lrng_interface_dev_common.h |   51 +
+ drivers/char/lrng/lrng_interface_hwrand.c     |   68 ++
+ drivers/char/lrng/lrng_interface_kcapi.c      |  129 +++
+ .../char/lrng/lrng_interface_random_kernel.c  |  248 ++++
+ .../char/lrng/lrng_interface_random_kernel.h  |   17 +
+ .../char/lrng/lrng_interface_random_user.c    |  104 ++
+ drivers/char/lrng/lrng_numa.c                 |  124 ++
+ drivers/char/lrng/lrng_numa.h                 |   15 +
+ drivers/char/lrng/lrng_proc.c                 |   74 ++
+ drivers/char/lrng/lrng_proc.h                 |   15 +
+ drivers/char/lrng/lrng_selftest.c             |  397 +++++++
+ drivers/char/lrng/lrng_sha.h                  |   14 +
+ drivers/char/lrng/lrng_sha1.c                 |   88 ++
+ drivers/char/lrng/lrng_sha256.c               |   72 ++
+ drivers/char/lrng/lrng_switch.c               |  286 +++++
+ drivers/char/lrng/lrng_sysctl.c               |  139 +++
+ drivers/char/lrng/lrng_sysctl.h               |   15 +
+ drivers/char/lrng/lrng_testing.c              |  901 +++++++++++++++
+ drivers/char/lrng/lrng_testing.h              |   85 ++
+ include/crypto/drbg.h                         |    7 +
+ include/linux/lrng.h                          |  251 ++++
+ kernel/sched/core.c                           |    3 +
+ 61 files changed, 10579 insertions(+), 7 deletions(-)
+ create mode 100644 drivers/char/lrng/Kconfig
+ create mode 100644 drivers/char/lrng/Makefile
+ create mode 100644 drivers/char/lrng/lrng_definitions.h
+ create mode 100644 drivers/char/lrng/lrng_drng_atomic.c
+ create mode 100644 drivers/char/lrng/lrng_drng_atomic.h
+ create mode 100644 drivers/char/lrng/lrng_drng_chacha20.c
+ create mode 100644 drivers/char/lrng/lrng_drng_chacha20.h
+ create mode 100644 drivers/char/lrng/lrng_drng_drbg.c
+ create mode 100644 drivers/char/lrng/lrng_drng_drbg.h
+ create mode 100644 drivers/char/lrng/lrng_drng_kcapi.c
+ create mode 100644 drivers/char/lrng/lrng_drng_kcapi.h
+ create mode 100644 drivers/char/lrng/lrng_drng_mgr.c
+ create mode 100644 drivers/char/lrng/lrng_drng_mgr.h
+ create mode 100644 drivers/char/lrng/lrng_es_aux.c
+ create mode 100644 drivers/char/lrng/lrng_es_aux.h
+ create mode 100644 drivers/char/lrng/lrng_es_cpu.c
+ create mode 100644 drivers/char/lrng/lrng_es_cpu.h
+ create mode 100644 drivers/char/lrng/lrng_es_irq.c
+ create mode 100644 drivers/char/lrng/lrng_es_irq.h
+ create mode 100644 drivers/char/lrng/lrng_es_jent.c
+ create mode 100644 drivers/char/lrng/lrng_es_jent.h
+ create mode 100644 drivers/char/lrng/lrng_es_krng.c
+ create mode 100644 drivers/char/lrng/lrng_es_krng.h
+ create mode 100644 drivers/char/lrng/lrng_es_mgr.c
+ create mode 100644 drivers/char/lrng/lrng_es_mgr.h
+ create mode 100644 drivers/char/lrng/lrng_es_mgr_cb.h
+ create mode 100644 drivers/char/lrng/lrng_es_sched.c
+ create mode 100644 drivers/char/lrng/lrng_es_sched.h
+ create mode 100644 drivers/char/lrng/lrng_es_timer_common.c
+ create mode 100644 drivers/char/lrng/lrng_es_timer_common.h
+ create mode 100644 drivers/char/lrng/lrng_hash_kcapi.c
+ create mode 100644 drivers/char/lrng/lrng_health.c
+ create mode 100644 drivers/char/lrng/lrng_health.h
+ create mode 100644 drivers/char/lrng/lrng_interface_aux.c
+ create mode 100644 drivers/char/lrng/lrng_interface_dev.c
+ create mode 100644 drivers/char/lrng/lrng_interface_dev_common.c
+ create mode 100644 drivers/char/lrng/lrng_interface_dev_common.h
+ create mode 100644 drivers/char/lrng/lrng_interface_hwrand.c
+ create mode 100644 drivers/char/lrng/lrng_interface_kcapi.c
+ create mode 100644 drivers/char/lrng/lrng_interface_random_kernel.c
+ create mode 100644 drivers/char/lrng/lrng_interface_random_kernel.h
+ create mode 100644 drivers/char/lrng/lrng_interface_random_user.c
+ create mode 100644 drivers/char/lrng/lrng_numa.c
+ create mode 100644 drivers/char/lrng/lrng_numa.h
+ create mode 100644 drivers/char/lrng/lrng_proc.c
+ create mode 100644 drivers/char/lrng/lrng_proc.h
+ create mode 100644 drivers/char/lrng/lrng_selftest.c
+ create mode 100644 drivers/char/lrng/lrng_sha.h
+ create mode 100644 drivers/char/lrng/lrng_sha1.c
+ create mode 100644 drivers/char/lrng/lrng_sha256.c
+ create mode 100644 drivers/char/lrng/lrng_switch.c
+ create mode 100644 drivers/char/lrng/lrng_sysctl.c
+ create mode 100644 drivers/char/lrng/lrng_sysctl.h
+ create mode 100644 drivers/char/lrng/lrng_testing.c
+ create mode 100644 drivers/char/lrng/lrng_testing.h
+ create mode 100644 include/linux/lrng.h
+
+-- 
+2.46.0
+
