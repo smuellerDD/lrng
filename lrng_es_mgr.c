@@ -102,9 +102,8 @@ bool lrng_enforce_panic_on_permanent_health_failure(void)
 	return lrng_panic_on_permanent_health_failure;
 }
 
-bool lrng_ntg1_2022_compliant(void)
+bool lrng_ntg1_2024_compliant(void)
 {
-	/* Implies use of /dev/random w/ O_SYNC / getrandom w/ GRND_RANDOM */
 	return ntg1;
 }
 
@@ -228,7 +227,7 @@ static u32 lrng_avail_entropy_thresh(void)
 bool lrng_fully_seeded(bool fully_seeded, u32 collected_entropy,
 		       struct entropy_buf *eb)
 {
-	/* AIS20/31 NTG.1: two entropy sources with each delivering 220 bits */
+	/* AIS20/31 NTG.1: two entropy sources with each delivering 240 bits */
 	if (ntg1) {
 		u32 i, result = 0, ent_thresh = lrng_avail_entropy_thresh();
 
@@ -330,7 +329,7 @@ void lrng_init_ops(struct entropy_buf *eb)
 		return;
 
 	requested_bits = ntg1 ?
-		/* Approximation so that two ES should deliver 220 bits each */
+		/* Approximation so that two ES should deliver 240 bits each */
 		(lrng_avail_entropy() + LRNG_AIS2031_NPTRNG_MIN_ENTROPY) :
 		/* Apply SP800-90C oversampling if applicable */
 		lrng_get_seed_entropy_osr(state->all_online_numa_node_seeded);

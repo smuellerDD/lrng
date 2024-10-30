@@ -42,7 +42,7 @@ static int lrng_proc_type_show(struct seq_file *m, void *v)
 		 lrng_security_strength(),
 		 numa_drngs,
 		 lrng_sp80090c_compliant() ? "SP800-90C, " : "",
-		 lrng_ntg1_2022_compliant() ? " / 2022" : "",
+		 lrng_ntg1_2024_compliant() ? " / 2024" : "",
 		 lrng_state_min_seeded() ? "true" : "false",
 		 lrng_state_fully_seeded() ? "true" : "false",
 		 lrng_avail_entropy());
