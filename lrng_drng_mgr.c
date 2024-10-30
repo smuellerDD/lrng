@@ -312,7 +312,7 @@ static u32 lrng_drng_seed_es_nolock(struct lrng_drng *drng, bool init_ops,
 	 * producing data while this is ongoing.
 	 */
 	} while (force_seeding && forced && !drng->fully_seeded &&
-		 num_es_delivered >= (lrng_ntg1_2022_compliant() ? 2 : 1));
+		 num_es_delivered >= (lrng_ntg1_2024_compliant() ? 2 : 1));
 
 	memzero_explicit(&seedbuf, sizeof(seedbuf));
 
