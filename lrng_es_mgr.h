@@ -24,7 +24,7 @@ extern struct lrng_es_cb *lrng_es[];
 	for ((ctr) = 0; (ctr) < lrng_ext_es_last; (ctr)++)
 
 bool lrng_enforce_panic_on_permanent_health_failure(void);
-bool lrng_ntg1_2022_compliant(void);
+bool lrng_ntg1_2024_compliant(void);
 bool lrng_pool_all_numa_nodes_seeded_get(void);
 bool lrng_state_min_seeded(void);
 void lrng_debug_report_seedlevel(const char *name);
