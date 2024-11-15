@@ -42,7 +42,7 @@ KERNEL_BASE="/home/sm/hacking/testing"
 # The TESTKERN points to the subdirectory found in KERNEL_BASE that holds
 # the actual compiled binary. For example, you unpack the linux-5.12.tar.xz
 # in the KERNEL_BASE directory. Then you set TESTKERN to "linux-5.12"
-TESTKERN="linux-6.10"
+TESTKERN="linux-6.11"
 
 # Directory relative to your user's $HOME that will be used as a temporary
 # file directory for the test harness. This directory will also hold

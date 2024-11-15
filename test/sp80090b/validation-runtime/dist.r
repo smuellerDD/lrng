@@ -10,9 +10,11 @@ rawdata <- rawdata[rawdata < 256]
 stat <- statsmatrix(rawdata)
 
 #Histogram and curve over histogram
-filename <- sprintf("%s.svg",out)
-svg(filename, width=8, height=5, pointsize=10)
-hist(rawdata, seq(min(rawdata)-1,max(rawdata)+1,1), main='Histogam Raw Time Stamps', prob=TRUE, xlab=stat, ylab="Relative Frequency", right=FALSE, xlim=range(0,max(rawdata)))
+#filename <- sprintf("%s.svg",out)
+#svg(filename, width=8, height=5, pointsize=10)
+filename <- sprintf("%s.pdf",out)
+pdf(filename, width=8, height=5, pointsize=10)
+hist(rawdata, seq(min(rawdata)-1,max(rawdata)+1,1), main='Histogram Raw Time Stamps', prob=TRUE, xlab=stat, ylab="Relative Frequency", right=FALSE, xlim=range(0,max(rawdata)))
 lines(density(rawdata, bw=1), col=1)
 #Mean value
 abline(v=mean(rawdata), col = "red", lwd = 1)
