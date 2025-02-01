@@ -146,5 +146,5 @@ else
 	# fails when only one ES present
 	#
 	write_cmd "test3"
-	execvirt $(full_scriptname $0) "lrng_es_jent.jent_entropy=220 lrng_es_cpu.cpu_entropy=220 lrng_es_sched.sched_entropy=4294967295 lrng_es_irq.irq_entropy=4294967295 lrng_es_krng.krng_entropy=0 lrng_es_mgr.ntg1=1"
+	execvirt $(full_scriptname $0) "lrng_es_jent.jent_entropy=240 lrng_es_cpu.cpu_entropy=240 lrng_es_sched.sched_entropy=4294967295 lrng_es_irq.irq_entropy=4294967295 lrng_es_krng.krng_entropy=0 lrng_es_mgr.ntg1=1"
 fi

@@ -36,7 +36,7 @@ check_total_seed()
 {
 	seed_bits=$(dmesg | grep "lrng_es_mgr: LRNG fully seeded with" | sed 's/^.* \([0-9]\+\) bits.*$/\1/')
 
-	if [ $seed_bits -lt 440 ]
+	if [ $seed_bits -lt 480 ]
 	then
 		return 1
 	else
@@ -46,7 +46,7 @@ check_total_seed()
 
 check_ntg1_flag()
 {
-	if (grep "Standards compliance" /proc/lrng_type | grep "NTG.1" |  grep -q "2022")
+	if (grep "Standards compliance" /proc/lrng_type | grep "NTG.1" |  grep -q "2024")
 	then
 		return 0
 	else
@@ -69,23 +69,23 @@ check_two_es()
 	echo_log "Sched ES seed bits: $sched_bits"
 
 	found=0
-	if [ $jent_bits -ge 220 ]
+	if [ $jent_bits -ge 240 ]
 	then
 		found=$((found+1))
 	fi
-	if [ $irq_bits -ge 220 ]
+	if [ $irq_bits -ge 240 ]
 	then
 		found=$((found+1))
 	fi
-	if [ $cpu_bits -ge 220 ]
+	if [ $cpu_bits -ge 240 ]
 	then
 		found=$((found+1))
 	fi
-	if [ $aux_bits -ge 220 ]
+	if [ $aux_bits -ge 240 ]
 	then
 		found=$((found+1))
 	fi
-	if [ $sched_bits -ge 220 ]
+	if [ $sched_bits -ge 240 ]
 	then
 		found=$((found+1))
 	fi
@@ -118,17 +118,17 @@ two_es_available()
 	$(check_total_seed)
 	if [ $? -eq 0 ]
 	then
-		echo_pass "NTG.1: Total seed equal or above 440"
+		echo_pass "NTG.1: Total seed equal or above 480"
 	else
-		echo_fail "NTG.1: Total seed below 440"
+		echo_fail "NTG.1: Total seed below 480"
 	fi
 
 	$(check_two_es)
 	if [ $? -eq 0 ]
 	then
-		echo_pass "NTG.1: Two ES deliver equal or more 220 bits"
+		echo_pass "NTG.1: Two ES deliver equal or more 240 bits"
 	else
-		echo_fail "NTG.1: Two ES do not deliver equal or more 220 bits"
+		echo_fail "NTG.1: Two ES do not deliver equal or more 240 bits"
 	fi
 }
 
@@ -153,9 +153,9 @@ one_es_available()
 	$(check_two_es)
 	if [ $? -eq 1 ]
 	then
-		echo_pass "NTG.1: Two ES do not deliver equal or more 220 bits"
+		echo_pass "NTG.1: Two ES do not deliver equal or more 240 bits"
 	else
-		echo_fail "NTG.1: Two ES deliver equal or more 220 bits"
+		echo_fail "NTG.1: Two ES deliver equal or more 240 bits"
 	fi
 }
 

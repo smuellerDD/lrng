@@ -58,5 +58,5 @@ else
 	# Validating the operation of the GCD
 	#
 	write_cmd "test1"
-	execvirt $(full_scriptname $0)
+	execvirt $(full_scriptname $0) "lrng_es_cpu.cpu_entropy=256"
 fi
