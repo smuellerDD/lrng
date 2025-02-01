@@ -16,6 +16,7 @@
 #ifdef CONFIG_VDSO_GETRANDOM
 #include <vdso/getrandom.h>
 #include <vdso/datapage.h>
+#include <vdso/vsyscall.h>
 #endif
 
 #include "lrng_drng_atomic.h"
@@ -175,7 +176,7 @@ void lrng_reset_state(void)
 	lrng_state.all_online_numa_node_seeded = false;
 
 #ifdef CONFIG_VDSO_GETRANDOM
-	WRITE_ONCE(_vdso_rng_data.is_ready, false);
+	WRITE_ONCE(__arch_get_k_vdso_rng_data()->is_ready, false);
 #endif
 
 	pr_debug("reset LRNG\n");
@@ -219,7 +220,7 @@ static void lrng_init_wakeup(void)
 	 * The LRNG does not enable the user space ChaCha20
 	 * DRNG in the VDSO.
 	 */
-	/* WRITE_ONCE(_vdso_rng_data.is_ready, true); */
+	/* WRITE_ONCE(__arch_get_k_vdso_rng_data()->is_ready, true); */
 #endif
 
 	wake_up_all(&lrng_init_wait);
@@ -289,7 +290,7 @@ void lrng_unset_fully_seeded(struct lrng_drng *drng)
 		lrng_state.lrng_fully_seeded = false;
 
 #ifdef CONFIG_VDSO_GETRANDOM
-		WRITE_ONCE(_vdso_rng_data.is_ready, false);
+		WRITE_ONCE(__arch_get_k_vdso_rng_data()->is_ready, false);
 #endif
 
 		/* If sufficient entropy is available, reseed now. */
