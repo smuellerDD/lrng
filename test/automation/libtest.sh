@@ -42,7 +42,7 @@ KERNEL_BASE="/home/sm/hacking/testing"
 # The TESTKERN points to the subdirectory found in KERNEL_BASE that holds
 # the actual compiled binary. For example, you unpack the linux-5.12.tar.xz
 # in the KERNEL_BASE directory. Then you set TESTKERN to "linux-5.12"
-TESTKERN="linux-6.13"
+TESTKERN="linux-6.14.2"
 
 # Directory relative to your user's $HOME that will be used as a temporary
 # file directory for the test harness. This directory will also hold
@@ -56,6 +56,14 @@ TMPDIR="lrng_testing"
 in_hypervisor()
 {
 	if (dmesg | grep -q "Hypervisor detected: KVM")
+	then
+		return 1
+	# ARM smccc
+	elif (dmesg | grep -q "KVM: hypervisor services detected")
+	then
+		return 1
+	#Stopgap for QEMU
+	elif [ x"$(systemd-detect-virt)" = x"qemu" ]
 	then
 		return 1
 	else
@@ -255,9 +263,11 @@ check_kernel_config()
 	fi
 }
 
-execvirt()
+execvirt_cpu()
 {
 	local script=$1
+	shift
+	local cpu=$1
 	shift
 
 	local kernel_ver=$TESTKERN
@@ -326,7 +336,7 @@ execvirt()
 	echo_log "Executing test with kernel command line $@"
 	echo_log "Executing test case $script"
 
-	$EUDYPTULA --cpus=1 -m 1G "-c \\\"dyndbg=file drivers/char/lrng/* +p\\\" $@" --kernel $kernel_binary $script
+	$EUDYPTULA --cpus=$cpu -m 1G "-c \\\"dyndbg=file drivers/char/lrng/* +p\\\" $@" --kernel $kernel_binary $script
 	if [ $? -ne 0 ]
 	then
 		local ret=$?
@@ -335,6 +345,14 @@ execvirt()
 	fi
 
 	cd $CURR_DIR
+}
+
+execvirt()
+{
+	local script=$1
+	shift
+
+	execvirt_cpu $script "2" "$@"
 }
 
 write_cmd()
