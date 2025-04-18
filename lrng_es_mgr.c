@@ -247,7 +247,7 @@ bool lrng_fully_seeded(bool fully_seeded, u32 collected_entropy,
 		       struct entropy_buf *eb)
 {
 	/* AIS20/31 NTG.1: two entropy sources with each delivering 240 bits */
-	if (ntg1) {
+	if (!fully_seeded && ntg1) {
 		u32 i, result = 0, ent_thresh = lrng_avail_entropy_thresh();
 
 		for_each_lrng_es(i) {
