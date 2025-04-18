@@ -1,0 +1,20 @@
+--- linux-5.4.292/drivers/char/lrng/lrng_es_mgr.c.orig	2025-04-13 18:21:37.299209292 +0200
++++ linux-5.4.292/drivers/char/lrng/lrng_es_mgr.c	2025-04-13 18:21:42.834091547 +0200
+@@ -11,7 +11,6 @@
+ #include <linux/random.h>
+ #include <linux/utsname.h>
+ #include <linux/workqueue.h>
+-#include <asm/archrandom.h>
+ 
+ #ifdef CONFIG_VDSO_GETRANDOM
+ #include <vdso/getrandom.h>
+--- linux-5.4.292/drivers/char/lrng/lrng_es_cpu.c.orig	2025-04-13 18:23:40.474567556 +0200
++++ linux-5.4.292/drivers/char/lrng/lrng_es_cpu.c	2025-04-13 18:23:49.832406838 +0200
+@@ -11,7 +11,6 @@
+ #include <crypto/hash.h>
+ #include <linux/module.h>
+ #include <linux/random.h>
+-#include <asm/archrandom.h>
+ 
+ #include "lrng_definitions.h"
+ #include "lrng_es_aux.h"
