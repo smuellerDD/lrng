@@ -1,0 +1,26 @@
+From 4ff287dfbce6aab4428977fefc4fbba2cf8dd67e Mon Sep 17 00:00:00 2001
+From: Stephan Mueller <smueller@chronox.de>
+Date: Fri, 18 Apr 2025 18:40:31 +0200
+Subject: [PATCH 2/2] NTG.1: Require twice 240 bits only during initial seed
+
+Signed-off-by: Stephan Mueller <smueller@chronox.de>
+---
+ lrng_es_mgr.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lrng_es_mgr.c b/lrng_es_mgr.c
+index 6135b1b..e12feac 100644
+--- a/lrng_es_mgr.c
++++ b/lrng_es_mgr.c
+@@ -228,7 +228,7 @@ bool lrng_fully_seeded(bool fully_seeded, u32 collected_entropy,
+ 		       struct entropy_buf *eb)
+ {
+ 	/* AIS20/31 NTG.1: two entropy sources with each delivering 240 bits */
+-	if (ntg1) {
++	if (!fully_seeded && ntg1) {
+ 		u32 i, result = 0, ent_thresh = lrng_avail_entropy_thresh();
+ 
+ 		for_each_lrng_es(i) {
+-- 
+2.43.0
+
