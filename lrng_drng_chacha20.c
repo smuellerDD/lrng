@@ -37,7 +37,7 @@ static void lrng_chacha20_update(struct chacha20_state *chacha20_state,
 	BUILD_BUG_ON(CHACHA_BLOCK_SIZE != 2 * CHACHA_KEY_SIZE);
 
 	if (used_words > CHACHA_KEY_SIZE_WORDS) {
-		chacha20_block(&chacha20->constants[0], (u8 *)tmp);
+		chacha20_block((struct chacha_state *)chacha20, (u8 *)tmp);
 		for (i = 0; i < CHACHA_KEY_SIZE_WORDS; i++)
 			chacha20->key.u[i] ^= le32_to_cpu(tmp[i]);
 		memzero_explicit(tmp, sizeof(tmp));
@@ -107,13 +107,13 @@ static int lrng_cc20_drng_generate_helper(void *drng, u8 *outbuf, u32 outbuflen)
 	int zeroize_buf = 0;
 
 	while (outbuflen >= CHACHA_BLOCK_SIZE) {
-		chacha20_block(&chacha20->constants[0], outbuf);
+		chacha20_block((struct chacha_state *)chacha20, outbuf);
 		outbuf += CHACHA_BLOCK_SIZE;
 		outbuflen -= CHACHA_BLOCK_SIZE;
 	}
 
 	if (outbuflen) {
-		chacha20_block(&chacha20->constants[0], (u8 *)aligned_buf);
+		chacha20_block((struct chacha_state *)chacha20, (u8 *)aligned_buf);
 		memcpy(outbuf, aligned_buf, outbuflen);
 		used = ((outbuflen + sizeof(aligned_buf[0]) - 1) /
 			sizeof(aligned_buf[0]));

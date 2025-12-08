@@ -28,7 +28,7 @@ struct chacha20_state {
 
 static inline void lrng_cc20_init_rfc7539(struct chacha20_block *chacha20)
 {
-	chacha_init_consts(chacha20->constants);
+	chacha_init_consts((struct chacha_state *)chacha20->constants);
 }
 
 #define LRNG_CC20_INIT_RFC7539(x) \
